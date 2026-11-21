@@ -377,7 +377,7 @@ async fn a_draft_save_reaches_the_imap_session() {
         healthy_redial(Arc::new(AtomicUsize::new(0))),
     );
 
-    let keywords = BTreeSet::from([Keyword::new("$Forwarded").expect("valid keyword")]);
+    let keywords = BTreeSet::from([crate::drafted_reply_keyword()]);
     let receipt = provider
         .put_draft(&account(), &draft(), None, &keywords)
         .await

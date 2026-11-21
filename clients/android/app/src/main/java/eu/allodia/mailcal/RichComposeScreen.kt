@@ -77,6 +77,8 @@ internal fun RichComposeMessageDialog(
     // The composition's importance, as the core holds it (`docs/importance.md`), or null to leave
     // the picker out (a test).
     importance: ComposerImportanceStore? = null,
+    // Draft a reply (ComposerReplyDraft.kt), or null to leave it out (a screenshot run, a test).
+    replyDraft: ComposerReplyDraftUi? = null,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -116,7 +118,8 @@ internal fun RichComposeMessageDialog(
         mutableStateOf(L10n.compose_forward_attachments_failed(ctx).takeIf { opening.attachmentsFailed })
     }
     var webView by remember { mutableStateOf<ComposerWebView?>(null) }
-    val linkHost = rememberComposerLinkHost()
+    // Every message the editor posts reaches Draft a reply's report too (docs/ai.md rule 22).
+    val linkHost = rememberComposerLinkHost { replyDraft?.report?.invoke(opening.composition, it) }
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
     // it whose vertical offset tracks the WebView's scroll, so it scrolls away as the message
@@ -151,6 +154,7 @@ internal fun RichComposeMessageDialog(
     // written-work check compares against, so a reply that merely carries its quoted original does
     // not open already written in. Null until the editor answers, which reads as "nothing to lose".
     var seedDocument by remember { mutableStateOf<String?>(null) }
+    var editorReady by remember { mutableStateOf(false) }
     // The editor's change count as the seeds left it, the autosave's baseline; null until they are in.
     var seedRevision by remember { mutableStateOf<Int?>(null) }
     var confirmingDiscard by remember { mutableStateOf(false) }
@@ -194,6 +198,7 @@ internal fun RichComposeMessageDialog(
     // settle in between (the account list arrives after the composer opened). Hold the latest
     // resolution so the page-finished seed is the current one, not the first one.
     val currentSignature = rememberUpdatedState(signature)
+    val draft = rememberReplyDraft(replyDraft, opening.composition, from?.id, webView.takeIf { editorReady })
 
     DisposableEffect(Unit) {
         onDispose {
@@ -325,7 +330,8 @@ internal fun RichComposeMessageDialog(
                         onSaveDraft = (exits::save).takeIf { drafts != null },
                         onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,
-                        onSend = send,
+                        onSend = { sendThrough(draft, send) },
+                        replyDraft = draft?.let { host -> { ComposerReplyDraftControl(host) } },
                     )
                 },
             ) { padding ->
@@ -392,6 +398,7 @@ internal fun RichComposeMessageDialog(
                         onScroll = { y -> scrollY = y },
                         onSeeded = { seeded, revision ->
                             seedDocument = seeded
+                            editorReady = true
                             seedRevision = revision
                             // A reopened quote keeps the style it was saved in, so the picker
                             // opens on that rather than on the app default.
@@ -444,6 +451,7 @@ internal fun RichComposeMessageDialog(
                             // (`docs/composer-layout.md`, rule 1).
                             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                                 ComposerNotices(error = composerError, draftStatus = draftStatus)
+                                draft?.let { ComposerReplyDraftNotes(it) }
                                 ComposerFileTiles(
                                     files = fileTiles,
                                     onRemove = { tile ->
@@ -464,6 +472,7 @@ internal fun RichComposeMessageDialog(
                         onAnswered = { droppedPictures = emptyList() },
                     )
                     ComposerLinkDialogHost(linkHost, webView)
+                    draft?.let { ComposerReplyDraftDialogs(it, send) }
                     // Inside the composer's own Dialog for the same reason, so back reaches the
                     // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {

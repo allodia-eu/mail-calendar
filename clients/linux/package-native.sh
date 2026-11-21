@@ -59,8 +59,11 @@ export CARGO_BUILD_BUILD_DIR="$OUT/build"
 
 FEATURES="$(core_cargo_features)"
 info "building $NAME $VERSION for $ARCH${FEATURES:+ with --features $FEATURES}"
-cargo build --locked --release -p mailcal-linux ${FEATURES:+--features "$FEATURES"}
+# The core built here is packaged, so a development core fails to compile
+# (crates/mailcal-bindings/build.rs), and the binary is read for a production core after.
+MAILCAL_PACKAGED_CORE=1 cargo build --locked --release -p mailcal-linux ${FEATURES:+--features "$FEATURES"}
 cargo build --locked --release -p mailcal-mcp-shim --bin mailcal-mcp
+"$ROOT/scripts/dev/check-core-build.sh" "$ROOT/target/release/mailcal-linux"
 if [[ -n "$FEATURES" ]]; then
   info "credentials: this build carries the Allodia sign-in (--features $FEATURES)"
 fi

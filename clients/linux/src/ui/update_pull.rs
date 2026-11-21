@@ -70,6 +70,9 @@ impl AppModel {
             Surface::Settings => {
                 // An account added or removed changes the signature slots listed.
                 self.signatures_read = self.signatures_read.wrapping_add(1);
+                self.writing_style_read = self.writing_style_read.wrapping_add(1);
+                self.ai_endpoint_read = self.ai_endpoint_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
                 self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
                 self.calendar.refresh_settings(&app);
                 // The week start moves the mini month's columns.
@@ -99,6 +102,19 @@ impl AppModel {
             // The signature library or an account's signatures moved, or a change to them started
             // or ended.
             Surface::Signatures => self.signatures_read = self.signatures_read.wrapping_add(1),
+            // Settings → Writing style, its flows, and the own endpoint's form.
+            Surface::WritingStyle => {
+                self.writing_style_read = self.writing_style_read.wrapping_add(1);
+                // A style learned meanwhile reaches an open composer.
+                self.reply_draft_read = self.reply_draft_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
+            }
+            Surface::AiEndpoint => {
+                self.ai_endpoint_read = self.ai_endpoint_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
+            }
+            // An open composer's Draft a reply moved.
+            Surface::ReplyDraft => self.reply_draft_read = self.reply_draft_read.wrapping_add(1),
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),
@@ -115,5 +131,10 @@ impl AppModel {
                 self.server_change_signalled();
             }
         }
+    }
+
+    /// Draws Settings again when the writing assistant comes or goes.
+    fn follow_ai_offer(&mut self, app: &mailcal_bindings::MailcalApp) {
+        self.settings.follow_ai_offer(app.ai_offer());
     }
 }

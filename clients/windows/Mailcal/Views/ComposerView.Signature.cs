@@ -167,6 +167,8 @@ public sealed partial class ComposerView
     // that programmatic selection is not the user changing sender.
     private async void OnFromChanged(object sender, SelectionChangedEventArgs e)
     {
+        // Draft a reply is the From account's: its style, and whether it can draft at all.
+        RefreshReplyDraft();
         if (!_editorReady)
         {
             return;

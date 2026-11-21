@@ -237,6 +237,8 @@ impl<P: Provider> App<P> {
         // …and its signature assignment, for the same reason: a re-add must not inherit a pointer
         // to a signature the user may have deleted meanwhile (docs/signatures.md).
         self.remove_account_signature(acct);
+        // …and the style it drafted in and the replies it sent from a draft (docs/ai.md).
+        self.forget_account_writing_assistant(acct);
         // …and the name it sent under: a re-added id must not inherit a name the user chose
         // for a different mailbox, and the name is what recipients see.
         self.remove_account_sender_name(acct);

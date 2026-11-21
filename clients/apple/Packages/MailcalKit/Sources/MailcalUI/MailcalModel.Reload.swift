@@ -69,6 +69,21 @@ extension MailboxModel {
             signatures = app?.signaturesPage() ?? .empty
             return
         }
+        // Draft a reply in some composer, which the signal does not name: each reads its own.
+        if case .replyDraft = surface {
+            writingStyle.replyDraftVersion &+= 1
+            return
+        }
+        // Settings → Writing style: the library, a change to it, the learning flow and a run.
+        if case .writingStyle = surface {
+            reloadWritingStyle()
+            return
+        }
+        // The own endpoint's form: a change to it starting or ending, and nothing else.
+        if case .aiEndpoint = surface {
+            aiEndpoint = app?.aiEndpointForm()
+            return
+        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,
@@ -88,6 +103,8 @@ extension MailboxModel {
             timezone = app?.timezoneSettings()
             if let app { reloadPreferences(app) }
             signatures = app?.signaturesPage() ?? .empty
+            aiEndpoint = app?.aiEndpointForm()
+            writingStyle.page = app?.writingStylePage()
             advancedPage = app?.advancedPage() ?? .empty
             refreshAccountsSnapshot()
             return

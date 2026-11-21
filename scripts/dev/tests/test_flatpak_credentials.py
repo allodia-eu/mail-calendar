@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_SH = REPO_ROOT / "clients" / "linux" / "package.sh"
 BRAND_SH = REPO_ROOT / "scripts" / "dev" / "brand.sh"
 LIB_SH = REPO_ROOT / "scripts" / "dev" / "lib.sh"
+CHECK_CORE_SH = REPO_ROOT / "scripts" / "dev" / "check-core-build.sh"
 
 # The unbranded identity the committed manifest carries, and what a brand turns it into.
 NEUTRAL_APP_ID = "org.mailcal.client"
@@ -79,6 +80,7 @@ modules:
     build-options:
       env:
         CARGO_HOME: /run/build/mailcal/cargo
+        MAILCAL_PACKAGED_CORE: "1"
     build-commands:
       - cargo build --release --locked -p mailcal-linux
       - cargo build --release --locked -p mailcal-mcp-shim --bin mailcal-mcp
@@ -112,6 +114,10 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         # door shares (BUILDING.md), so the real lib.sh is carried across rather than stubbed.
         lib_sh = self.root / "scripts" / "dev" / "lib.sh"
         lib_sh.write_text(LIB_SH.read_text(encoding="utf-8"), encoding="utf-8")
+        # What the built binary is read with before it is bundled.
+        check_core = self.root / "scripts" / "dev" / "check-core-build.sh"
+        check_core.write_text(CHECK_CORE_SH.read_text(encoding="utf-8"), encoding="utf-8")
+        check_core.chmod(0o755)
         self.branding = self.root / "branding"
         self.branding.mkdir()
         (self.branding / "default.env").write_text(
@@ -133,6 +139,11 @@ class FlatpakCredentialHandoff(unittest.TestCase):
             "#!/usr/bin/env bash\n"
             'if [[ -f "%s/.env" ]]; then cp "%s/.env" "%s"; fi\n'
             'cp "${@: -1}" "%s"\n'  # the manifest is the last argument
+            # The binary the build leaves, its core the kind STUB_CORE names (a production one
+            # unless a test asks otherwise); the build directory is the argument before.
+            'mkdir -p "${@: -2:1}/files/bin"\n'
+            'printf \'\\x7fELF mailcal-core-build:%%s \' "${STUB_CORE:-production}"'
+            ' > "${@: -2:1}/files/bin/mailcal"\n'
             "exit 0\n"
             % (self.root, self.root, self.captured_env_file, self.captured_manifest),
             encoding="utf-8",
@@ -351,7 +362,7 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         comma-separated list, so the two have to be joined rather than either winning.
         """
         output = self.run_package(
-            **{ALLODIA_ID: "allodia-client-id"}, _args=["--features", "dev-harness"]
+            **{ALLODIA_ID: "allodia-client-id"}, _args=["--development-core"]
         )
 
         built = self.sandbox_manifest()
@@ -367,7 +378,7 @@ class FlatpakCredentialHandoff(unittest.TestCase):
 
     def test_extra_features_reach_the_cargo_line_without_a_registration(self) -> None:
         """A build from source with no registration still gets exactly what was asked for."""
-        self.run_package(_args=["--features", "dev-harness"])
+        self.run_package(_args=["--development-core"])
 
         built = self.sandbox_manifest()
         self.assertIn(
@@ -382,8 +393,46 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         built this way installs, runs and looks exactly like the artifact that ships, so nothing
         downstream can tell them apart, which makes the operator the only remaining check.
         """
-        output = self.run_package(_args=["--features", "dev-harness"])
+        output = self.run_package(_args=["--development-core"])
         self.assertIn("NOT the shippable artifact", output)
+        self.assertIn("DEVELOPMENT CORE", output)
+
+    # --- the development core ---------------------------------------------
+
+    def test_dev_harness_is_refused_unless_asked_for_by_name(self) -> None:
+        """`dev-harness` builds a core that offers the writing assistant to everyone."""
+        done = self.package(_args=["--features", "dev-harness"])
+        self.assertNotEqual(done.returncode, 0, "a development core was built unasked")
+        self.assertIn("--development-core", done.stdout + done.stderr)
+        self.assertFalse(self.captured_manifest.exists(), "nothing was built")
+
+    def test_an_ordinary_build_tells_the_core_it_is_packaged(self) -> None:
+        """The core's own build refuses a development core only if the manifest says so."""
+        self.run_package()
+        self.assertIn('MAILCAL_PACKAGED_CORE: "1"', self.sandbox_manifest())
+
+    def test_a_development_core_build_takes_the_signal_out(self) -> None:
+        """The one way past the core's refusal, and the binary check is skipped with it."""
+        self.run_package(STUB_CORE="development", _args=["--development-core"])
+        built = self.sandbox_manifest()
+        self.assertNotIn("MAILCAL_PACKAGED_CORE", built)
+        self.assertIn("-p mailcal-linux --features dev-harness\n", built)
+        self.assertEqual(self.manifest.read_text(encoding="utf-8"), MANIFEST)
+
+    def test_a_built_development_core_is_refused_before_it_is_bundled(self) -> None:
+        """The check rests on what was built, not on the manifest the build was handed."""
+        done = self.package(STUB_CORE="development", _args=["--bundle", "--install"])
+        self.assertNotEqual(done.returncode, 0, "a development core was bundled")
+        self.assertIn("DEVELOPMENT core", done.stdout + done.stderr)
+        self.assertFalse(self.flatpak_calls.exists(), "nothing was bundled or installed")
+
+    def test_a_manifest_that_stopped_saying_so_is_a_hard_error(self) -> None:
+        self.manifest.write_text(
+            MANIFEST.replace('        MAILCAL_PACKAGED_CORE: "1"\n', ""), encoding="utf-8"
+        )
+        done = self.package()
+        self.assertNotEqual(done.returncode, 0, "a manifest without the signal was built")
+        self.assertIn("MAILCAL_PACKAGED_CORE", done.stdout + done.stderr)
 
     def test_features_without_a_list_is_refused(self) -> None:
         """A bare `--features` must not silently build the default set."""

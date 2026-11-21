@@ -16,9 +16,25 @@ extension RichComposeView {
     /// keeps the draft (`docs/drafts.md`).
     @ViewBuilder var actionBar: some View {
         #if os(macOS)
+        // One row whatever the column's width: labelled where the labels fit, and otherwise the
+        // same controls as symbols, each keeping its name for VoiceOver and as its tooltip. A row
+        // wider than the column would widen the column with it and push the composer out of its
+        // pane.
+        ViewThatFits(in: .horizontal) {
+            desktopActionRow.labelStyle(.titleAndIcon)
+            desktopActionRow.labelStyle(.iconOnly)
+        }
+        #else
+        touchActionRow
+        #endif
+    }
+
+    #if os(macOS)
+    /// The desktop's row: Send and Discard, then the message's actions.
+    private var desktopActionRow: some View {
         HStack(spacing: 10) {
             Button {
-                prepareAndSend()
+                requestSend()
             } label: {
                 Label(L10n.action_send(), systemImage: "paperplane")
             }
@@ -50,9 +66,14 @@ extension RichComposeView {
                 signatureMenu
             }
             importanceMenu
-            Spacer()
+            draftReplyControl
+            Spacer(minLength: 0)
         }
-        #else
+    }
+    #endif
+
+    #if os(iOS)
+    @ViewBuilder private var touchActionRow: some View {
         // A phone has room for neither four labelled buttons nor one row of them, so the bar takes
         // the guidelines' shape for a narrow toolbar: symbols without borders for what is used
         // while writing, and the rest in a More menu at the trailing end.
@@ -66,6 +87,7 @@ extension RichComposeView {
                 signatureMenu
             }
             importanceMenu
+            draftReplyControl
             Spacer()
             if drafts != nil {
                 Menu {
@@ -84,8 +106,8 @@ extension RichComposeView {
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
-        #endif
     }
+    #endif
 
     /// The hairline between two of the header's fields on a touch screen, where the fields have no
     /// frame of their own and the header runs the width of the screen, as Mail's does. A desktop's

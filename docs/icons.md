@@ -166,6 +166,11 @@ noted beside it, and the two without one are this app's own drawings.
 | Save as draft | `tray.and.arrow.down` | `ic_save_draft` | text | text |
 | Attach | `paperclip` | `ic_attachment` | text | text |
 | Choose a signature | `signature` | `ic_signature` | text | text |
+| Draft a reply, and what its card says the message asks | — | `ic_stylus_note` | — | — |
+| A drafted reply's gap to fill in | — | `ic_text_fields` | — | — |
+| A gap still in the reply / filled in, a state that cannot be pressed | — | `ic_radio_button_unchecked` / `ic_check_circle` | `EA3A` CircleRing / `E930` Completed | `radio-symbolic` / `object-select-symbolic` |
+| A drafted reply's file to attach | — | `ic_attachment` | — | — |
+| A drafted reply's task, and the card's checklist | — | `ic_task_alt` | — | — |
 | The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
 | The chosen signature | — | `ic_check` | — | — |
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |
@@ -240,6 +245,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Reading | `envelope.open` | `ic_mail` | — | `mailcal-mail-read-symbolic` (`mail-read`) |
 | Composing | `square.and.pencil` | `ic_edit` | — | `document-edit-symbolic` |
 | Signatures | `signature` | `ic_signature` | — | `mailcal-signature-symbolic` (`signature`) |
+| Writing style | `text.quote` | `ic_text_format` | — | `format-text-rich-symbolic` |
 | Notifications | `bell` | `ic_notifications` | — | `mailcal-bell-symbolic` (`bell`) |
 | Privacy | `hand.raised` | `ic_lock` | — | `channel-secure-symbolic` |
 | Accounts | `tray.2` | `ic_inbox` | — | `mailcal-inbox-symbolic` |
@@ -259,6 +265,10 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Delete a signature, or remove an account | `trash` | `ic_delete` | — | — |
 | Insert an image into a signature | `photo` | `ic_image` | — | — |
 | Save / cancel the signature editor | — | `ic_check` / `ic_close` | — | — |
+| The reveal's card on tone | — | `ic_tune` | — | — |
+| The reveal's card on how a reply is built | — | `ic_reply` | — | — |
+| The reveal's card on declining, chasing and apologising | — | `ic_forum` | — | — |
+| The reveal's card on punctuation | — | `ic_text_fields` | — | — |
 | Explain an account's sync technology | `info.circle` | `ic_info` | `E946` Info | `help-about-symbolic` |
 | Jump to the end of the log | `arrow.down.to.line` | — | — | — |
 | The analytics preview, open / closed | `chevron.down` / `chevron.right` | — | — | — |

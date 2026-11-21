@@ -96,9 +96,13 @@ port:
    to its host, `composerHost`, carries only the requests `mailcal_composer::HostRequestKind`
    names (today `link`, the link dialog of Gate 16; `history`, a notice of whether the body's
    undo history has a step to take back and one to put back, which nothing answers and which
-   carries no content ([`undo.md`](undo.md), rule 3); and framed mode's `caret` and `scroll`,
+   carries no content ([`undo.md`](undo.md), rule 3); framed mode's `caret` and `scroll`,
    notices of the caret's position and how far the message is scrolled in whole pixels, which
-   carry no content either ([`composer-layout.md`](composer-layout.md), rules 2 and 6)). The core parses every message
+   carry no content either ([`composer-layout.md`](composer-layout.md), rules 2 and 6); and
+   `reply_draft`, a notice of whether the text above the signature and the quote is empty, a
+   drafted reply untouched or written, whether the draft is in, and which of its gaps are left by
+   their place in its list, which carries no content and which a client hands to the core unread,
+   through `composer_reply_draft_report` ([`ai.md`](ai.md), rules 21 to 23)). The core parses every message
    (`parse_composer_host_request`) and refuses anything outside that vocabulary, an unknown field
    included, before a client acts on it, and the host answers through the script the core builds.
    A host turns the channel on only where it answers (`setComposerHostRequests`); everywhere else

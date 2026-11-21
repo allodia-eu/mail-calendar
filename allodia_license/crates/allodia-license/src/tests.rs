@@ -9,8 +9,8 @@ use super::{
     LAPSE_WARNING_SECONDS, Outcome, Request, Response, Stored, Transport,
 };
 
-const DAY: i64 = 24 * 60 * 60;
-const NOW: i64 = 1_800_000_000;
+pub(crate) const DAY: i64 = 24 * 60 * 60;
+pub(crate) const NOW: i64 = 1_800_000_000;
 
 /// A transport that answers from a script and records what it was asked.
 struct Fake {
@@ -51,7 +51,7 @@ const ACTIVE: &str = r#"{"plan":"personal","paymentStatus":"active",
     "capabilities":["accounts_sync","push","send_later"],
     "currentPeriodEnd":"2026-09-24T00:00:00.000Z","refreshAfterSeconds":43200}"#;
 
-fn paid() -> Answer {
+pub(crate) fn paid() -> Answer {
     Answer {
         entitlement: Entitlement {
             plan: "personal".to_owned(),
@@ -183,6 +183,35 @@ fn an_unknown_capability_is_kept_but_never_granted() {
             .entitlement
             .grants(&Capability::Unknown("anything_else".to_owned()))
     );
+}
+
+#[test]
+fn the_writing_assistant_is_a_paid_capability_of_its_own() {
+    let fake = Fake::ok(
+        200,
+        r#"{"plan":"free","capabilities":["accounts_sync","ai"],"refreshAfterSeconds":1}"#,
+    );
+    let service = AccountService::new("https://allodia.example");
+    let answer = service.entitlement(&fake, "tok_abc").unwrap();
+    assert!(answer.entitlement.grants(&Capability::Ai));
+    assert!(Capability::Ai.is_paid());
+}
+
+/// An answer stored by a version that did not know `ai` holds it as an unknown label; the version
+/// that knows it grants it from the stored answer, without waiting for the next read.
+#[test]
+fn a_label_stored_before_this_version_knew_it_is_granted_once_it_does() {
+    let mut answer = paid();
+    answer
+        .entitlement
+        .capabilities
+        .insert(Capability::Unknown("ai".to_owned()));
+    let cache = Cache::restore(Some(Stored {
+        answer,
+        fetched_at: NOW,
+    }));
+    assert!(cache.effective(NOW).grants(&Capability::Ai));
+    assert!(cache.effective(NOW).grants(&Capability::Push));
 }
 
 // --- What to draw between answers
@@ -339,18 +368,6 @@ fn an_answer_stored_before_payment_status_existed_still_reads() {
     );
 }
 
-#[test]
-fn a_clock_that_went_backwards_does_not_grant_forever_or_panic() {
-    // Device clocks move. A stored answer from "the future" must not underflow the subtraction or
-    // read as infinitely fresh.
-    let mut cache = Cache::default();
-    cache.apply(Outcome::Answered(paid()), NOW);
-
-    let earlier = NOW - 400 * DAY;
-    assert!(cache.effective(earlier).grants(&Capability::Push));
-    assert!(!cache.should_refresh(earlier));
-}
-
 // --- The sovereignty carve-out's own premises
 // -----------------------------------------------------
 
@@ -387,6 +404,7 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
             "mailcal:accounts:write",
             "mailcal:subscription:read",
             "mailcal:subscription:write",
+            "mailcal:ai:use",
         ]
     );
     assert!(crate::SCOPES.contains(&"offline_access"));

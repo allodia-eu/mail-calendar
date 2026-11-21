@@ -43,6 +43,7 @@ struct SettingsCategoryDetail: View {
         case .reading: readingDetail
         case .composing: composingDetail
         case .signatures: signaturesDetail
+        case .writingStyle: SettingsWritingStyle(model: model)
         case .notifications: notificationsDetail
         case .privacy: privacyDetail
         case .allodia: AllodiaAccountSettings(model: model)

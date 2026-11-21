@@ -166,6 +166,7 @@ impl<P: Provider> App<P> {
             cc: recipients.cc,
             subject: reply_subject(original.envelope.subject.as_deref()),
             quote,
+            answering: Some(message.clone()),
             ..blank(message.account.clone(), fresh_message_id()?)
         })
     }
@@ -297,6 +298,8 @@ fn blank(account: AccountId, message_id: MessageIdHeader) -> Opening {
         // A reply or forward starts normal, whatever the original said: its importance is its
         // sender's word about that message, not about this one.
         importance: Importance::Normal,
+        answering: None,
+        drafted: false,
     }
 }
 

@@ -112,6 +112,8 @@ pub(crate) fn build_demo(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal, Some(("demo", "demo@allodia.local")));
     mailcal
 }
 
@@ -126,6 +128,30 @@ pub(crate) fn build_showcase(
     device_timezone: String,
     locale: ShowcaseLocale,
 ) -> Arc<MailcalApp> {
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    let offer_ai = super::showcase_staging::ai_requested();
+    #[cfg(not(any(debug_assertions, feature = "dev-harness")))]
+    let offer_ai = false;
+    build_showcase_with(
+        observer,
+        logger,
+        log_level,
+        device_timezone,
+        locale,
+        offer_ai,
+    )
+}
+
+/// [`build_showcase`], with the sent mail `MAILCAL_OFFER_AI` stages when `offer_ai`: a
+/// development build alone stages it, and a showcase without it is the seed unchanged.
+pub(crate) fn build_showcase_with(
+    observer: Box<dyn Observer>,
+    logger: Box<dyn Logger>,
+    log_level: LogLevel,
+    device_timezone: String,
+    locale: ShowcaseLocale,
+    offer_ai: bool,
+) -> Arc<MailcalApp> {
     logging::install_logger(logger, log_level);
     log::info!(
         "showcase (screenshot) app starting (in-memory engine, seeded {locale:?} sample content)"
@@ -136,6 +162,10 @@ pub(crate) fn build_showcase(
     // time passed is republished for nothing, and hides the changes that matter.
     let now = showcase_data::seeded_now(&device_tz);
     let primary = showcase_data::primary(locale, now);
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    let primary = super::showcase_staging::primary_seed(primary, now, offer_ai);
+    #[cfg(not(any(debug_assertions, feature = "dev-harness")))]
+    let _ = offer_ai;
     let (calendars, events) = showcase_data::primary_calendar(locale, now);
     let primary_account = Account {
         id: AccountId::try_from(primary.identity.as_str()).expect("valid account id"),
@@ -230,23 +260,13 @@ pub(crate) fn build_showcase(
         )
     });
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::pause_for_a_server_change(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_for_reconsent(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_QUESTIONS").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_the_questions(
-            &app,
-            &runtime,
-            &primary_identity,
-            &primary.identity,
-            &device_tz,
-        );
-    }
+    super::showcase_staging::stage_on_request(
+        &app,
+        &runtime,
+        &primary_identity,
+        &primary.identity,
+        &device_tz,
+    );
     let registered = [
         listed(
             &primary_identity,
@@ -298,6 +318,9 @@ fn finish_showcase(
     device_tz: TimeZoneId,
     registered: impl IntoIterator<Item = (String, ConnectedAccount)>,
 ) -> Arc<MailcalApp> {
+    let registered: Vec<_> = registered.into_iter().collect();
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    let first = registered.first().map(|(id, _)| id.clone());
     let registry = crate::account_registry::AccountRegistry::new();
     for (id, entry) in registered {
         // Nothing dials it, so the proof that it was written first is not needed.
@@ -350,6 +373,9 @@ fn finish_showcase(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    // A showcase account is named by its address.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal, first.as_deref().map(|id| (id, id)));
     mailcal
 }
 

@@ -1,0 +1,183 @@
+// The learning flow's two stages with the most on them (docs/ai.md rule 11): which sent mail to
+// learn from, from the core's presets and the days it bounds, and the review, which says what was
+// read on the device and what Learn would send where before anything leaves it.
+
+using Allodia.Mailcal.Services;
+using Microsoft.UI.Text;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
+using uniffi.mailcal_bindings;
+
+namespace Allodia.Mailcal.Dialogs;
+
+public sealed partial class SettingsDialog
+{
+    private UIElement ChooseRangeStage(StyleLearningStage.ChooseRange stage)
+    {
+        var words = StyleWords();
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(Line(stage.Email, "WritingStyleFlowAccount"));
+        panel.Children.Add(Description(Reach(stage.Reach)));
+
+        // The core's presets, the last a range of the person's own holding the days it starts on.
+        var options = stage.Presets.ToList();
+        var choice = new RadioButtons();
+        AutomationProperties.SetName(choice, L10n.LearnRangeTitle());
+        AutomationProperties.SetAutomationId(choice, "WritingStyleFlowRanges");
+        foreach (var option in options)
+        {
+            choice.Items.Add(WritingStyleRules.Range(option, words));
+        }
+        choice.SelectedIndex = options.FindIndex(option => stage.Selected?.GetType() == option.GetType());
+        panel.Children.Add(choice);
+
+        var latest = WritingStyleRules.Day(stage.Latest) ?? DateOnly.FromDateTime(DateTime.Today);
+        switch (stage.Selected)
+        {
+            case StyleLearnRange.UntilEndOfLastYear:
+                panel.Children.Add(Description(L10n.LearnRangeUntilHint()));
+                break;
+            case StyleLearnRange.Between between:
+                panel.Children.Add(BetweenDays(between, latest));
+                break;
+        }
+        // What Next fetches for the range chosen, said before it is pressed.
+        if (WritingStyleRules.Fetch(stage.Fetch, words) is { } fetch)
+        {
+            var line = Description(fetch);
+            AutomationProperties.SetAutomationId(line, "WritingStyleFlowFetch");
+            panel.Children.Add(line);
+        }
+        choice.SelectionChanged += (_, _) =>
+        {
+            if (choice.SelectedIndex < 0 || options[choice.SelectedIndex].GetType() == stage.Selected?.GetType())
+            {
+                return;
+            }
+            _model.MoveLearning(new StyleLearningIntent.SelectRange(options[choice.SelectedIndex]));
+        };
+        return panel;
+    }
+
+    // The two days of a range of the person's own: either may be any day up to the last the core
+    // allows.
+    private UIElement BetweenDays(StyleLearnRange.Between between, DateOnly latest)
+    {
+        var since = WritingStyleRules.Day(between.Since) ?? latest;
+        var until = WritingStyleRules.Day(between.Until) ?? latest;
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        CalendarDatePicker Picker(string header, DateOnly day, string id)
+        {
+            var picker = new CalendarDatePicker
+            {
+                Header = header,
+                Date = new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue)),
+                MaxDate = new DateTimeOffset(latest.ToDateTime(TimeOnly.MinValue)),
+            };
+            AutomationProperties.SetName(picker, header);
+            AutomationProperties.SetAutomationId(picker, id);
+            return picker;
+        }
+        var from = Picker(L10n.LearnRangeFrom(), since, "WritingStyleFlowSince");
+        var to = Picker(L10n.LearnRangeUntilLabel(), until, "WritingStyleFlowUntil");
+        void Send()
+        {
+            if (from.Date is { } a && to.Date is { } b)
+            {
+                _model.MoveLearning(new StyleLearningIntent.SelectRange(new StyleLearnRange.Between(
+                    WritingStyleRules.Day(DateOnly.FromDateTime(a.Date)), WritingStyleRules.Day(DateOnly.FromDateTime(b.Date)))));
+            }
+        }
+        from.DateChanged += (_, _) => Send();
+        to.DateChanged += (_, _) => Send();
+        row.Children.Add(from);
+        row.Children.Add(to);
+        return row;
+    }
+
+    private string Reach(StyleSentReach reach) => reach is StyleSentReach.Since since && WritingStyleRules.Day(since.Day) is { } day
+        ? L10n.LearnReportHorizon(WritingStyleRules.LongDate(day, System.Globalization.CultureInfo.CurrentCulture))
+        : L10n.LearnReportHorizonAll();
+
+    private UIElement ReviewStage(StyleLearningStage.Review stage)
+    {
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(Line(stage.Email, "WritingStyleFlowAccount"));
+        panel.Children.Add(Description(Reach(stage.Reach)));
+        if (stage.OlderNotFetched)
+        {
+            panel.Children.Add(Line(L10n.LearnOlderNotFetched(), "WritingStyleFlowOlderNotFetched"));
+        }
+        switch (stage.State)
+        {
+            case StyleLearningReview.Fetching:
+                panel.Children.Add(Working(L10n.LearnFetching(), "WritingStyleFlowFetching"));
+                return panel;
+            case StyleLearningReview.Reading:
+                panel.Children.Add(Working(L10n.LearnReading(), "WritingStyleFlowReading"));
+                return panel;
+            case StyleLearningReview.Ready ready:
+                panel.Children.Add(Card(Report(ready.Report), new RevealInk(_brushes)));
+                break;
+            case StyleLearningReview.NothingUsable nothing:
+                panel.Children.Add(Card(Report(nothing.Report), new RevealInk(_brushes)));
+                panel.Children.Add(Bar(InfoBarSeverity.Warning, null, L10n.LearnReportNothing(), "WritingStyleFlowNothing", null));
+                return panel;
+        }
+
+        // What Learn sends where, under the stage's own title.
+        var sends = new StackPanel { Spacing = 4 };
+        var consent = stage.SendsTo switch
+        {
+            StyleLearningDestination.Relay => L10n.LearnConsentRelay(),
+            StyleLearningDestination.OwnEndpoint own => L10n.LearnConsentOwn(own.Host),
+            _ => stage.CannotSend is { } failure ? AiWords.Catalog().Of(failure) : string.Empty,
+        };
+        sends.Children.Add(Line(consent, "WritingStyleFlowConsent"));
+        panel.Children.Add(sends);
+        if (!stage.KeywordKept)
+        {
+            panel.Children.Add(Description(L10n.LearnKeywordNotKept()));
+        }
+        return panel;
+    }
+
+    // The platform's spinner beside what the review is doing, from Next until the read ends.
+    private static StackPanel Working(string text, string automationId)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        row.Children.Add(new ProgressRing { IsActive = true, Width = 20, Height = 20 });
+        row.Children.Add(Line(text, automationId));
+        return row;
+    }
+
+    // What the review read: how many messages, how many say enough, in which languages, and over
+    // which days.
+    private UIElement Report(StyleLearningReport report)
+    {
+        var lines = new StackPanel { Spacing = 2 };
+        AutomationProperties.SetAutomationId(lines, "WritingStyleFlowReport");
+        lines.Children.Add(Line(L10n.LearnReportFound((int)report.Found), "WritingStyleFlowFound"));
+        lines.Children.Add(Line(L10n.LearnReportUsable((int)report.Usable), "WritingStyleFlowUsable"));
+        if (report.Languages.Length > 0)
+        {
+            lines.Children.Add(Line(L10n.LearnReportLanguages(string.Join(", ", report.Languages.Select(language =>
+                $"{StyleLanguage(language.Language)} ({Number((int)language.Usable)})"))), "WritingStyleFlowLanguages"));
+        }
+        if (report.OtherLanguages > 0)
+        {
+            lines.Children.Add(Line(L10n.LearnReportUndetected((int)report.OtherLanguages), "WritingStyleFlowUndetected"));
+        }
+        // Messages found whose body the server did not give, so they were not read.
+        if (report.NotLoaded > 0)
+        {
+            lines.Children.Add(Line(L10n.LearnNotLoaded((int)report.NotLoaded), "WritingStyleFlowNotLoaded"));
+        }
+        if (report.Oldest is { } oldest && report.Newest is { } newest)
+        {
+            lines.Children.Add(Description(L10n.LearnReportDates(StyleDate(oldest), StyleDate(newest))));
+        }
+        return lines;
+    }
+}

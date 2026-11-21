@@ -29,6 +29,8 @@ mod delegate_info;
 /// in a debug build, or a release build with the `dev-harness` feature for the Android dev loop).
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod dev_tls;
+mod drafted_keyword;
+mod drafted_replies;
 mod error;
 mod event_conference;
 mod event_detail;
@@ -58,6 +60,7 @@ mod signatures;
 mod stream_redial;
 mod throttle;
 mod tls;
+mod writing_styles;
 
 pub use account_meetings::{TalkAtConnect, meet_meetings, talk_at_connect, teams_meetings};
 pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
@@ -80,6 +83,12 @@ pub use consent::{requested_scopes, withheld};
 pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
+pub use drafted_keyword::{
+    DRAFTED_REPLY_KEYWORD, GmailKeywordNaming, drafted_reply_keyword, drafted_reply_keyword_names,
+};
+pub use drafted_replies::{
+    DraftedReplies, drafted_replies_path, load_drafted_replies, save_drafted_replies,
+};
 use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_conference::{ConferenceState, DialIn, EventConference, event_conferences};
@@ -116,11 +125,11 @@ pub use nextcloud_login::NextcloudLogin;
 pub use oauth_grant::{OAuthGrant, oauth_token_source};
 pub use pass_folders::pass_syncs;
 pub use preferences::{
-    AccountSyncSettings, Appearance, CalendarLayout, CalendarPrefs, DEFAULT_POLL_INTERVAL,
-    DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS, MAX_SENDER_NAME_CHARS,
-    MAX_VISIBLE_HOURS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS, MessageGrouping,
-    MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback, SYNC_DEPTHS,
-    SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart, cap_push_folders,
+    AccountSyncSettings, AiEndpoint, AiPreferences, Appearance, CalendarLayout, CalendarPrefs,
+    DEFAULT_POLL_INTERVAL, DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS,
+    MAX_SENDER_NAME_CHARS, MAX_VISIBLE_HOURS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS,
+    MessageGrouping, MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback,
+    SYNC_DEPTHS, SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart, cap_push_folders,
     clamp_visible_hours, effective, load_preferences, preferences_path, sanitize_sender_name,
     save_preferences, snap_poll_interval, visible_hours_choices,
 };
@@ -146,6 +155,10 @@ pub use signatures::{
     load_signatures, save_signatures, signatures_path,
 };
 pub use tls::setup_trust_policy;
+pub use writing_styles::{
+    StoredWritingStyle, WritingStyleId, WritingStyles, load_writing_styles, save_writing_styles,
+    writing_styles_path,
+};
 
 pub use crate::setup::normalize_caldav_base_url;
 use crate::tls::account_tls;

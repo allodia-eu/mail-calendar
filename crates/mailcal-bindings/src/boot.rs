@@ -137,8 +137,18 @@ pub(crate) fn build_accounts(
     // ⚠️ Taken either way, so the mail parsers never see it, but **kept only by a core that can use
     // it**: a second core holding the grant is a second refresh gate over one credential.
     let allodia = crate::allodia::take_stored(&mut configs).filter(|_| start_live_sync);
+    // The own AI endpoint's key is another such entry, taken out on the same terms.
+    let ai_key = crate::ai_host::take_stored(&mut configs);
 
     let registry = AccountRegistry::new();
+    // Before any Gmail account is dialed, so a launch on an install the writing assistant has
+    // reached builds every one with the keyword's names (`docs/ai.md` rule 25).
+    if mailcal_account::load_preferences(&prefs_path)
+        .ai
+        .gmail_keyword_named
+    {
+        registry.gmail_keyword_naming().turn_on();
+    }
     // Before any account is registered, so each one's learned DAV principals come with it.
     registry.keep_dav_starts_in(mailcal_account::DavStartsFile::in_dir(&base));
     // The token sink every OAuth account's refresh shares, built over the host's store before
@@ -361,6 +371,9 @@ pub(crate) fn build_accounts(
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    mailcal.install_ai(ai_key);
+    #[cfg(feature = "allodia-license")]
+    mailcal.install_allodia_relay();
     #[cfg(feature = "allodia-license")]
     mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it

@@ -1,0 +1,319 @@
+//! The writing assistant as a host reaches it: offered in a development build, the own endpoint's
+//! form saved through `dispatch` with its key in the keystore, the key taken out of the stored
+//! configs at launch, and work queued onto a thread of its own.
+
+use std::{
+    sync::{Arc, Mutex, mpsc},
+    time::{Duration, Instant},
+};
+
+use mailcal_app::ai::{AiQueued, AiWork, AiWorkKey};
+
+use crate::{
+    AiEndpointAddressGap, AiEndpointDeclarationGap, AiEndpointForm, AiEndpointIntent,
+    AiEndpointKeptKey, AiEndpointResult, AiIntent, Intent, JurisdictionClass, JurisdictionLimit,
+    JurisdictionRefusal, LogLevel, MailcalApp, Surface,
+    tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
+};
+
+fn app(
+    name: &str,
+    configs: Vec<String>,
+) -> (
+    Arc<MailcalApp>,
+    Arc<RecordingCredentialStore>,
+    mpsc::Receiver<Surface>,
+) {
+    app_with_preferences(name, configs, None)
+}
+
+/// [`app`] over a data directory whose preferences file holds `preferences` before launch.
+fn app_with_preferences(
+    name: &str,
+    configs: Vec<String>,
+    preferences: Option<&str>,
+) -> (
+    Arc<MailcalApp>,
+    Arc<RecordingCredentialStore>,
+    mpsc::Receiver<Surface>,
+) {
+    let (tx, rx) = mpsc::channel();
+    let dir = crate::tests::temp_data_dir(name);
+    if let Some(preferences) = preferences {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("preferences.toml"), preferences).unwrap();
+    }
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = MailcalApp::new_accounts(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        configs,
+        dir.to_string_lossy().into_owned(),
+        "Etc/UTC".to_owned(),
+        crate::analytics::test_device(),
+        Box::new(RecordingStoreHandle(Arc::clone(&store))),
+    )
+    .expect("the app boots");
+    (app, store, rx)
+}
+
+/// The form once a change after `serial` has ended.
+fn form_after(app: &MailcalApp, serial: u64) -> AiEndpointForm {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let form = app.ai_endpoint_form().expect("offered");
+        if form.outcome.is_some_and(|outcome| outcome.serial > serial)
+            && !form.save.running
+            && !form.remove.is_some_and(|remove| remove.running)
+        {
+            return form;
+        }
+        assert!(Instant::now() < deadline, "the change never ended");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn save(app: &MailcalApp, address: &str, declared: JurisdictionClass, key: &str) {
+    app.dispatch(Intent::Ai {
+        intent: AiIntent::Endpoint {
+            intent: AiEndpointIntent::Save {
+                address: address.to_owned(),
+                model: "local-model".to_owned(),
+                declared: Some(declared),
+                key: key.to_owned(),
+            },
+        },
+    });
+}
+
+/// Waits until every one of the assistant's records has been signalled: the page, the composer's
+/// Draft a reply, the endpoint's form and Settings, each pulled again on its own surface.
+pub(crate) fn every_ai_surface_signalled(rx: &mpsc::Receiver<Surface>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut seen = [false; 4];
+    while seen.contains(&false) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let surface = rx
+            .recv_timeout(left)
+            .unwrap_or_else(|_| panic!("not every surface was signalled: {seen:?}"));
+        match surface {
+            Surface::Settings => seen[0] = true,
+            Surface::WritingStyle => seen[1] = true,
+            Surface::ReplyDraft => seen[2] = true,
+            Surface::AiEndpoint => seen[3] = true,
+            _ => {}
+        }
+    }
+}
+
+/// A test build is a development build, so the assistant is offered without an entitlement.
+#[test]
+fn a_development_build_offers_the_form_with_nothing_set_up() {
+    let (app, ..) = app("ai-offered", Vec::new());
+    assert!(app.ai_offer());
+    let form = app.ai_endpoint_form().expect("offered");
+    assert_eq!(form.address, "");
+    assert!(!form.key_kept);
+    assert!(form.save.enabled);
+    assert_eq!(form.remove, None, "nothing to remove, so no Remove");
+}
+
+/// A key the keystore kept while the preferences were reset names no endpoint, so it goes to no
+/// address: taken out at launch, and the form neither says a key is kept nor offers Remove.
+#[test]
+fn a_kept_key_alone_is_taken_out_at_launch() {
+    let (app, store, _) = app(
+        "ai-key-alone",
+        vec!["[ai_endpoint]\nkey = \"sk-stored\"\n".to_owned()],
+    );
+    let form = app.ai_endpoint_form().expect("offered");
+    assert!(!form.key_kept);
+    assert_eq!(form.remove, None);
+    assert_eq!(*store.deleted.lock().unwrap(), ["ai-endpoint"]);
+}
+
+/// An empty key field never reaches the keystore, whatever it would answer.
+#[test]
+fn an_empty_key_field_writes_nothing_to_the_keystore() {
+    let (app, store, _) = app("ai-empty-key", Vec::new());
+    save(
+        &app,
+        "https://models.example.eu/v1",
+        JurisdictionClass::EuNative,
+        " ",
+    );
+    let form = form_after(&app, 0);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Saved)
+    );
+    assert!(!form.key_kept);
+    assert!(store.persisted.lock().unwrap().is_empty());
+    assert!(store.deleted.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
+    let (app, store, rx) = app("ai-save", Vec::new());
+    save(
+        &app,
+        "https://models.example.eu/v1",
+        JurisdictionClass::EuNative,
+        " sk-test ",
+    );
+    let form = form_after(&app, 0);
+
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Saved)
+    );
+    assert_eq!(form.address, "https://models.example.eu/v1");
+    assert_eq!(form.declared, Some(JurisdictionClass::EuNative));
+    assert!(form.key_kept);
+    assert!(form.remove.is_some_and(|remove| remove.enabled));
+    let persisted = store.persisted.lock().unwrap().clone();
+    assert_eq!(persisted.len(), 1);
+    assert_eq!(persisted[0].0, "ai-endpoint");
+    assert!(persisted[0].1.contains("sk-test") && !persisted[0].1.contains(" sk-test "));
+    // Where a request goes moved, so the page and every composer read theirs again too.
+    every_ai_surface_signalled(&rx);
+    // What the key field says is asked of the address as typed: the key goes only to its server.
+    let kept = |address: &str| {
+        app.ai_endpoint_gap(
+            address.to_owned(),
+            "m".to_owned(),
+            Some(JurisdictionClass::EuNative),
+        )
+        .kept_key
+    };
+    assert_eq!(
+        kept("https://models.example.eu/v2"),
+        Some(AiEndpointKeptKey::Carried)
+    );
+    assert_eq!(
+        kept("https://models.example.com/v1"),
+        Some(AiEndpointKeptKey::Dropped)
+    );
+
+    app.dispatch(Intent::Ai {
+        intent: AiIntent::Endpoint {
+            intent: AiEndpointIntent::Remove,
+        },
+    });
+    let form = form_after(&app, 1);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Removed)
+    );
+    assert_eq!(*store.deleted.lock().unwrap(), ["ai-endpoint"]);
+    assert_eq!(form.remove, None, "nothing left to remove");
+}
+
+/// The function the form asks as the person types is the one the save refuses by.
+#[test]
+fn the_gap_the_form_shows_is_the_one_the_save_refuses_by() {
+    let (app, store, _) = app("ai-gap", Vec::new());
+    let gaps = app.ai_endpoint_gap(
+        "http://models.example.eu/v1".to_owned(),
+        String::new(),
+        Some(JurisdictionClass::NonEu),
+    );
+    assert_eq!(gaps.address, Some(AiEndpointAddressGap::NeedsHttps));
+    assert!(gaps.model_missing);
+    assert_eq!(
+        gaps.declaration,
+        Some(AiEndpointDeclarationGap::Refused {
+            refusal: JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuNative,
+            },
+        })
+    );
+    assert_eq!(gaps.kept_key, None, "no key is kept");
+    app.dispatch(Intent::Ai {
+        intent: AiIntent::Endpoint {
+            intent: AiEndpointIntent::Save {
+                address: "http://models.example.eu/v1".to_owned(),
+                model: String::new(),
+                declared: Some(JurisdictionClass::NonEu),
+                key: "sk".to_owned(),
+            },
+        },
+    });
+    let form = form_after(&app, 0);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Refused { gaps })
+    );
+    assert_eq!(
+        form.address, "http://models.example.eu/v1",
+        "the form keeps the edit"
+    );
+    assert!(store.persisted.lock().unwrap().is_empty());
+}
+
+/// The key a previous launch stored is taken out before any mail parser sees it, and kept beside
+/// the endpoint it was given for.
+#[test]
+fn the_stored_key_is_taken_out_at_launch_and_kept() {
+    let (app, store, _) = app_with_preferences(
+        "ai-launch",
+        vec!["[ai_endpoint]\nkey = \"sk-stored\"\n".to_owned()],
+        Some(
+            "[ai.endpoint]\nbase_url = \"https://models.example.eu/v1\"\nmodel = \"m\"\n\
+             declared = \"eu-native\"\n",
+        ),
+    );
+    assert!(
+        app.account_connect_errors.lock().unwrap().is_empty(),
+        "the key is not an account"
+    );
+    assert!(app.ai_endpoint_form().expect("offered").key_kept);
+    assert!(store.deleted.lock().unwrap().is_empty());
+}
+
+/// A development build offers the feature at launch, so its install names the drafted-reply
+/// keyword on Gmail; the next launch over the same data starts with the names on, before any
+/// account is dialed (`docs/ai.md` rule 25).
+#[test]
+fn an_install_the_feature_reached_names_the_keyword_from_the_next_launch_on() {
+    let dir = crate::tests::temp_data_dir("ai-gmail-named");
+    let boot = || {
+        let (tx, _rx) = mpsc::channel();
+        MailcalApp::new_accounts(
+            Box::new(ChannelObserver { tx }),
+            Box::new(NullLogger),
+            LogLevel::Info,
+            Vec::new(),
+            dir.to_string_lossy().into_owned(),
+            "Etc/UTC".to_owned(),
+            crate::analytics::test_device(),
+            Box::new(RecordingStoreHandle(Arc::default())),
+        )
+        .expect("the app boots")
+    };
+    let app = boot();
+    assert!(app.registry.gmail_keyword_naming().is_on());
+    assert!(app.app.gmail_keyword_named());
+    app.app.settle_preferences();
+    drop(app);
+
+    let prefs = mailcal_account::load_preferences(mailcal_account::preferences_path(&dir));
+    assert!(prefs.ai.gmail_keyword_named, "recorded for the next launch");
+    assert!(boot().registry.gmail_keyword_naming().is_on());
+}
+
+#[test]
+fn work_queued_runs_on_a_thread_of_its_own() {
+    let (app, ..) = app("ai-work", Vec::new());
+    let (done, finished) = mpsc::channel();
+    let ran = Arc::new(Mutex::new(false));
+    let seen = Arc::clone(&ran);
+    let queued = app.queue_ai_work(AiWork::new(AiWorkKey::Learning, move |_, run| {
+        *seen.lock().unwrap() = !run.cancelled();
+        done.send(()).unwrap();
+    }));
+    assert_eq!(queued, AiQueued::Run);
+    finished.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(*ran.lock().unwrap());
+}

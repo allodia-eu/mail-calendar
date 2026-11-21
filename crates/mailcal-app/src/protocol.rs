@@ -48,6 +48,15 @@ pub enum Surface {
     /// a signature saved or deleted, a change to them starting or ending, and an account's
     /// assignment changing. Drawn in Settings → Signatures and by the composer's picker.
     Signatures,
+    /// Settings → Writing style and the learning flow (`docs/ai.md`): the library or a slot
+    /// changing, learning starting, moving or ending, and whether the feature is offered.
+    WritingStyle,
+    /// Draft a reply in each composer (`docs/ai.md`): a draft starting, arriving, failing or
+    /// stopping, and whether the feature is offered.
+    ReplyDraft,
+    /// The own endpoint's form (`docs/ai.md`): a save or a removal starting or ending, and whether
+    /// the feature is offered.
+    AiEndpoint,
     /// The Allodia account's card (pulled via the binding's `allodia_card`): its sign-in or
     /// sign-out moving, or the service refusing the stored sign-in. Drawn in Settings and on the
     /// first-run card, and nowhere else.

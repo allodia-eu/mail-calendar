@@ -1,5 +1,6 @@
-// Settings → Advanced (docs/settings.md row 8), drawn from the core's `AdvancedPage`: AI assistant
-// access first, where the host set an endpoint, then the reset of the local database. Settings
+// Settings → Advanced (docs/settings.md, Advanced), drawn from the core's `AdvancedPage`: AI
+// assistant access first, where the host set an endpoint, then the own AI endpoint's form from its
+// own record while the writing assistant is offered, then the reset of the local database. Settings
 // stays open through a reset: the button runs until mail is downloaded again, and what it came
 // to is said beneath it.
 
@@ -34,6 +35,7 @@ struct AdvancedSettingsView: View {
             if let panel = page.assistants {
                 McpSettingsView(model: model, panel: panel)
             }
+            AiEndpointSettings(model: model)
             resetGroup(page)
         }
     }

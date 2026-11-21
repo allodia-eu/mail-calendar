@@ -99,6 +99,18 @@ internal static class Harness
         return (await jmap.CallAsync("Email/query", new JsonObject { ["filter"] = new JsonObject { ["subject"] = title } }))["ids"]!.AsArray().Count;
     });
 
+    /// <summary>The keywords of every message in <paramref name="address"/>'s mailbox whose subject
+    /// names <paramref name="title"/>, as the server keeps them.</summary>
+    internal static IReadOnlyList<IReadOnlyList<string>> Keywords(string address, string title) => Run(async () =>
+    {
+        using var jmap = await Jmap.SignInAsync(address);
+        var ids = (await jmap.CallAsync("Email/query", new JsonObject { ["filter"] = new JsonObject { ["subject"] = title } }))["ids"]!.AsArray().DeepClone();
+        var got = await jmap.CallAsync("Email/get", new JsonObject { ["ids"] = ids, ["properties"] = new JsonArray("keywords") });
+        return (IReadOnlyList<IReadOnlyList<string>>)got["list"]!.AsArray()
+            .Select(email => (IReadOnlyList<string>)(email!["keywords"]?.AsObject().Select(keyword => keyword.Key).ToList() ?? []))
+            .ToList();
+    });
+
     /// <summary>
     /// Destroys every message in <paramref name="address"/>'s mailbox whose subject names
     /// <paramref name="title"/>. Other suites find their rows by sight, and a reply left at the top

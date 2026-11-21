@@ -1,5 +1,5 @@
 // Settings → Videoconferencing's list of the accounts that make video meetings (docs/settings.md
-// category 4): each service through its account, in its state, opening that account's page, where
+// Videoconferencing): each service through its account, in its state, opening that account's page, where
 // its one switch is. No switch of its own here: two switches for one setting would be two places to
 // change it, and two places to ask a provider for its permission.
 

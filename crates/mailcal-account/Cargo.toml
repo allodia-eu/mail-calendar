@@ -16,6 +16,8 @@ license.workspace = true
 dev-harness = []
 
 [dependencies]
+# The jurisdiction mode and an own endpoint's declared class, both stored in the preferences.
+mailcal-jurisdiction = { workspace = true }
 mailcal-user-agent = { path = "../mailcal-user-agent" }
 engine-api = { workspace = true }
 engine-core = { workspace = true }

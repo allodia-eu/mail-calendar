@@ -63,6 +63,15 @@ hypothetical; it happened. So:
 - Note a canvas-drawn UI has **no text nodes** to dump. Assert on chrome that is still a real
   composable (a header title), or on the accessibility overlay.
 
+### The display is the developer's too
+
+Write down `wm size`, `wm density` and `settings get system font_scale` before overriding any of
+them for a tablet width or a text size, and put each back the way it was set. A Samsung phone set
+to FHD+ already reports `Override size: 1080x2316` with no density override, and `wm size reset`
+or `wm density reset` do not return it there: they leave a 560 density override that draws
+everything a third larger. Choose the resolution again under Settings → Display → Screen
+resolution, then check that `wm size` and `wm density` read as they did.
+
 ### Never log content
 
 Tracing runs against a real diary. Log **counts, durations, ids**, never a title, a time, an

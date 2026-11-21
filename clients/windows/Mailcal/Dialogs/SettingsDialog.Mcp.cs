@@ -1,5 +1,5 @@
-// Settings → Advanced ▸ AI assistant access (docs/mcp.md, docs/settings.md slot 11), drawn from the
-// core's McpPanel and keeping no rule of its own. Desktop-only by construction: the core has no
+// Settings → Advanced ▸ AI assistant access (docs/mcp.md, docs/settings.md, Advanced), drawn from
+// the core's McpPanel and keeping no rule of its own. Desktop-only by construction: the core has no
 // panel on a host that set no endpoint, and this draws nothing then.
 //
 // The order of the controls is the order of the decisions: turn it on, then choose which mailboxes

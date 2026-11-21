@@ -95,6 +95,51 @@ struct ControlButton: View {
     }
 }
 
+/// A checklist row: a box ticked or not, a symbol saying what kind of item it is, and its words.
+/// While `control` is enabled the row toggles; a held one is drawn as it stands, undimmed, since
+/// its tick follows something else (a gap follows the reply).
+struct ControlCheck: View {
+    let title: String
+    let done: Bool
+    let control: ControlState
+    let symbol: String
+    var iconWidth: CGFloat = 18
+    let toggle: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if control.enabled {
+                Button { toggle(!done) } label: { row.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+            } else {
+                row
+            }
+            Running(control: control)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(done ? [.isToggle, .isSelected] : .isToggle)
+    }
+
+    private var row: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(done ? Color.accentColor : Color.secondary)
+                .frame(width: iconWidth)
+                .accessibilityHidden(true)
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: iconWidth)
+                .accessibilityHidden(true)
+            Text(title)
+                .strikethrough(done)
+                .foregroundStyle(done ? .secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .font(.callout)
+    }
+}
+
 /// A row that opens another page and starts no work: its title, the line beneath it and a
 /// disclosure chevron, as the accounts list opens an account. Held while `enabled` is false, which
 /// is while a change runs on the page; it never runs anything itself, so it has no spinner.
@@ -203,6 +248,9 @@ struct ControlTextField: View {
     let title: String
     let text: String
     let control: ControlState
+    /// `.vertical` grows the field to several lines, where Return still sends what was typed.
+    var axis: Axis = .horizontal
+    var maxWidth: CGFloat = 320
     let commit: (String) -> Void
 
     @State private var draft = ""
@@ -212,11 +260,12 @@ struct ControlTextField: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            TextField(title, text: $draft)
+            TextField(title, text: $draft, axis: axis)
                 .textFieldStyle(.roundedBorder)
                 .labelsHidden()
+                .lineLimit(axis == .vertical ? 3...8 : 1...1)
                 .focused($focused)
-                .frame(maxWidth: 320, alignment: .leading)
+                .frame(maxWidth: maxWidth, alignment: .leading)
                 .disabled(!control.enabled)
                 .onSubmit(send)
                 // Also when another change holds the field and takes its focus: the core runs

@@ -44,11 +44,17 @@ internal static class ControlComponents
     }
 
     /// <summary>A button, drawn with <paramref name="style"/> when one is given.
-    /// <paramref name="click"/> runs only while it is enabled.</summary>
+    /// <paramref name="click"/> runs only while it is enabled. With <paramref name="maxWidth"/>,
+    /// a label wider than that wraps between words, never inside one.</summary>
     internal static StackPanel Button(
-        string label, ControlState control, string automationId, Action click, Style? style = null)
+        string label, ControlState control, string automationId, Action click, Style? style = null,
+        double? maxWidth = null)
     {
-        var button = new Button { Content = label, IsEnabled = control.Enabled };
+        object content = maxWidth is { } width
+            ? new TextBlock { Text = label, TextWrapping = TextWrapping.WrapWholeWords, MaxWidth = width, TextAlignment = TextAlignment.Center }
+            : label;
+        var button = new Button { Content = content, IsEnabled = control.Enabled };
+        AutomationProperties.SetName(button, label);
         if (style is not null)
         {
             button.Style = style;
@@ -208,8 +214,11 @@ internal static class ControlComponents
     /// one edit, as Enter and then the focus leaving would. A redraw for another change takes the
     /// box away; the core runs what was typed once that change ends.
     /// </summary>
+    /// <remarks>With <paramref name="wraps"/>, the box takes the page's width and wraps a long text
+    /// over several lines rather than cutting it off; Enter still sends it rather than starting a
+    /// new line, so it is one paragraph however long.</remarks>
     internal static StackPanel TextBox(
-        string name, string text, ControlState control, string automationId, Action<string> commit)
+        string name, string text, ControlState control, string automationId, Action<string> commit, bool wraps = false)
     {
         var box = new TextBox
         {
@@ -219,6 +228,12 @@ internal static class ControlComponents
             HorizontalAlignment = HorizontalAlignment.Left,
             IsEnabled = control.Enabled,
         };
+        if (wraps)
+        {
+            box.TextWrapping = TextWrapping.Wrap;
+            box.MinHeight = 72;
+            box.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
         AutomationProperties.SetName(box, name);
         AutomationProperties.SetAutomationId(box, automationId);
         var sent = new SentText { Text = text };
@@ -243,6 +258,39 @@ internal static class ControlComponents
                 Send();
             }
         };
+        return Beside(box, control, automationId);
+    }
+
+    /// <summary>The text box in a line <see cref="TextBox"/> drew.</summary>
+    internal static TextBox BoxIn(StackPanel line) => (TextBox)line.Children[0];
+
+    /// <summary>
+    /// A check box over <paramref name="label"/>, ticked as <paramref name="done"/> says, held
+    /// while <paramref name="control"/> is. <paramref name="tick"/> is told the person's tick, and
+    /// only when it differs from what was drawn; the record's next answer draws it again.
+    /// </summary>
+    internal static StackPanel CheckBox(
+        string label, bool done, ControlState control, string automationId, Action<bool> tick)
+    {
+        var box = new CheckBox
+        {
+            Content = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap },
+            IsChecked = done,
+            IsEnabled = control.Enabled,
+        };
+        AutomationProperties.SetName(box, label);
+        AutomationProperties.SetAutomationId(box, automationId);
+        // Checked and Unchecked rather than Click, so a toggle through UI Automation, as assistive
+        // technology makes one, reaches the page as a click does.
+        void Ticked()
+        {
+            if ((box.IsChecked == true) != done)
+            {
+                tick(box.IsChecked == true);
+            }
+        }
+        box.Checked += (_, _) => Ticked();
+        box.Unchecked += (_, _) => Ticked();
         return Beside(box, control, automationId);
     }
 

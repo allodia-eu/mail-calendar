@@ -1,9 +1,10 @@
-//! The preferences file and the signature library, each written behind whoever changed it
-//! ([`saved_file`]).
+//! The preferences file, the signature library and the writing assistant's files, each written
+//! behind whoever changed it ([`saved_file`]).
 //!
-//! Every setting lives in `preferences.toml`, and the signature library in `signatures.toml` beside
-//! it (`docs/signatures.md`, "Storage"). A save of either that fails is the one notice, and Try
-//! again and closing the app both reach the two.
+//! Every setting lives in `preferences.toml`, the signature library in `signatures.toml` beside it
+//! (`docs/signatures.md`, "Storage"), and the style library and the drafted replies beside those
+//! (`docs/ai.md`, "Storage"). A save of any that fails is the one notice, and Try again and
+//! closing the app reach them all.
 
 use std::{
     io,
@@ -59,7 +60,7 @@ impl<P: Provider> App<P> {
     /// [`Surface::Notices`](crate::Surface::Notices) is signalled when this changes.
     #[must_use]
     pub fn preferences_not_saved(&self) -> bool {
-        self.prefs.failed() || self.signature_library_file().failed()
+        self.prefs.failed() || self.signature_library_file().failed() || self.ai_files_failed()
     }
 
     /// Tries the failed saves again, and waits until the attempts have ended. Not for a UI thread.
@@ -71,6 +72,7 @@ impl<P: Provider> App<P> {
         if library.failed() {
             library.retry();
         }
+        self.retry_ai_files();
     }
 
     /// Waits until every change to the settings and the signature library has been written, or a
@@ -78,6 +80,7 @@ impl<P: Provider> App<P> {
     pub fn settle_preferences(&self) {
         self.prefs.settle();
         self.signature_library_file().settle();
+        self.settle_ai_files();
     }
 
     /// Waits, for no longer than `limit`, until every change to the settings and the signature
@@ -86,7 +89,8 @@ impl<P: Provider> App<P> {
     pub fn settle_preferences_within(&self, limit: Duration) -> bool {
         let deadline = Instant::now() + limit;
         let settings = self.prefs.settle_by(deadline);
-        self.signature_library_file().settle_by(deadline) && settings
+        let assistant = self.settle_ai_files_by(deadline);
+        self.signature_library_file().settle_by(deadline) && settings && assistant
     }
 }
 

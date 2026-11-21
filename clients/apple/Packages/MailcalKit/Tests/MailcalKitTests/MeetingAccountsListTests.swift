@@ -1,5 +1,5 @@
 // Settings → Videoconferencing's list of the accounts that make video meetings (docs/settings.md
-// category 4): what each row says.
+// Videoconferencing): what each row says.
 
 import MailcalBindings
 import Testing

@@ -1,4 +1,4 @@
-// Adding a later account (`docs/settings.md`, row 9): Settings → Accounts carries the one add, and
+// Adding a later account (`docs/settings.md`, Accounts): Settings → Accounts carries the one add, and
 // the mailbox carries none.
 //
 // The add closes Settings before the setup sheet opens, because a sheet presented over Settings is

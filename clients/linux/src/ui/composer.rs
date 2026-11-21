@@ -25,6 +25,7 @@ use super::{
     composer_model::{ComposeContext, compose_title},
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
+    composer_reply_draft::{ReplyDraft, ReplyDraftCore},
     composer_revision::EditorRevision,
     composer_seed::seed_editor,
     composer_signature::SignatureControl,
@@ -66,6 +67,8 @@ pub(crate) struct ComposerPane {
     /// The open draft's one scroll, which sizes the editor and follows its caret. The editor's
     /// channel reaches it weakly, so this is what keeps it.
     column: RefCell<Option<Rc<ComposerColumn>>>,
+    /// Draft a reply, for a reply while the assistant is offered (`docs/ai.md`).
+    reply_draft: RefCell<Option<Rc<ReplyDraft>>>,
 }
 
 impl ComposerPane {
@@ -82,6 +85,7 @@ impl ComposerPane {
             autosave: Autosave::default(),
             hint: RefCell::new(None),
             column: RefCell::new(None),
+            reply_draft: RefCell::new(None),
         }
     }
 
@@ -173,8 +177,11 @@ impl ComposerPane {
         // The composer's action bar; things you do *to* the message, as against the From/To/Cc
         // fields you address it with. The signature picker joins it below, once the editor it
         // writes into exists (docs/signatures.md).
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        actions.set_halign(gtk::Align::Start);
+        // Wrapping, so a large text size or a narrow pane moves a button to the next line rather
+        // than pushing the column wider than the pane.
+        let actions = adw::WrapBox::new();
+        actions.set_child_spacing(8);
+        actions.set_line_spacing(8);
         let attach = gtk::Button::with_label(l10n::action_attach());
         actions.append(&attach);
         // Never disabled: a draft is unfinished by definition, so there is no state a composer
@@ -195,6 +202,9 @@ impl ComposerPane {
         hint.add_css_class("dim-label");
         hint.set_visible(false);
         content.append(&hint);
+        // Draft a reply's own notes, filled once the editor it writes into exists.
+        let draft_notes = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        content.append(&draft_notes);
 
         // The composition's files, as the core holds them: a forward's originals, a stored
         // draft's own, a share's; the picker, a drop and a paste add to them.
@@ -234,6 +244,11 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let reply_draft = app.map(|app| reply_draft(app, request, accounts, &from, &web, &sender));
+        if let Some(draft) = &reply_draft {
+            actions.append(draft.slot());
+            draft_notes.append(draft.notes());
+        }
         let importance = app.map(|app| {
             ImportanceControl::new(
                 Arc::clone(app) as Arc<dyn ImportanceStore>,
@@ -267,7 +282,15 @@ impl ComposerPane {
             Rc::clone(&seed),
             Rc::clone(&revision),
         );
-        super::composer_host::install(web.widget(), Some(&column));
+        let report = reply_draft.as_ref().map(|draft| {
+            let draft = Rc::downgrade(draft);
+            Rc::new(move |message: String| {
+                if let Some(draft) = draft.upgrade() {
+                    draft.report(message);
+                }
+            }) as Rc<dyn Fn(String)>
+        });
+        super::composer_host::install(web.widget(), Some(&column), report);
         install_drop_target(column.widget(), take_files(PictureAnswer::Ask));
         toolbar.set_content(Some(column.widget()));
         self.root.append(&toolbar);
@@ -310,6 +333,7 @@ impl ComposerPane {
             &fields,
             error.clone(),
             sender.clone(),
+            reply_draft.as_ref(),
         );
         connect_save_draft(&save_draft, web.widget(), &fields, sender.clone());
         // The idle save takes the same route the button does, so the two cannot come to store
@@ -334,6 +358,14 @@ impl ComposerPane {
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
         self.column.replace(Some(column));
+        self.reply_draft.replace(reply_draft);
+    }
+
+    /// Reads Draft a reply again after the core signalled it may have moved.
+    pub(crate) fn follow_reply_draft(&self, read: u64) {
+        if let Some(draft) = self.reply_draft.borrow().as_ref() {
+            draft.follow_read(read);
+        }
     }
 
     /// Draws what the draft's last save said (`composer_drafts::draw_draft_hint`).
@@ -392,6 +424,7 @@ impl ComposerPane {
         self.signature.take();
         self.draft.take();
         self.column.take();
+        self.reply_draft.take();
         self.checked_generation.set(None);
         while let Some(child) = self.root.first_child() {
             self.root.remove(&child);
@@ -400,6 +433,42 @@ impl ComposerPane {
         self.error.replace(None);
         self.send.replace(None);
     }
+}
+
+/// Draft a reply for this composer, sending from what its From picker shows; it follows a change
+/// of From itself.
+fn reply_draft(
+    app: &Arc<MailcalApp>,
+    request: &ComposeContext,
+    accounts: &[(String, String)],
+    from: &gtk::DropDown,
+    web: &SecureWebView,
+    sender: &relm4::Sender<AppInput>,
+) -> Rc<ReplyDraft> {
+    let ids = accounts
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let picker = from.clone();
+    let draft = ReplyDraft::new(
+        Arc::clone(app) as Arc<dyn ReplyDraftCore>,
+        &request.composition,
+        Rc::new(move || {
+            usize::try_from(picker.selected())
+                .ok()
+                .and_then(|index| ids.get(index))
+                .cloned()
+        }),
+        web.widget(),
+        sender.clone(),
+    );
+    let following = Rc::downgrade(&draft);
+    from.connect_selected_notify(move |_| {
+        if let Some(draft) = following.upgrade() {
+            draft.follow();
+        }
+    });
+    draft
 }
 
 #[cfg(test)]

@@ -35,7 +35,7 @@ struct SettingsView: View {
         self.model = model
         self.close = close
         self.removeAccount = removeAccount
-        _selection = State(initialValue: openOn)
+        _selection = State(initialValue: SettingsCategory.reachable(openOn, in: model))
     }
 
     var body: some View {
@@ -48,7 +48,7 @@ struct SettingsView: View {
             .padding()
             Divider()
             NavigationSplitView {
-                List(SettingsCategory.displayed, selection: $selection) { category in
+                List(SettingsCategory.displayed(model), selection: $selection) { category in
                     Label(category.title, systemImage: category.icon).tag(category)
                 }
                 .navigationSplitViewColumnWidth(200)
@@ -67,6 +67,12 @@ struct SettingsView: View {
         // where it lives.
         .onChange(of: model.accountPage) { _, page in
             if page != nil { selection = .accounts }
+        }
+        // A remedy that names the own endpoint's form opens Advanced, where it is.
+        .onChange(of: model.writingStyle.endpointRequest) { _, _ in selection = .advanced }
+        // A category the core stops offering while it is shown is left.
+        .onChange(of: SettingsCategory.displayed(model)) { _, _ in
+            selection = SettingsCategory.reachable(selection, in: model)
         }
     }
 }

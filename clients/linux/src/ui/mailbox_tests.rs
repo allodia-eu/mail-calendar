@@ -446,6 +446,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     signatures::a_signatures_own_text_is_never_parsed_as_markup();
     signatures::the_page_is_drawn_from_the_cores_record_and_asks_only_what_the_person_did();
     signatures::an_empty_library_says_so_and_new_signature_opens_the_editor();
+    crate::ui::settings::writing_style::tests::all();
+    crate::ui::composer_reply_draft::tests::all();
 
     invitation::an_invitations_own_text_is_never_parsed_as_markup();
     invitation::an_address_in_the_description_is_a_link();
@@ -472,6 +474,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_draft::widget_tests::the_composer_is_one_column_in_the_contracts_order(
         &window,
     );
+    crate::ui::settings::offer_tests::not_offered_settings_holds_none_of_it(&window);
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);

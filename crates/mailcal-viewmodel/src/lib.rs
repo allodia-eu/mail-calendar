@@ -29,6 +29,7 @@ pub mod sync_progress;
 pub mod text;
 pub mod view;
 mod view_rows;
+pub mod writing_style;
 
 pub use attendee::{EventAttendee, EventAttendeeRole, effective_response, event_attendees};
 pub use avatar::Avatar;

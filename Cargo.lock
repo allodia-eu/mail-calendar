@@ -19,6 +19,7 @@ name = "allodia-license"
 version = "0.18.1"
 dependencies = [
  "base64 0.23.1",
+ "mailcal-ai",
  "mailcal-oauth",
  "reqwest",
  "serde",
@@ -2233,6 +2234,7 @@ dependencies = [
  "futures",
  "log",
  "mailcal-autodetect",
+ "mailcal-jurisdiction",
  "mailcal-oauth",
  "mailcal-user-agent",
  "mailcal-viewmodel",
@@ -2256,6 +2258,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcal-ai"
+version = "0.18.1"
+dependencies = [
+ "log",
+ "mailcal-jurisdiction",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "mailcal-app"
 version = "0.18.1"
 dependencies = [
@@ -2269,7 +2284,9 @@ dependencies = [
  "futures",
  "log",
  "mailcal-account",
+ "mailcal-ai",
  "mailcal-composer",
+ "mailcal-jurisdiction",
  "mailcal-viewmodel",
  "ring",
  "rusqlite",
@@ -2330,6 +2347,7 @@ dependencies = [
  "libc",
  "log",
  "mailcal-account",
+ "mailcal-ai",
  "mailcal-app",
  "mailcal-autodetect",
  "mailcal-buildenv",
@@ -2376,6 +2394,14 @@ name = "mailcal-ffi"
 version = "0.18.1"
 dependencies = [
  "mailcal-bindings",
+]
+
+[[package]]
+name = "mailcal-jurisdiction"
+version = "0.18.1"
+dependencies = [
+ "serde",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

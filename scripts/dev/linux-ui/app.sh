@@ -124,6 +124,7 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
     --env=MAILCAL_SHOWCASE_SERVER_CHANGE="${MAILCAL_SHOWCASE_SERVER_CHANGE:-}" \
     --env=MAILCAL_SHOWCASE_REAUTH="${MAILCAL_SHOWCASE_REAUTH:-}" \
     --env=MAILCAL_SHOWCASE_QUESTIONS="${MAILCAL_SHOWCASE_QUESTIONS:-}" \
+    --env=MAILCAL_OFFER_AI="${MAILCAL_OFFER_AI:-}" \
     --env=XDG_DATA_HOME="$XDG_DATA_HOME" \
     --env=XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
     --env=XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -196,7 +197,15 @@ open_settings() { # [category]
   [[ -z "${1:-}" ]] || ui_press text="$1" role=toggle-button window=Settings
 }
 
+# Waits for a slide between two of a flow's stages in Settings to end. Each stage is a page with a
+# header bar of its own, the window's close at its end, and while the slide runs both pages are
+# mapped, so two closes are: one at rest and one moving off the window's edge.
+settings_slid() {
+  ui_gone icon=window-close-symbolic window=Settings index=1
+}
+
 close_settings() {
+  settings_slid
   ui_press icon=window-close-symbolic window=Settings
   ui_gone type=GtkWindow text=Settings
 }

@@ -49,6 +49,11 @@ internal sealed partial class App : IDisposable
     internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null, string? language = "en") =>
         Launch(env, Dataset.FirstRun, language: language);
 
+    /// <summary>Launches on the first-run store after <paramref name="stage"/> has put something in
+    /// its emptied credential namespace, named to it, and waits for the setup form.</summary>
+    internal static App LaunchOnFirstRunStaged(Action<string> stage, IReadOnlyDictionary<string, string>? env = null) =>
+        Launch(env, Dataset.FirstRun, stage: stage);
+
     /// <summary>Launches the newest Debug build on the in-memory showcase dataset and waits until it
     /// is showing its screen (App.Showcase.cs).</summary>
     internal static App LaunchOnShowcase(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Showcase);
@@ -68,12 +73,15 @@ internal sealed partial class App : IDisposable
         return app;
     }
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset, bool keepStore = false, string? language = "en")
+    private static App Launch(
+        IReadOnlyDictionary<string, string>? env, Dataset dataset, bool keepStore = false, string? language = "en",
+        Action<string>? stage = null)
     {
         Stop();
         if (dataset == Dataset.FirstRun && !keepStore)
         {
             ClearNamespace("dev-first-run");
+            stage?.Invoke("dev-first-run");
         }
         else if (dataset == Dataset.Showcase)
         {

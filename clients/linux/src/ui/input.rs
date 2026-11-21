@@ -256,6 +256,8 @@ pub(crate) enum AppInput {
     /// job is to provoke the render that swaps the canvas for the page.
     ReadingBodyPainted,
     OpenSettings,
+    /// Puts Settings on screen at a category: where a remedy sends the person.
+    OpenSettingsAt(crate::ui::settings::Category),
     OpenAccountSetup,
     /// Opens setup as the required first-account screen, card and all; only the showcase asks.
     #[cfg(any(debug_assertions, feature = "dev-harness"))]

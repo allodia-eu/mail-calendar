@@ -38,6 +38,9 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
     /// Called in the editor's framed mode with how far the message is scrolled inside its box, in
     /// points (`docs/composer-layout.md`, rule 2).
     var onScroll: (CGFloat) -> Void = { _ in }
+    /// Called with every message the editor posts, before it is parsed: the core reads its
+    /// reply-draft report from them (`composerReplyDraftReport`), which the parse leaves out.
+    var onMessage: (String) -> Void = { _ in }
     /// Weak: the web view's content controller holds this channel, and the web view's owner holds
     /// the web view.
     private weak var webView: WKWebView?
@@ -58,12 +61,17 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        guard message.name == composerHostChannel(),
-              let body = message.body as? String,
-              let request = parseComposerHostRequest(message: body)
-        else {
+        guard message.name == composerHostChannel(), let body = message.body as? String else {
             return
         }
+        receive(body)
+    }
+
+    /// One message the editor posted: to `onMessage`, every one, then to whichever handler its
+    /// request has.
+    func receive(_ body: String) {
+        onMessage(body)
+        guard let request = parseComposerHostRequest(message: body) else { return }
         switch request {
         case let .link(id, text, address, removable):
             onLink(LinkDialogRequest(id: id, text: text, address: address, removable: removable))

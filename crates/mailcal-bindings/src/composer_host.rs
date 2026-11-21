@@ -70,7 +70,9 @@ pub enum ComposerHostRequest {
 }
 
 /// Reads one message the editor posted, or `None` when it is not a request this product knows.
-/// A client ignores a `None`: the editor treats a request nobody answers as cancelled.
+/// A client ignores a `None`: the editor treats a request nobody answers as cancelled. The
+/// editor's reply-draft report is `None` here too: a client hands every message to
+/// `MailcalApp::composer_reply_draft_report` as well, which takes that one.
 #[must_use]
 #[uniffi::export]
 pub fn parse_composer_host_request(message: String) -> Option<ComposerHostRequest> {
@@ -94,6 +96,8 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
             px: scroll.px,
             end: scroll.end,
         },
+        // The core's, not the client's: handed on with `composer_reply_draft_report`.
+        HostRequestKind::ReplyDraft(_) => return None,
     })
 }
 
@@ -145,11 +149,13 @@ pub fn composer_link_answer_script(id: u64, answer: ComposerLinkAnswer) -> Strin
 ///
 /// It also asks for the framed mode's [`ComposerHostRequest::Caret`] and
 /// [`ComposerHostRequest::Scroll`], which the editor sends only once `useFramedComposer()` has
-/// switched that mode on. A notice left out of this list is one the editor never sends.
+/// switched that mode on, and for the reply-draft report, which a client hands to
+/// `MailcalApp::composer_reply_draft_report`. A notice left out of this list is one the editor
+/// never sends.
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"caret\",\"scroll\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"caret\",\"scroll\",\"reply_draft\"]);".to_owned()
 }
 
 /// The same, for a host that also keeps the body's undo state, because its platform asks whether
@@ -159,7 +165,8 @@ pub fn composer_host_requests_script() -> String {
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_with_history_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"history\",\"caret\",\"scroll\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"history\",\"caret\",\"scroll\",\"reply_draft\"]);"
+        .to_owned()
 }
 
 #[cfg(test)]
@@ -178,7 +185,7 @@ mod tests {
             composer_host_requests_script(),
             composer_host_requests_with_history_script(),
         ] {
-            for kind in ["link", "caret", "scroll"] {
+            for kind in ["link", "caret", "scroll", "reply_draft"] {
                 assert!(
                     script.contains(&format!("\"{kind}\"")),
                     "{script} leaves out {kind}"

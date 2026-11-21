@@ -48,6 +48,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             displaySettings = display
             // An account added or removed changes the signatures page's rows.
             signatures = app.signaturesPage()
+            // And the writing assistant's slots, its offer and the endpoint's form.
+            pullWritingStyle(app)
             analyticsConsent = app.analyticsConsent()
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
@@ -66,6 +68,13 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         }
         // A change to the signature library started, ended or was refused, or a slot was assigned.
         CoreSurface.SIGNATURES -> signatures = app.signaturesPage()
+        // Settings → Writing style moved: its page, the learning flow, or a style's reveal or
+        // detail (MainActivityWritingStyle.kt).
+        CoreSurface.WRITING_STYLE -> pullWritingStyle(app)
+        // The own endpoint's form moved: a change started, waited or ended.
+        CoreSurface.AI_ENDPOINT -> pullAiEndpoint(app)
+        // Draft a reply moved for some composition: every open composer reads its own again.
+        CoreSurface.REPLY_DRAFT -> writingStyle.draftVersion += 1
         // A pass over the person's other devices started or ended: their card moves, and the
         // first-run card's progress with it.
         CoreSurface.OTHER_DEVICES -> {

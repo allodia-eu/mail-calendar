@@ -35,9 +35,10 @@ public sealed partial class MailboxModel
         }
         CredentialStore.UseDevNamespace(dev.StoreSubdir);
         // Canned harness account first (always injected), then whatever a previous dev session left
-        // in the isolated dev namespace: an account added through the form, and the Allodia account
-        // a sign-in stores, which is not a mail account at all, and which the core takes back out
-        // before anything reads it as one. Reading the store here is what keeps both; Apple does the
+        // in the isolated dev namespace: an account added through the form, and the entries the core
+        // keeps there itself (the Allodia account a sign-in stores, the own AI endpoint's key), which
+        // are not mail accounts at all, and which the core takes back out before anything reads
+        // them as one. Reading the store here is what keeps both; Apple does the
         // same, and Android carries only the second because its store is not namespaced per dev
         // account. Re-adding the canned account itself through the form is the one case that would
         // duplicate it, a non-issue for a throwaway harness store, and cleared by wiping the dev

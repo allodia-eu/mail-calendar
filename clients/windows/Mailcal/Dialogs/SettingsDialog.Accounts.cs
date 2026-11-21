@@ -1,5 +1,5 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
-// page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
+// page of its own (docs/accounts.md rule 11, docs/settings.md, Accounts). The page's sections are
 // partials of their own: what the account is used for and linked to (AccountUses), the accounts
 // taking a use from it (AccountLinkedFrom), the mailboxes and calendars shared with it
 // (AccountSharedStores), how it signs in (AccountSignIn), its servers and its removal (AccountServers), and its mail settings

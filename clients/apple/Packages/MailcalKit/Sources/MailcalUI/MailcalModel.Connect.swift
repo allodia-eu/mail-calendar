@@ -108,6 +108,8 @@ extension MailboxModel {
         // The composer resolves the account's signature when it opens, so the library has to
         // be mirrored before the first compose, not on the first `Surface::Settings` signal.
         signatures = app.signaturesPage()
+        aiEndpoint = app.aiEndpointForm()
+        reloadWritingStyle()
         // The retention signal, once per launch. A no-op until the user opts in, and on the
         // very first launch the opt-in itself reports the session, so consenting is never a
         // launch we fail to count.

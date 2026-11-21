@@ -230,7 +230,7 @@ impl AccountRegistry {
             .lock()
             .expect("account registry mutex poisoned")
             .get(&parent)
-            .map(AccountDial::from_entry)?
+            .map(|entry| AccountDial::from_entry(entry).named_by(&self.gmail_naming))?
             .for_shared(&child.choice)
     }
 

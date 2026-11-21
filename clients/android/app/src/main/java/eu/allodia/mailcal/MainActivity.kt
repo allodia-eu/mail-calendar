@@ -140,6 +140,10 @@ class MainActivity : AppCompatActivity() {
     // Names only: a body is fetched one at a time. Null until the first read.
     internal var signatures by mutableStateOf<SignaturesPage?>(null)
 
+    // Settings → Writing style and the own endpoint's form as the core draws them, read on connect
+    // and on the WRITING_STYLE, AI_ENDPOINT and SETTINGS signals (MainActivityWritingStyle.kt).
+    internal val writingStyle = WritingStyleState()
+
     // The outgoing-send hint, pulled on a SENDING surface change: SENDING while a send is in
     // flight, then the terminal SENT/FAILED which auto-clears back to IDLE after a moment.
     internal var sendStatus by mutableStateOf(SendStatus.IDLE)
@@ -163,6 +167,9 @@ class MainActivity : AppCompatActivity() {
     // two questions, and one nullable enum answering both makes every reader prove they cannot
     // disagree.
     internal var settingsCategory by mutableStateOf<SettingsCategory?>(null)
+    // Settings raised over the composer by a writing-assistant remedy, which leaves the composer as
+    // it is underneath (MainActivityWritingStyle.kt).
+    internal var settingsOverComposer by mutableStateOf(false)
     // The Diagnostics screen (Settings → Diagnostics), swapped in over Settings. Both flags stay
     // true while it shows, so its branch is checked first and its Back returns to Settings.
     internal var showingDiagnostics by mutableStateOf(false)

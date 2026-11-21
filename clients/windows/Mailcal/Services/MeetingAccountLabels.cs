@@ -1,5 +1,5 @@
 // What Settings → Videoconferencing says of each account that makes video meetings
-// (docs/settings.md category 4): the state of its Video meetings use, and the name a screen reader
+// (docs/settings.md, Videoconferencing): the state of its Video meetings use, and the name a screen reader
 // reads for its row. WinUI-free and catalog-free so Mailcal.Tests reaches it; the dialog hands in
 // the catalog's words.
 

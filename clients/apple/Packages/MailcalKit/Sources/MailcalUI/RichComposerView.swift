@@ -123,6 +123,9 @@ struct RichComposeView: View {
     @State var importance: ComposerImportance?
     /// The core verbs the importance goes through.
     let importanceVerbs: ComposerImportanceVerbs?
+    /// Draft a reply's core verbs (RichComposerView.ReplyDraft.swift), and what it draws of them.
+    let replyDrafts: ComposerReplyDrafts?
+    @State var replyDraft = ReplyDraftUI()
     /// Whether the To field takes the caret when the composer appears, the other half of
     /// `opensInBody`, so exactly one of the two is focused.
     private let focusesTo: Bool
@@ -169,6 +172,7 @@ struct RichComposeView: View {
         /// (`ComposeOpening.moved`): it opens on that document and nothing else is seeded.
         moved: MovedComposer? = nil,
         popOut: ((ComposerState) async -> Bool)? = nil,
+        replyDrafts: ComposerReplyDrafts? = nil,
         send: @escaping (ComposerSubmission) -> Bool,
         cancel: @escaping () -> Void
     ) {
@@ -236,6 +240,7 @@ struct RichComposeView: View {
             importanceChanged: false
         )
         _composition = State(initialValue: composition)
+        self.replyDrafts = replyDrafts
         // What its save last came to: a moved composer's is the one it left's, and any other's is
         // `.idle` until it saves.
         _draftStatus = State(initialValue: drafts?.status(composition) ?? .idle)
@@ -295,6 +300,7 @@ struct RichComposeView: View {
         .modifier(draftSaving)
         .discardDraftQuestion(isPresented: $confirmingDiscard, discard: discardNow)
         .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
+        .modifier(replyDraftFollowing)
         #else
         // iOS/iPadOS: a full-height sheet with the title + Close/Send in the navigation bar. Close
         // is leaving, so it keeps the draft; Discard is in the action bar (`docs/drafts.md`).
@@ -319,7 +325,7 @@ struct RichComposeView: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button { prepareAndSend() } label: {
+                    Button { requestSend() } label: {
                         Label(L10n.action_send(), systemImage: "paperplane")
                     }
                     .buttonStyle(.borderedProminent)
@@ -335,6 +341,7 @@ struct RichComposeView: View {
         .modifier(draftSaving)
         .discardDraftQuestion(isPresented: $confirmingDiscard, discard: discardNow)
         .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
+        .modifier(replyDraftFollowing)
         #endif
     }
 
@@ -423,6 +430,7 @@ struct RichComposeView: View {
                 .font(.caption)
                 .foregroundStyle(draftHintFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
         }
+        replyDraftNotes
     }
 
     func prepareAndSend() {
