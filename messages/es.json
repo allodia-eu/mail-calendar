@@ -920,6 +920,8 @@
 	"settings_subscription_refused_not_found": "No hay ninguna suscripción que cambiar.",
 
 	"settings_advanced_reset_description": "Borra el correo guardado en el dispositivo y descárgalo todo de nuevo del servidor. Los envíos en cola se conservan.",
+	"settings_advanced_reset_done": "La base de datos local se ha restablecido y tu correo se ha descargado de nuevo.",
+	"settings_advanced_reset_failed": "No se ha podido restablecer la base de datos local, así que el correo de este dispositivo no ha cambiado. El registro de diagnóstico indica el motivo.",
 
 	"settings_mcp_heading": "Acceso para asistentes de IA",
 	"settings_mcp_description": "Permite que un asistente de IA de este ordenador lea y gestione tu correo mediante el Model Context Protocol. Está desactivado salvo que lo actives, solo llega a las cuentas que marques y no se nos envía nada.",
@@ -927,6 +929,8 @@
 	"settings_mcp_status_running": "Activo · esperando a que se conecte un cliente",
 	"settings_mcp_status_off": "Desactivado",
 	"settings_mcp_status_unavailable": "Activado, pero no está escuchando: consulta el registro de diagnóstico",
+	"settings_mcp_status_starting": "Iniciando…",
+	"settings_mcp_status_another_instance": "Activado, pero otra instancia de {app_name} ya atiende a los asistentes",
 	"settings_mcp_accounts_heading": "Cuentas que puede usar un asistente",
 	"settings_mcp_accounts_description": "Al principio, ninguna. Marca una cuenta para que un asistente pueda leer y gestionar su correo.",
 	"settings_mcp_accounts_empty": "Todavía no compartes ninguna cuenta, así que un asistente ve un buzón vacío.",

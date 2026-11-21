@@ -18,6 +18,22 @@ pub(crate) fn init() {
         );
     }
     use_simple_input_method();
+    name_a_text_dpi();
+}
+
+/// Gives a session that names no text DPI the one every desktop names.
+///
+/// A desktop sets `gtk-xft-dpi` before the first window, through its settings portal. A pipeline
+/// has no portal, so it stays at -1, and WebKitGTK then scales each view it builds by a page
+/// scale of 0: every `zoom-level` it reports is NaN, and a reset to 1.0 cannot be read back. A
+/// desktop's own setting is left alone.
+fn name_a_text_dpi() {
+    const DESKTOP_DPI: i32 = 96 * 1024;
+    if let Some(settings) = gtk::Settings::default()
+        && settings.gtk_xft_dpi() <= 0
+    {
+        settings.set_gtk_xft_dpi(DESKTOP_DPI);
+    }
 }
 
 /// Keeps the desktop's input method out of the widget test, which types nothing through one.

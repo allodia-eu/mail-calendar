@@ -65,6 +65,10 @@ async-stream = { workspace = true }
 # deterministically instead of sleeping 2.5s.
 tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
 tempfile = { workspace = true }
+# A second connection holding the store for writing, as another process would, so a test can see
+# a reset the store refuses. The engine bundles SQLite through the same crate and only one copy
+# may link it, so this follows the engine's version.
+rusqlite = "0.40"
 
 [lints]
 workspace = true

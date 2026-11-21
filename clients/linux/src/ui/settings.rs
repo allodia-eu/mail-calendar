@@ -128,8 +128,8 @@ struct PageContext {
     devices: Option<mailcal_bindings::AllodiaDevices>,
     /// Where the Signatures page registers itself, so the window can ask it to follow the core.
     signatures: signatures::Shown,
-    /// Where the pages drawn from the calendars register the parts that follow the core.
-    calendar: calendar_follow::Followers,
+    /// Where the pages that follow the core's records in place register their parts.
+    follow: calendar_follow::Followers,
 }
 
 #[derive(Debug, Default)]
@@ -158,8 +158,8 @@ pub(super) struct SettingsWindow {
     top_notice: Option<super::notice_bar::NoticeBar>,
     /// The Signatures page drawn last, which follows the core's signals itself.
     signatures: signatures::Shown,
-    /// The parts of the calendar's pages drawn last, which follow the core's signals themselves.
-    calendar: calendar_follow::Followers,
+    /// The parts of the pages drawn last that follow the core's signals themselves.
+    follow: calendar_follow::Followers,
 }
 
 impl SettingsWindow {
@@ -279,7 +279,7 @@ impl SettingsWindow {
             page: None,
             devices: None,
             signatures: self.signatures.clone(),
-            calendar: self.calendar.clone(),
+            follow: self.follow.clone(),
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal
@@ -303,7 +303,7 @@ impl SettingsWindow {
             self.rendered_generation = state.generation;
             return;
         }
-        self.calendar.clear();
+        self.follow.clear();
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");

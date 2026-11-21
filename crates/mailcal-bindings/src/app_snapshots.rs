@@ -77,6 +77,10 @@ impl MailcalApp {
             self.dispatch_ai(intent);
             return;
         }
+        if let Intent::Mcp { intent } = intent {
+            self.dispatch_mcp(intent);
+            return;
+        }
         if let Intent::Notices { intent } = intent {
             self.dispatch_notice(intent);
             return;
@@ -253,17 +257,6 @@ impl MailcalApp {
                 .open_if_absent(&composition, staged_files(files));
         }
         Some(opening.into())
-    }
-
-    /// Resets the account: clears the local cache and re-syncs from scratch, re-fetching
-    /// and re-normalising everything. **Destructive**; discards the local cache (the
-    /// durable outbox is kept). Fire-and-forget: the observer fires when the re-sync
-    /// completes and the host pulls the refreshed snapshot.
-    pub fn reset(&self) {
-        let app = Arc::clone(&self.app);
-        self.runtime.spawn(async move {
-            app.reset().await;
-        });
     }
 }
 

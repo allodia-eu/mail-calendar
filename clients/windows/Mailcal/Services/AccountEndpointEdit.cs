@@ -40,26 +40,27 @@ internal static class AccountEndpointEdit
     }
 
     /// <summary>
-    /// The address to store: a host the person wrote a port into as written, as the setup form
-    /// dials it; otherwise the bare host when the port is empty or the standard one for
-    /// <paramref name="security"/>, and <c>host:port</c> when it is not. No host is no address,
-    /// whatever the port says, so the core sees the server as missing.
+    /// The address to store, joined as the core joins it: the bare host when the port is empty or
+    /// the standard one for <paramref name="security"/>, and <c>host:port</c> when it is not, a
+    /// port the person wrote into the host winning over the port field, as the setup form dials
+    /// it. No host is no address, whatever the port says, so the core sees the server as missing.
     /// </summary>
     internal static string Joined(
-        string host, string port, ConnectionSecurity security, Func<ConnectionSecurity, ushort> standardPort)
+        string host,
+        string port,
+        ConnectionSecurity security,
+        Func<ConnectionSecurity, ushort> standardPort,
+        ServerAddressing addressing)
     {
-        var (bareHost, barePort) = (host.Trim(), port.Trim());
+        var (bareHost, inHost) = addressing.Split(host);
         if (bareHost.Length == 0)
         {
             return string.Empty;
         }
-        if (ManualServerField.SplitHost(bareHost).Port.Length > 0)
-        {
-            return bareHost;
-        }
-        return barePort.Length == 0 || barePort == Port(standardPort(security))
+        var chosen = inHost.Length > 0 ? inHost : port.Trim();
+        return chosen.Length == 0 || chosen == Port(standardPort(security))
             ? bareHost
-            : $"{bareHost}:{barePort}";
+            : addressing.Join(bareHost, chosen);
     }
 
     private static string Port(ushort port) =>

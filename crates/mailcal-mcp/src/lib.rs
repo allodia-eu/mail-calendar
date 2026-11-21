@@ -50,6 +50,8 @@ mod modern;
 pub mod policy;
 pub mod schema;
 pub mod session;
+mod snippet;
+mod status;
 pub mod tools;
 
 pub use backend::{AgentDraft, ComposerError, MailBackend};
@@ -59,6 +61,8 @@ pub use endpoint::{Endpoint, EndpointError};
 pub use session::{
     LEGACY_PROTOCOL_VERSIONS, MODERN_PROTOCOL_VERSIONS, SUPPORTED_PROTOCOL_VERSIONS,
 };
+pub use snippet::configuration_snippet;
+pub use status::ListenerStatus;
 
 #[cfg(test)]
 mod tests_fake;
@@ -72,6 +76,8 @@ mod tests_protocol;
 mod tests_schema;
 #[cfg(test)]
 mod tests_server;
+#[cfg(test)]
+mod tests_status;
 #[cfg(test)]
 mod tests_tools;
 
@@ -92,13 +98,15 @@ pub struct McpServer {
     bound: Mutex<Option<Endpoint>>,
     /// The accept task.
     task: Mutex<Option<JoinHandle<()>>>,
+    /// What the listener is doing, as Settings says it.
+    status: Arc<status::StatusCell>,
 }
 
 impl core::fmt::Debug for McpServer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // The backend holds live provider handles and credentials; show none of them.
         f.debug_struct("McpServer")
-            .field("running", &self.is_running())
+            .field("status", &self.status())
             .finish_non_exhaustive()
     }
 }
@@ -113,7 +121,19 @@ impl McpServer {
             config: Arc::new(RwLock::new(Arc::new(McpConfig::default()))),
             bound: Mutex::new(None),
             task: Mutex::new(None),
+            status: Arc::default(),
         }
+    }
+
+    /// What the listener is doing.
+    #[must_use]
+    pub fn status(&self) -> ListenerStatus {
+        self.status.get()
+    }
+
+    /// Calls `hook` whenever [`status`](Self::status) changes, from whichever thread changed it.
+    pub fn on_status_change(&self, hook: impl Fn() + Send + Sync + 'static) {
+        self.status.on_change(Arc::new(hook));
     }
 
     /// (Re)applies `config`.
@@ -130,11 +150,12 @@ impl McpServer {
     /// not have propagated the change anyway.
     ///
     /// Called on every settings change, so it must be cheap and idempotent. A config with no
-    /// endpoint, or one whose endpoint does not validate, leaves the server stopped: the correct
-    /// reading of "the user has not turned this on".
+    /// endpoint leaves the server stopped: the correct reading of "the user has not turned this
+    /// on". One whose endpoint does not validate leaves it stopped too, as unavailable.
     pub fn apply(&self, config: &McpConfig) {
         *self.config.write().expect("mcp-config lock poisoned") = Arc::new(config.clone());
 
+        let mut idle = ListenerStatus::Stopped;
         let desired = match config.endpoint.as_deref() {
             None => None,
             Some(raw) => match Endpoint::parse(raw) {
@@ -143,6 +164,7 @@ impl McpServer {
                     // The endpoint string never reaches the log; it contains the user's home
                     // directory, and therefore usually their name.
                     log::warn!("mcp: not listening; {err}");
+                    idle = ListenerStatus::Unavailable;
                     None
                 }
             },
@@ -159,10 +181,12 @@ impl McpServer {
         let previous = self.abort_task();
         (*self.bound.lock().expect("mcp-endpoint mutex poisoned")).clone_from(&desired);
         let Some(endpoint) = desired else {
+            self.status.set(idle);
             return;
         };
         let backend = Arc::clone(&self.backend);
         let config = Arc::clone(&self.config);
+        let status = self.status.begin();
         let task = self.handle.spawn(async move {
             // Wait for the previous listener to finish releasing the endpoint before touching
             // it. `abort()` is cooperative: the old task is parked in `accept()` and does not
@@ -173,7 +197,7 @@ impl McpServer {
             if let Some(previous) = previous {
                 let _ = previous.await;
             }
-            listener::run(backend, config, endpoint).await;
+            listener::run(backend, config, endpoint, status).await;
         });
         *self.task.lock().expect("mcp-task mutex poisoned") = Some(task);
     }
@@ -182,6 +206,7 @@ impl McpServer {
     pub fn stop(&self) {
         *self.bound.lock().expect("mcp-endpoint mutex poisoned") = None;
         drop(self.abort_task());
+        self.status.set(ListenerStatus::Stopped);
     }
 
     /// Aborts the running listener and hands back its handle, so a caller that is about to bind

@@ -17,24 +17,27 @@ namespace Allodia.Mailcal.Services;
 internal sealed class ManualServerField
 {
     private readonly Func<ConnectionSecurity, ushort> _standardPort;
+    private readonly ServerAddressing _addressing;
     private bool _typedByHand;
 
     /// <summary>
-    /// The standard port is passed in rather than fetched, for the reason the attendee row's
-    /// "Organiser" is: this type is linked into a test assembly that loads no cdylib, so a call
-    /// across the FFI here would be a rule no test could reach. <see cref="For"/> is what the
-    /// view uses; the numbers themselves are pinned against the core in `mailcal-bindings`.
+    /// The standard port and the address's split and join are passed in rather than fetched, for
+    /// the reason the attendee row's "Organiser" is: this type is linked into a test assembly
+    /// that loads no cdylib, so a call across the FFI here would be a rule no test could reach.
+    /// <see cref="For"/> is what the view uses; the numbers themselves are pinned against the
+    /// core in `mailcal-bindings`.
     /// </summary>
-    internal ManualServerField(Func<ConnectionSecurity, ushort> standardPort)
+    internal ManualServerField(Func<ConnectionSecurity, ushort> standardPort, ServerAddressing addressing)
     {
         _standardPort = standardPort;
+        _addressing = addressing;
         Security = ConnectionSecurity.ImplicitTls;
         Port = StandardPort(ConnectionSecurity.ImplicitTls);
     }
 
     /// <summary>The field for one of an account's two servers, answered by the core.</summary>
     internal static ManualServerField For(MailServerKind kind) =>
-        new(security => MailcalBindingsMethods.StandardPort(kind, security));
+        new(security => MailcalBindingsMethods.StandardPort(kind, security), ServerAddressing.Core);
 
     /// <summary>How this server's connection is secured. Implicit TLS unless the user says otherwise.</summary>
     internal ConnectionSecurity Security { get; private set; }
@@ -87,7 +90,7 @@ internal sealed class ManualServerField
     internal void AdoptDetected(string hostWithOptionalPort, ConnectionSecurity security)
     {
         Security = security;
-        var (_, port) = SplitHost(hostWithOptionalPort);
+        var (_, port) = _addressing.Split(hostWithOptionalPort);
         _typedByHand = port.Length > 0;
         Port = _typedByHand ? port : StandardPort(security);
     }
@@ -98,41 +101,18 @@ internal sealed class ManualServerField
     /// </summary>
     internal void Reset() => AdoptDetected(string.Empty, ConnectionSecurity.ImplicitTls);
 
-    /// <summary>The `host:port` this field submits, or the bare host when it carries no port.</summary>
+    /// <summary>
+    /// The `host:port` this field submits, or the bare host when it carries no port, joined as the
+    /// core joins it.
+    /// </summary>
     internal string Dial(string host)
     {
-        var typed = host.Trim();
-        if (typed.Length == 0 || SplitHost(typed).Port.Length > 0)
-        {
-            // A host the user already wrote a port into wins: two ports would be a contradiction,
-            // and the one in the host field is the one they can see next to the name.
-            return typed;
-        }
-        return Port.Trim().Length == 0 ? typed : $"{typed}:{Port.Trim()}";
+        var (bare, typed) = _addressing.Split(host);
+        // A host the user already wrote a port into wins: two ports would be a contradiction, and
+        // the one in the host field is the one they can see next to the name.
+        return _addressing.Join(bare, typed.Length > 0 ? typed : Port);
     }
 
     private string StandardPort(ConnectionSecurity security) =>
         _standardPort(security).ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-    /// <summary>
-    /// Splits a typed server into host and port. Only an all-digit tail after the last colon is a
-    /// port, so an IPv6 literal or a stray colon stays part of the host.
-    /// </summary>
-    internal static (string Host, string Port) SplitHost(string input)
-    {
-        var at = input.LastIndexOf(':');
-        if (at <= 0 || at == input.Length - 1)
-        {
-            return (input, string.Empty);
-        }
-        var tail = input[(at + 1)..];
-        foreach (var character in tail)
-        {
-            if (character is < '0' or > '9')
-            {
-                return (input, string.Empty);
-            }
-        }
-        return (input[..at], tail);
-    }
 }

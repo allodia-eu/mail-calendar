@@ -96,15 +96,12 @@ fn render_app_id(out: &mut String, brand: &Brand) {
         "/// The reverse-DNS id this build was branded with: the GTK application id, the\n\
          /// libsecret schema, and the `~/.var/app/<id>` a Flatpak keeps its data in.\n\
          pub(crate) const APP_ID: &str = {:?};\n\n\
-         /// The key an MCP client files the local server under, and the server's own\n\
-         /// `serverInfo.name`.\n\
-         pub(crate) const MCP_SERVER_NAME: &str = {:?};\n\n\
          /// The command the MCP relay is installed as, which an MCP client spawns.\n\
          pub(crate) const MCP_RELAY_NAME: &str = {:?};\n\n\
          /// The directory under the user's data directory the store, the log and the MCP\n\
          /// endpoint live in.\n\
          pub(crate) const DATA_DIR_NAME: &str = {:?};\n\n",
-        brand.id, brand.mcp_server_name, brand.mcp_relay_name, brand.data_dir_name
+        brand.id, brand.mcp_relay_name, brand.data_dir_name
     );
 }
 

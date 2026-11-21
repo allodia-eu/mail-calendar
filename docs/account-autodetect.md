@@ -177,8 +177,12 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     (`standard_port`, 993/143 and 465/587) rather than each client's, so the port a form offers
     and the port the core dials cannot drift apart. A port already typed **inside** the host
     field wins over the port box: two ports on one server would be a contradiction, and the one
-    beside the name is the one the user can see. A client splits `host:port` exactly as the core
-    does, so what is shown and what is dialled are the same.
+    beside the name is the one the user can see. **The core splits and joins** a server's host
+    and port (`server_address_parts`, `server_address`), and every form calls it, the setup form
+    and the account page's servers alike, so what is shown and what is dialled are the same. An
+    IPv6 literal is written in brackets before its port (`[::1]:993`), as a URL writes it; bare
+    (`::1`) it names no port, since its last group would otherwise read as one, and the core dials
+    it in brackets on the standard port.
 
 12. **The second step always goes back to the address.** The found card and the manual form, on a
     first run and on a later add alike, carry a way back to the address step, and it keeps the
@@ -372,6 +376,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Detected servers shown to confirm, not retype (password is the only field) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Manual account-type picker (IMAP · JMAP · Microsoft · Google) | n/a | ✅ | ✅ | ✅ | ✅ |
 | Manual port **and** connection-security selector (rule 11) | ✅ | 🚧 | ✅ | ✅ | ✅ |
+| A server's host and port split and joined by the core, an IPv6 literal in brackets (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Google native route (consumer fast-path + Workspace-host) | ✅ | 🚧 | 🚧 | 🚧 | ✅ consumer fast-path |
 | JMAP probe · autoconfig · ISPDB | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Microsoft Autodiscover, Microsoft 365 only, above autoconfig (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -547,7 +552,9 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   (`ManualServerFieldTests` on Apple and Windows, `setup_server_field_tests` on Linux,
   `ManualServerFieldTest` on Android): the port follows the security until it is typed, a cleared
   field hands it back, a port inside the host name wins, and a detected server is adopted split.
-  The standard ports themselves are the core's, asserted in `mailcal-bindings`. End-to-end,
+  The standard ports themselves are the core's, asserted in `mailcal-bindings`, and so is the
+  split and join, IPv6 literals included, in `mailcal-account`'s `server_address_tests.rs` and
+  `config_edit_tests.rs`; Windows and Android, whose suites load no cdylib, are handed it. End-to-end,
   detection was driven on a device against real public domains (gmail → Google sign-in, outlook →
   Microsoft) and against the local Stalwart harness (JMAP → connect → inbox sync) via the
   dev-only `MAILCAL_AUTODETECT_WELL_KNOWN_BASE` override (see [`debugging.md`](debugging.md)).

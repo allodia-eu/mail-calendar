@@ -372,48 +372,6 @@ public sealed partial class SettingsDialog : ContentDialog
         return panel;
     }
 
-    // --- Advanced: AI assistant access + reset database (destructive) ---------
-
-    private UIElement BuildAdvanced()
-    {
-        var panel = new StackPanel { Spacing = 20 };
-        // AI assistant access (SettingsDialog.Mcp.cs) leads: it is the setting a user comes to this
-        // category looking for, and putting the irreversible database reset first would make them
-        // scroll past it every time. Absent until the core is up and has an endpoint.
-        if (McpSection() is { } mcp)
-        {
-            panel.Children.Add(mcp);
-        }
-        panel.Children.Add(ResetDatabaseGroup());
-        return panel;
-    }
-
-    private UIElement ResetDatabaseGroup()
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        var reset = new Button { Content = L10n.ActionResetDatabase() };
-        // A nested ContentDialog isn't allowed, so confirm inline: the button reveals a warning
-        // and a destructive "Reset now" rather than opening a second dialog.
-        var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        confirm.Children.Add(new TextBlock { Text = L10n.ResetMessage(), TextWrapping = TextWrapping.Wrap });
-        var confirmButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var confirmReset = new Button { Content = L10n.ResetConfirm() };
-        confirmReset.Click += (_, _) =>
-        {
-            _model.Reset();
-            Hide();
-        };
-        var cancel = new Button { Content = L10n.ActionCancel() };
-        cancel.Click += (_, _) => { confirm.Visibility = Visibility.Collapsed; reset.Visibility = Visibility.Visible; };
-        confirmButtons.Children.Add(confirmReset);
-        confirmButtons.Children.Add(cancel);
-        confirm.Children.Add(confirmButtons);
-        reset.Click += (_, _) => { reset.Visibility = Visibility.Collapsed; confirm.Visibility = Visibility.Visible; };
-        stack.Children.Add(reset);
-        stack.Children.Add(confirm);
-        return Group(L10n.ActionResetDatabase(), L10n.SettingsAdvancedResetDescription(), stack);
-    }
-
     // --- Shared helpers -------------------------------------------------------
 
     // A radio button whose Checked handler is attached after IsChecked is set, so the initial

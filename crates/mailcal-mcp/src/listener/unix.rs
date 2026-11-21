@@ -26,22 +26,25 @@ use std::{
 use tokio::net::{UnixListener, UnixStream};
 
 use super::spawn_connection;
-use crate::tools::ToolContext;
+use crate::{
+    status::{ListenerStatus, Refusal, Reporter},
+    tools::ToolContext,
+};
 
-/// Binds `path` and accepts forever.
-pub(super) async fn run(ctx: ToolContext, path: &str) {
+/// Binds `path` and accepts forever, or says why it cannot.
+pub(super) async fn run(ctx: ToolContext, path: &str, status: &Reporter) -> Refusal {
     let path = Path::new(path);
     if !prepare_directory(path) {
-        return;
+        return Refusal::Unavailable;
     }
-    if !claim(path).await {
-        return;
+    if let Err(refusal) = claim(path).await {
+        return refusal;
     }
     let listener = match UnixListener::bind(path) {
         Ok(listener) => listener,
         Err(err) => {
             log::warn!("mcp: could not bind the socket ({}): {err}", err.kind());
-            return;
+            return Refusal::Unavailable;
         }
     };
     // Owner-only, in case the process umask was permissive.
@@ -49,7 +52,7 @@ pub(super) async fn run(ctx: ToolContext, path: &str) {
     // We just created this file, so its owner is this process's effective uid.
     let Ok(our_uid) = std::fs::metadata(path).map(|meta| meta.uid()) else {
         log::warn!("mcp: could not read the socket's owner: not listening");
-        return;
+        return Refusal::Unavailable;
     };
     // Owning the file means the endpoint disappears when this task does; including when it is
     // *aborted*, because aborting drops the future and runs its destructors. Without it, turning
@@ -57,6 +60,7 @@ pub(super) async fn run(ctx: ToolContext, path: &str) {
     // a worse answer than a refused connection.
     let _endpoint = OwnedSocket(path.to_owned());
     log::info!("mcp: listening for assistant connections");
+    status.report(ListenerStatus::Listening);
     loop {
         match listener.accept().await {
             Ok((stream, _)) => {
@@ -125,20 +129,20 @@ fn keeps_others_out(dir: &Path) -> bool {
     std::fs::metadata(dir).is_ok_and(|meta| meta.permissions().mode() & 0o077 == 0)
 }
 
-/// Whether the socket path is ours to bind.
+/// Whether the socket path is ours to bind, or why not.
 ///
 /// Connects **first**. Somebody answering means a live instance owns the endpoint and this one
 /// must stay off: deleting a running instance's socket would silently steal every client from it,
 /// and the user would see nothing. A refused connection or a missing file means the leftover is
 /// stale and can be removed. Never `unlink()` unconditionally.
-async fn claim(path: &Path) -> bool {
+async fn claim(path: &Path) -> Result<(), Refusal> {
     if !path.exists() {
-        return true;
+        return Ok(());
     }
     match UnixStream::connect(path).await {
         Ok(_) => {
             log::info!("mcp: another instance owns the endpoint: not listening");
-            false
+            Err(Refusal::AnotherInstance)
         }
         Err(err)
             if matches!(
@@ -149,11 +153,11 @@ async fn claim(path: &Path) -> bool {
             match std::fs::remove_file(path) {
                 Ok(()) => {
                     log::info!("mcp: removed a stale socket left by a previous run");
-                    true
+                    Ok(())
                 }
                 Err(err) => {
                     log::warn!("mcp: could not remove the stale socket: {err}");
-                    false
+                    Err(Refusal::Unavailable)
                 }
             }
         }
@@ -161,7 +165,7 @@ async fn claim(path: &Path) -> bool {
         // process should not paper over by deleting a file it does not understand.
         Err(err) => {
             log::warn!("mcp: the endpoint exists but is not usable: {err}");
-            false
+            Err(Refusal::Unavailable)
         }
     }
 }

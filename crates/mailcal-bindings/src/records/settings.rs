@@ -179,60 +179,6 @@ pub struct SyncSettingsSnapshot {
     pub message_size_limits_mb: Vec<u16>,
 }
 
-/// One account in the MCP settings panel: who it is, and whether the user exposed it.
-#[derive(uniffi::Record)]
-pub struct McpAccountRow {
-    /// The account's id (passed back to `set_mcp_account_exposed`).
-    pub account_id: String,
-    /// The account's email address (display label).
-    pub email: String,
-    /// Whether an MCP client may see and act on this account. **False by default.**
-    pub exposed: bool,
-}
-
-/// The local MCP (AI assistant access) settings, as a host renders them.
-#[derive(uniffi::Record)]
-pub struct McpSettings {
-    /// Whether the user turned the local server on. Off by default.
-    pub enabled: bool,
-    /// Whether it is actually listening right now; distinct from `enabled`, because a user can
-    /// have turned it on while the endpoint is unusable, and a panel that showed only the toggle
-    /// would be lying.
-    pub running: bool,
-    /// Every configured account, with whether it is exposed.
-    pub accounts: Vec<McpAccountRow>,
-    /// Whether an assistant may send mail directly, with no human review. Off by default.
-    pub allow_direct_send: bool,
-    /// Whether a direct send is restricted to people the user already emails. On by default.
-    pub require_known_recipient: bool,
-    /// Where the server listens, or `None` when this platform has no endpoint (mobile). A host
-    /// renders it into the MCP-client config snippet it offers to copy.
-    pub endpoint: Option<String>,
-}
-
-impl From<mailcal_viewmodel::McpAccountRow> for McpAccountRow {
-    fn from(row: mailcal_viewmodel::McpAccountRow) -> Self {
-        Self {
-            account_id: row.account_id,
-            email: row.email,
-            exposed: row.exposed,
-        }
-    }
-}
-
-impl From<mailcal_viewmodel::McpSettings> for McpSettings {
-    fn from(settings: mailcal_viewmodel::McpSettings) -> Self {
-        Self {
-            enabled: settings.enabled,
-            running: settings.running,
-            accounts: settings.accounts.into_iter().map(Into::into).collect(),
-            allow_direct_send: settings.allow_direct_send,
-            require_known_recipient: settings.require_known_recipient,
-            endpoint: settings.endpoint,
-        }
-    }
-}
-
 /// What this build can do about becoming the OS's default mail app, which a host reports to
 /// [`crate::MailcalApp::should_offer_default_mail_app`].
 ///

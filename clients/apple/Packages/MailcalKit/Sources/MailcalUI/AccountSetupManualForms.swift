@@ -6,7 +6,7 @@ import MailcalBindings
 
 extension AccountSetupView {
     var canConnect: Bool {
-        !imapHost.isEmpty && !username.isEmpty && !password.isEmpty
+        servers.imap.namesServer(imapHost) && !username.isEmpty && !password.isEmpty
     }
 
     /// JMAP needs an email and the secret; the server may be left blank.
@@ -295,7 +295,10 @@ extension AccountSetupView {
     func askTypedImapServer() async {
         imapAuth = .password
         passwordChosen = false
-        guard kind == .imap, JmapOAuthProbe.looksLikeAddress(username), !imapHost.isEmpty else {
+        guard kind == .imap,
+            JmapOAuthProbe.looksLikeAddress(username),
+            servers.imap.namesServer(imapHost)
+        else {
             return
         }
         try? await Task.sleep(for: JmapOAuthProbe.debounce)

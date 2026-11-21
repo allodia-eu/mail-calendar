@@ -97,15 +97,24 @@ fn a_detected_route_without_a_port_shows_the_standard_one_for_what_was_detected(
 }
 
 #[test]
-fn only_an_all_digit_tail_is_a_port() {
-    assert_eq!(split_host("imap.example.net"), ("imap.example.net", ""));
+fn the_field_splits_and_joins_as_the_core_does() {
+    let split = |input: &str| {
+        let (host, port) = split_host(input);
+        (host, port)
+    };
     assert_eq!(
-        split_host("imap.example.net:993"),
-        ("imap.example.net", "993")
+        split("imap.example.net:993"),
+        ("imap.example.net".to_owned(), "993".to_owned())
     );
-    assert_eq!(split_host("host:"), ("host:", ""));
-    assert_eq!(split_host("host:abc"), ("host:abc", ""));
-    // Mirrors the core, which splits the same way; a bare IPv6 literal is not a server either
-    // side accepts.
-    assert_eq!(split_host("::1"), (":", "1"));
+    assert_eq!(split("::1"), ("::1".to_owned(), String::new()));
+    assert_eq!(split("[::1]:1143"), ("[::1]".to_owned(), "1143".to_owned()));
+
+    let field = ServerField::new(MailServerKind::Imap);
+    assert_eq!(
+        field.dial("::1"),
+        "[::1]:993",
+        "an IPv6 literal is dialled in brackets"
+    );
+    assert_eq!(field.dial("[::1]"), "[::1]:993");
+    assert_eq!(field.dial("[::1]:1025"), "[::1]:1025");
 }

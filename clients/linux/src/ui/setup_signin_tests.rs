@@ -17,7 +17,7 @@ use crate::{
         AppInput,
         mailbox::tests::rendered_labels,
         setup::SetupWindow,
-        setup_model::recommendation_form,
+        setup_model::{AccountKind, ImapSignIn, ManualForm, SetupForm, recommendation_form},
         setup_state::SetupState,
         setup_widget_tests::{
             descendant_button, descendant_has_button, descendants, server_row, visible_entries,
@@ -204,6 +204,40 @@ pub(super) fn a_provider_that_only_admits_registered_apps_says_so(window: &adw::
         labels.iter().any(|label| label == l10n::action_connect()),
         "the password route is the primary action here: {labels:?}"
     );
+}
+
+/// The manual form keeps its password field while the server is asked, and an answer that adds
+/// nothing leaves the pane as it is, so it says nothing while it waits: a line saying it is
+/// checking would stay on screen after a server that takes a password had answered.
+pub(super) fn a_manual_form_says_nothing_while_its_server_is_asked(
+    window: &adw::ApplicationWindow,
+) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(SetupForm::Manual(ManualForm {
+        kind: AccountKind::Imap,
+        email: "alice@example.test".to_owned(),
+        imap_host: "imap.example.test:993".to_owned(),
+        imap_sign_in: ImapSignIn::Checking,
+        ..ManualForm::default()
+    }));
+    let checking = |setup: &SetupWindow| {
+        let child = setup
+            .current_window()
+            .and_then(|window| window.child())
+            .expect("the manual form");
+        rendered_labels(&child)
+            .iter()
+            .any(|text| text == l10n::setup_imap_signin_checking())
+    };
+    setup.render(&state, window, &sender);
+    assert!(!checking(&setup), "nothing said while the server is asked");
+
+    answer_password(&mut state, "alice@example.test", "imap.example.test:993");
+    setup.render(&state, window, &sender);
+    assert!(!checking(&setup), "nor once it has answered");
 }
 
 /// The detected IMAP recommendation the sign-in cases share.

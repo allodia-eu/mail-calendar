@@ -40,6 +40,27 @@ public sealed partial class SettingsDialog
         ("about", L10n.SettingsCategoryAbout()),
     };
 
+    // A settings or notices signal while `category` is open: true when that category follows one,
+    // having redrawn what moved. Each reads only what it draws, because this runs on every such
+    // signal. Accounts follows in OnAccountsChanged, and the rest are drawn once.
+    private bool FollowSettingsSignal(string? category)
+    {
+        Action? follow = category switch
+        {
+            // Composing's send account, Calendar's default list and Videoconferencing's meeting
+            // accounts follow a default or an account; Videoconferencing also says a refused
+            // Jitsi server.
+            "composing" => RefreshSendAccount,
+            "videoconferencing" => RefreshMeetingAccounts,
+            "calendar" => RefreshDefaultCalendars,
+            // The assistant server binding or refusing its endpoint, and a reset starting or ending.
+            "advanced" => RefreshAdvanced,
+            _ => null,
+        };
+        follow?.Invoke();
+        return follow is not null;
+    }
+
     // The row's id is its tag, so a test finds a category in whatever language the app is in.
     private static ListViewItem CategoryItem(string tag, string label)
     {

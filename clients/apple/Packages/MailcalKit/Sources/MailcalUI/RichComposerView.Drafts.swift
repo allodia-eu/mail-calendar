@@ -34,23 +34,6 @@ struct ComposerDrafts {
     let version: Int
 }
 
-/// Whether the message changed between two reads of the editor's revision count.
-///
-/// The baseline is the first count the page answers with, whenever that is: a read made before the
-/// page loaded answers nothing, and the seeds have moved the count by the time it does, so an
-/// unanswered read taken as `0` would make an untouched composer save itself.
-struct RevisionWatch {
-    private var seen: Int?
-
-    /// Takes one read, answering whether it is a change since the last answered one.
-    mutating func saw(_ revision: Int?) -> Bool {
-        guard let revision else { return false }
-        defer { seen = revision }
-        guard let seen else { return false }
-        return revision != seen
-    }
-}
-
 /// The composer's whole draft lifetime, as one modifier both hosts apply: the idle timer that
 /// stores it, the hint that follows the save, and keeping it on the way out.
 ///
@@ -103,12 +86,14 @@ struct ComposerDraftSavingModifier: ViewModifier {
     private func watchTheEditor() async {
         guard drafts != nil else { return }
         let sample = Duration.seconds(max(1, draftAutosaveIdleSeconds() / 3))
-        var watch = RevisionWatch()
-        _ = watch.saw(await editor.revision())
+        var watch = EditorRevisionWatch()
         while !Task.isCancelled {
             try? await Task.sleep(for: sample)
             guard !Task.isCancelled else { return }
-            if watch.saw(await editor.revision()) { changes &+= 1 }
+            let now = await editor.revision()
+            if watch.changed(now: now, seeded: editor.seedRevision) {
+                changes &+= 1
+            }
         }
     }
 
@@ -122,6 +107,27 @@ struct ComposerDraftSavingModifier: ViewModifier {
         try? await Task.sleep(for: .seconds(draftAutosaveIdleSeconds()))
         guard !Task.isCancelled else { return }
         save()
+    }
+}
+
+/// What the autosave makes of the editor's change count.
+///
+/// The baseline is the count the seeds left (`RichComposerEditor.seedRevision`), never a sample:
+/// one read before the seeds are in counts the quote and the signature as an edit, so a composer
+/// nobody touched would be saved, and one read on a later sample takes in whatever was typed
+/// first, so a short reply written straight after opening would not be (`docs/drafts.md`).
+struct EditorRevisionWatch {
+    private var seen: Int?
+
+    /// Takes in one sample, `now`, and answers whether the message changed since the last one.
+    /// `seeded` is the count the seeds left: `nil` while they are still going in, when no sample
+    /// counts, and `-1` when it could not be read, when the first readable sample is the baseline.
+    /// A sample of `-1` could not be read and changes nothing.
+    mutating func changed(now: Int, seeded: Int?) -> Bool {
+        guard let seeded, now >= 0 else { return false }
+        let previous = seen ?? (seeded >= 0 ? seeded : now)
+        seen = now
+        return now != previous
     }
 }
 

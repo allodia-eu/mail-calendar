@@ -131,12 +131,12 @@ pub(crate) fn connect_send(
 ) {
     let editor = editor.clone();
     let fields = fields.clone();
-    let pressed = button.clone();
-    button.connect_clicked(move |_| {
+    button.connect_clicked(move |pressed| {
         pressed.set_sensitive(false);
         error.set_visible(false);
         let error = error.clone();
-        let button = pressed.clone();
+        // Weak: the read can answer after the composer has gone.
+        let button = pressed.downgrade();
         read_document(
             &editor,
             &fields,
@@ -147,7 +147,9 @@ pub(crate) fn connect_send(
                 // failure this is rather than leaving the last message standing.
                 error.set_text(l10n::compose_prepare_error());
                 error.set_visible(true);
-                button.set_sensitive(true);
+                if let Some(button) = button.upgrade() {
+                    button.set_sensitive(true);
+                }
             },
         );
     });
