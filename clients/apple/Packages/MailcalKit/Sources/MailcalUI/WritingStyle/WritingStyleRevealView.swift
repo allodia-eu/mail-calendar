@@ -76,7 +76,8 @@ struct WritingStyleRevealView: View {
         ) { index in
             page(pages[index], reveal, refusal: refusal)
         }
-        .interactiveDismissDisabled(reveal.save.running)
+        // A swipe down is closing, held exactly as Close is.
+        .interactiveDismissDisabled(!reveal.close.enabled)
     }
 
     @ViewBuilder

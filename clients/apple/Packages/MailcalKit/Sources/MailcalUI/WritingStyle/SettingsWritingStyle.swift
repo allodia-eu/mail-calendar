@@ -38,13 +38,27 @@ struct SettingsWritingStyle: View {
                     AccessibilityNotification.Announcement(said).post()
                 }
             }
-            .sheet(item: $opened) { style in
+            .sheet(item: shown) { style in
                 WritingStyleShownSheet(model: model, style: style) { opened = nil }
             }
             .sheet(isPresented: learning) {
                 WritingStyleLearningSheet(model: model)
             }
         }
+    }
+
+    /// The open style's sheet. Its own buttons close it by setting `opened`, once the core has
+    /// what it was left by; a swipe down closes it through here, which sends what its Close does.
+    private var shown: Binding<OpenedStyle?> {
+        Binding(
+            get: { opened },
+            set: { style in
+                if style == nil, let intent = opened?.dismissed {
+                    model.changeWritingStyle(intent)
+                }
+                opened = style
+            }
+        )
     }
 
     /// The flow's sheet is up exactly while the core draws the flow; a swipe down closes it.
@@ -203,6 +217,15 @@ struct SettingsWritingStyle: View {
 struct OpenedStyle: Identifiable, Equatable {
     let id: String
     let opens: WritingStyleOpens
+
+    /// What closing its sheet other than by its own buttons sends: a reveal is left as its Close
+    /// leaves it, so it counts as shown (docs/ai.md rule 15); a detail has nothing to leave.
+    var dismissed: WritingStyleIntent? {
+        switch opens {
+        case .reveal: WritingStyleIntent.closeReveal(style: id)
+        case .detail: nil
+        }
+    }
 }
 
 /// The reveal or the detail of one style, in a sheet of its own.

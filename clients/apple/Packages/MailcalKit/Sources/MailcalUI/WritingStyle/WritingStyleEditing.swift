@@ -1,6 +1,7 @@
 // What Settings → Writing style does with the core's records that is not drawing (docs/ai.md rules
-// 8 to 16): which outcome a surface acts on, once; where a remedy goes; and the stage a flow host
-// is keyed by. Plain types, so the unit suite reads them without a screen.
+// 8 to 16): which outcome a surface acts on, once; when the detail's Save is held; where a remedy
+// goes; and the stage a flow host is keyed by. Plain types, so the unit suite reads them without a
+// screen.
 
 import MailcalBindings
 
@@ -60,6 +61,14 @@ struct WritingStyleSheetSession {
             case .rename, .notes, .assign: return .stay
             }
         }
+    }
+}
+
+extension WritingStyleDetail {
+    /// The detail's Save for the name typed: the record's Rename, held besides while the core
+    /// refuses the name. The name the style already has is no refusal.
+    func nameSave(_ name: String) -> ControlState {
+        rename.held(writingStyleNameRefusal(name: name) != nil)
     }
 }
 
