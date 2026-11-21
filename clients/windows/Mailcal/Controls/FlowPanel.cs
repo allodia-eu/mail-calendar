@@ -1,5 +1,6 @@
 // A panel that lays its children left to right and wraps onto a new line when the next one does not
-// fit, what the composer's recipient pills are arranged in.
+// fit, what the composer's recipient pills and its action row are arranged in. A child with no width
+// (collapsed, or a slot holding nothing) takes no place and no gap.
 //
 // WinUI ships no flow container, and the alternatives are wrong for pills in the same way SwiftUI's
 // were for the Apple client (which grew its own `RecipientFlowLayout` for this): a horizontal
@@ -30,6 +31,10 @@ public sealed class FlowPanel : Panel
         {
             child.Measure(new Size(limit, double.PositiveInfinity));
             var size = child.DesiredSize;
+            if (size.Width <= 0)
+            {
+                continue;
+            }
             if (x > 0 && x + size.Width > limit)
             {
                 x = 0;
@@ -50,6 +55,11 @@ public sealed class FlowPanel : Panel
         foreach (var child in Children)
         {
             var size = child.DesiredSize;
+            if (size.Width <= 0)
+            {
+                child.Arrange(new Rect(x, y, 0, 0));
+                continue;
+            }
             if (x > 0 && x + size.Width > finalSize.Width)
             {
                 x = 0;

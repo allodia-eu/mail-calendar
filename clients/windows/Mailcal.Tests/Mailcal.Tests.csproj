@@ -363,6 +363,20 @@
          parameters; it reads the generated SignaturesPage, so it needs the bindings below. -->
     <Compile Include="..\Mailcal\Services\SignatureEditorRules.cs" Link="Services\SignatureEditorRules.cs" />
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
+    <!-- The own AI endpoint form's half of Settings → Advanced (docs/ai.md rules 6 and 7): the
+         words beside each field, Save as drawn, the key a save sends and the outcome said once.
+         WinUI-free and L10n-free; it reads the generated AiEndpointForm, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\AiEndpointRules.cs" Link="Services\AiEndpointRules.cs" />
+    <!-- What a flow hands the flow host and the footer it draws from it (docs/ai.md, "The flow
+         host"). WinUI-free; it carries the generated ControlState, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\FlowFrame.cs" Link="Services\FlowFrame.cs" />
+    <!-- The writing assistant's failures and remedies in words (docs/ai.md rule 27), and what
+         Settings → Writing style does with the core's records: an outcome said once, a name's
+         Save, the run's line, a range, a day and a language. WinUI-free and L10n-free; they read
+         the generated records, so they need the bindings. -->
+    <Compile Include="..\Mailcal\Services\AiWords.cs" Link="Services\AiWords.cs" />
+    <Compile Include="..\Mailcal\Services\ReplyDraftWords.cs" Link="Services\ReplyDraftWords.cs" />
+    <Compile Include="..\Mailcal\Services\WritingStyleRules.cs" Link="Services\WritingStyleRules.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
     <!-- How the subscription section words what the core decided: who is charging, what a write

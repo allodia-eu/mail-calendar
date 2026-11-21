@@ -1,7 +1,8 @@
 // Settings → Advanced as the core decides it (AdvancedPage): AI assistant access first, the
-// setting a person comes to this category for (SettingsDialog.Mcp.cs), then the reset of the local
-// database. Both follow Settings signals while the category is open, because the server binds or
-// is refused and a reset starts and ends while the person watches.
+// setting a person comes to this category for (SettingsDialog.Mcp.cs), then the own AI endpoint
+// while the writing assistant is offered, then the reset of the local database. Access and the
+// reset follow Settings signals while the category is open, because the server binds or is
+// refused and a reset starts and ends while the person watches.
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
@@ -24,8 +25,20 @@ public sealed partial class SettingsDialog
 
     private UIElement BuildAdvanced()
     {
+#if DEBUG
+        if (FlowPreview() is { } preview)
+        {
+            return preview;
+        }
+#endif
         var panel = new StackPanel { Spacing = 20 };
         panel.Children.Add(AssistantsHost());
+        // The own AI endpoint (SettingsDialog.AiEndpoint.cs), drawn only while the writing
+        // assistant is offered.
+        if (AiEndpointGroup() is { } aiEndpoint)
+        {
+            panel.Children.Add(aiEndpoint);
+        }
         _reset = new StackPanel { Spacing = 8 };
         _resetDrawn = null;
         _resetAsking = false;

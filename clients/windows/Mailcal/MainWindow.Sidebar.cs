@@ -264,6 +264,10 @@ public sealed partial class MainWindow
             : account.Children.FirstOrDefault(c => c.Tag == Model.SelectedFolder) ?? account;
     }
 
+    /// <summary>Opens Settings on <paramref name="category"/>, a tag from SettingsDialog's
+    /// categories: for a surface outside Settings whose remedy is a place inside it.</summary>
+    internal void ShowSettings(string category) => _ = OpenSettingsAsync(category);
+
     // Opens the unified Settings dialog, then restores the sidebar selection (the Settings gear
     // isn't a scope, so it must not keep the highlight after the modal closes).
     private async Task OpenSettingsAsync(

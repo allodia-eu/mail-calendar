@@ -63,6 +63,10 @@ internal sealed class EditorWebViewHost
     /// </summary>
     internal Action<ComposerHostRequest>? HostRequested { get; set; }
 
+    /// <summary>Every message the page posts, as it came, before <see cref="HostRequested"/> is
+    /// told what the core parsed of it.</summary>
+    internal Action<string>? Posted { get; set; }
+
     /// <summary>The underlying WebView2 environment, or <c>null</c> before the first load. Callers
     /// use it to tell "the page is up" from "nothing has loaded yet".</summary>
     internal CoreWebView2? Core => _view.CoreWebView2;
@@ -262,6 +266,9 @@ internal sealed class EditorWebViewHost
         {
             return;
         }
+        // Every message, the ones the parser leaves out included: the reply-draft report is the
+        // core's to read (MailcalApp.composer_reply_draft_report).
+        Posted?.Invoke(message);
         if (MailcalBindingsMethods.ParseComposerHostRequest(message) is { } request)
         {
             HostRequested?.Invoke(request);

@@ -78,8 +78,26 @@ internal static class MicrosoftOAuthConfig
 /// </summary>
 internal sealed class CredentialStoreSink : uniffi.mailcal_bindings.AccountCredentialStore
 {
+#if DEBUG
+    // MAILCAL_FAKE_KEYSTORE, debug builds only, for a UI suite: `slow` makes every write wait a
+    // second and a half first, so a control that runs until the write is done can be seen running,
+    // the write itself real; `refuses` refuses every write, as a keystore that will not store does.
+    // Called on the core's own thread, never the UI's.
+    private static readonly string? Fake = Environment.GetEnvironmentVariable("MAILCAL_FAKE_KEYSTORE")?.Trim();
+#endif
+
     public void Persist(string accountId, string configToml)
     {
+#if DEBUG
+        if (Fake == "slow")
+        {
+            Thread.Sleep(1500);
+        }
+        if (Fake == "refuses")
+        {
+            throw new uniffi.mailcal_bindings.CredentialStoreException.Store("refused for the UI suite");
+        }
+#endif
         if (!CredentialStore.Save(accountId, configToml))
         {
             throw new uniffi.mailcal_bindings.CredentialStoreException.Store(

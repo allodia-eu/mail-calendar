@@ -69,6 +69,13 @@ public sealed partial class SettingsDialog : ContentDialog
         Closed += (_, _) => LeavingAllodiaSubscription();
         model.SignaturesChanged += OnSignaturesChanged;
         Closed += (_, _) => model.SignaturesChanged -= OnSignaturesChanged;
+        _aiEndpointOutcomes = new AiEndpointOutcomes(model.AiEndpointForm());
+        model.AiEndpointChanged += OnAiEndpointChanged;
+        Closed += (_, _) => model.AiEndpointChanged -= OnAiEndpointChanged;
+        _styleOutcomes = new WritingStyleOutcomes(model.WritingStylePage());
+        model.WritingStyleChanged += OnWritingStyleChanged;
+        Closed += (_, _) => model.WritingStyleChanged -= OnWritingStyleChanged;
+        Closed += (_, _) => LeaveWritingStyle();
         model.OtherDevicesChanged += OnOtherDevices;
         Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;
@@ -101,6 +108,7 @@ public sealed partial class SettingsDialog : ContentDialog
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(_categories, 0);
         var scroller = new ScrollViewer { Content = _detail };
+        _detailScroller = scroller;
         // Named for the UI suite: the category list scrolls too once it outgrows the dialog, and a
         // scroll aimed at the dialog reaches whichever scroller comes first.
         AutomationProperties.SetAutomationId(scroller, "SettingsDetail");
@@ -136,6 +144,10 @@ public sealed partial class SettingsDialog : ContentDialog
             _deletingSignature = null;
         }
         ShowingAllodiaSubscription(tag);
+        if (tag != WritingStyleTag)
+        {
+            LeaveWritingStyle();
+        }
         // Leaving Accounts goes back to its list, and what a page said goes with it.
         if (tag != "accounts")
         {
@@ -152,6 +164,7 @@ public sealed partial class SettingsDialog : ContentDialog
             "reading" => BuildReading(),
             "composing" => BuildComposing(),
             "signatures" => BuildSignatures(),
+            WritingStyleTag => BuildWritingStyle(),
             "notifications" => BuildNotifications(),
             "privacy" => BuildPrivacy(),
             "accounts" => BuildAccounts(),

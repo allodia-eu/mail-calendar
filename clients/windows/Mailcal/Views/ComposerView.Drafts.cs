@@ -80,6 +80,7 @@ public sealed partial class ComposerView
         // What this composition's last save came to: a moved composer's is the one it left's, and
         // any other's says nothing until it saves.
         ShowDraftHint(model.DraftStatusOf(_composition));
+        InitReplyDraft(model);
     }
 
     /// <summary>Notes that something in the message changed, and starts the interval again.</summary>
@@ -280,6 +281,7 @@ public sealed partial class ComposerView
     {
         _draftIdle?.Stop();
         _draftSampler?.Stop();
+        TeardownReplyDraft();
         if (!_keepsDraft)
         {
             return;
