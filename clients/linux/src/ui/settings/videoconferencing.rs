@@ -83,7 +83,7 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
         drawn_defaults.replace(Some(now));
     };
     follow();
-    ctx.calendar.add(follow);
+    ctx.follow.add(follow);
     content
 }
 

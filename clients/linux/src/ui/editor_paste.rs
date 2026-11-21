@@ -89,9 +89,13 @@ pub(crate) struct PasteAnswer {
 /// `addCapturedImage` mints `image-<n>.<ext>` from the type it sniffed rather than from anything
 /// the desktop claimed.
 pub(super) fn paste_into_message(editor: &WebView, error: &gtk::Label) -> PastePicture {
-    let editor = editor.clone();
+    // Weak: the editor's own context menu holds this answer.
+    let editor = editor.downgrade();
     let error = error.clone();
     Rc::new(move |picture: Option<PastedPicture>| {
+        let Some(editor) = editor.upgrade() else {
+            return;
+        };
         let data_url = picture.and_then(|picture| {
             mailcal_bindings::composer_image_data_url_from_bytes(&picture.bytes).ok()
         });

@@ -200,8 +200,8 @@ public sealed partial class AccountSetupView : UserControl
                     break;
                 default:
                     ShowServerFields(
-                        ManualServerField.SplitHost(route.ImapHost).Host,
-                        ManualServerField.SplitHost(route.SmtpHost).Host);
+                        ServerAddressing.Core.Split(route.ImapHost).Host,
+                        ServerAddressing.Core.Split(route.SmtpHost).Host);
                     // A discovered CalDAV endpoint is prefilled (opt-out, clear it to skip calendar);
                     // it reuses the IMAP credentials at connect.
                     CaldavUrl.Text = route.CaldavUrl;
@@ -324,7 +324,8 @@ public sealed partial class AccountSetupView : UserControl
             tab,
             _needsApproval,
             ApprovalCheck.IsChecked == true,
-            ImapHost.Text,
+            // The address the core would dial, so `:993`, a port with no host, names no server.
+            _imap.Dial(ImapHost.Text),
             tab switch { DetectTab.Jmap => JmapEmail.Text, DetectTab.Dav => DavLogin.Text, _ => Username.Text },
             tab == DetectTab.Dav ? DavPassword.Password : Password.Password,
             JmapPassword.Password,

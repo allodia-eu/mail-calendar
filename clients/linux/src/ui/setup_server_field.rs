@@ -8,7 +8,9 @@
 //! The rule is `docs/account-autodetect.md`'s and binds every client; this is the GTK client's
 //! copy of it, renderer-free so it can be tested without a widget tree.
 
-use mailcal_bindings::{ConnectionSecurity, MailServerKind, standard_port};
+use mailcal_bindings::{
+    ConnectionSecurity, MailServerKind, server_address, server_address_parts, standard_port,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ServerField {
@@ -73,7 +75,7 @@ impl ServerField {
         let (_, port) = split_host(host);
         self.typed_by_hand = !port.is_empty();
         self.port = if self.typed_by_hand {
-            port.to_owned()
+            port
         } else {
             standard_port(self.kind, security).to_string()
         };
@@ -81,35 +83,23 @@ impl ServerField {
 
     /// The `host:port` this field submits, or the bare host when it carries no port of its own.
     pub(crate) fn dial(&self, host: &str) -> String {
-        let typed = host.trim();
+        let (host, typed) = split_host(host);
         // A host the user already wrote a port into wins: two ports would be a contradiction, and
         // the one in the host field is the one they can see beside the name.
-        if typed.is_empty() || !split_host(typed).1.is_empty() {
-            return typed.to_owned();
-        }
-        let port = self.port.trim();
-        if port.is_empty() {
-            typed.to_owned()
+        let port = if typed.is_empty() {
+            self.port.clone()
         } else {
-            format!("{typed}:{port}")
-        }
+            typed
+        };
+        server_address(host, port)
     }
 }
 
-/// Splits a typed server into host and port.
-///
-/// Mirrors the core's own split (`mailcal-account`'s `host_and_addr`) deliberately: the core
-/// decides the address actually dialled, so a client that split differently would show one port
-/// and connect to another. A bare IPv6 literal is not a server either side accepts.
-pub(crate) fn split_host(input: &str) -> (&str, &str) {
-    if let Some((host, port)) = input.rsplit_once(':')
-        && !host.is_empty()
-        && !port.is_empty()
-        && port.bytes().all(|b| b.is_ascii_digit())
-    {
-        return (host, port);
-    }
-    (input, "")
+/// Splits a typed server into host and port, as the core does: the core decides the address
+/// actually dialled, so a form that split differently would show one port and connect to another.
+pub(crate) fn split_host(input: &str) -> (String, String) {
+    let parts = server_address_parts(input.to_owned());
+    (parts.host, parts.port)
 }
 
 /// An account's two servers, so the manual form carries one field rather than four.

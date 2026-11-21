@@ -297,7 +297,11 @@ pub(super) fn manual_fields(
     for field in [&email, &imap.host] {
         probe_on_leave(field, &snapshot, sender);
     }
-    sign_in_explanation(content, &form.imap_sign_in);
+    // The password field stays while the server is asked, and only an answer that adds something
+    // redraws this pane, so a line saying it is checking would outlive the answer.
+    if form.imap_sign_in != ImapSignIn::Checking {
+        sign_in_explanation(content, &form.imap_sign_in);
+    }
     if form.imap_sign_in.show_offer() {
         let button = gtk::Button::with_label(l10n::setup_imap_signin_button());
         let snapshot = Rc::clone(&snapshot);

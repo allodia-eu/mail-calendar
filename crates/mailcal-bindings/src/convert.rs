@@ -206,13 +206,15 @@ impl TryFrom<Intent> for AppIntent {
             | Intent::Allodia { .. }
             | Intent::Preferences { .. }
             | Intent::Signature { .. }
-            | Intent::Ai { .. } => {
+            | Intent::Ai { .. }
+            | Intent::Mcp { .. } => {
                 return Err(
-                    "an account page, Allodia, preference, signature or assistant change is the \
-                     binding's own"
+                    "an account page, Allodia, preference, signature, writing assistant or \
+                     assistant access change is the binding's own"
                         .to_owned(),
                 );
             }
+            Intent::ResetDatabase => Self::ResetDatabase,
             Intent::DismissComposeRequest => Self::DismissComposeRequest,
             Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),
             Intent::SearchContacts { query } => {

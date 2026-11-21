@@ -92,12 +92,12 @@ extension MailboxModel {
         // The agent (MCP) surface. Both calls are what make it exist at all: without an
         // endpoint the core has nowhere to listen, and without the composer port an
         // assistant's `create_draft` reports that this build has no composer. iOS returns
-        // nil from `McpEndpoint.path`, so it is excluded by construction rather than by an
-        // `#if` here. Setting the endpoint applies the persisted settings, so a user who had
+        // nil from `McpEndpoint.host`, so it is excluded by construction rather than by an
+        // `#if` here. Setting the host applies the persisted settings, so a user who had
         // it on last session is listening again from this point.
         app.setAgentHostUi(ui: AgentComposerBridge(model: self))
-        app.setMcpEndpoint(endpoint: McpEndpoint.path(dataDirName: dataDirName))
-        mcpSettings = app.mcpSettings()
+        app.setMcpHost(host: McpEndpoint.host(dataDirName: dataDirName))
+        advancedPage = app.advancedPage()
         refreshAccountsSnapshot()
         refreshAllodiaCard()
         // The preferences, before the first `Surface::Settings` signal: the swipe actions are

@@ -200,6 +200,26 @@ pub struct SyncSettingsSnapshot {
     pub message_size_limits_mb: Vec<u16>,
 }
 
+/// Settings → Advanced's reset of the local database, as the core runs it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ResetStatus {
+    /// A reset is running: the cache is being cleared, mail downloaded again or the database
+    /// compacted. Another is not started meanwhile.
+    pub running: bool,
+    /// What the last reset came to, until the next one starts.
+    pub outcome: Option<ResetOutcome>,
+}
+
+/// What a reset of the local database came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResetOutcome {
+    /// The cache was cleared and mail downloaded again from every account that could be reached.
+    Done,
+    /// The local database could not be cleared, so nothing was downloaded again and the mail on
+    /// this device is as it was.
+    Failed,
+}
+
 /// One account, as the MCP settings panel lists it: who it is, and whether the user has exposed
 /// it to assistants.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,33 +233,24 @@ pub struct McpAccountRow {
     pub exposed: bool,
 }
 
-/// An immutable snapshot of the local MCP (AI assistant access) settings for a host to render.
-///
-/// Desktop-only in practice: `endpoint` is `None` on a platform whose host passes none, which is
-/// how mobile ends up with no server without a `#[cfg]` anywhere in the core.
+/// The person's decisions behind the local MCP server (AI assistant access). What the listener
+/// is doing and where it listens are the binding layer's, which builds Settings' panel from both.
 ///
 /// Four booleans because the panel has four independent switches; grouping them into an enum
 /// would lose combinations the user can actually set (on, one account, direct send on, guard
-/// off) and would have to be expanded again at the one place it is rendered.
+/// off).
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct McpSettings {
     /// Whether the local server is on. Off by default.
     pub enabled: bool,
-    /// Whether it is actually listening right now. Distinct from [`Self::enabled`]: a user can
-    /// have turned it on while the endpoint is unusable (another instance owns it, a path that
-    /// will not bind), and a panel that showed only the toggle would be lying.
-    pub running: bool,
-    /// Every configured account, with whether it is exposed.
+    /// Every account used for mail, with whether it is exposed.
     pub accounts: Vec<McpAccountRow>,
     /// Whether an assistant may send mail directly, with no human review. Off by default; with
     /// it off the send tool does not exist at all.
     pub allow_direct_send: bool,
     /// Whether a direct send is restricted to people the user already emails. On by default.
     pub require_known_recipient: bool,
-    /// Where the server listens, or `None` when this platform has no endpoint. A host renders it
-    /// into the config snippet it offers to copy.
-    pub endpoint: Option<String>,
 }
 
 /// What a build can do about becoming the OS's default mail app.

@@ -135,12 +135,14 @@ pub(crate) fn connect_send(
 ) {
     let editor = editor.clone();
     let fields = fields.clone();
-    let pressed = button.clone();
-    button.connect_clicked(move |_| {
+    // Weak: the pane owns the draft, and teardown is what lets it go.
+    let reply_draft = reply_draft.as_ref().map(Rc::downgrade);
+    button.connect_clicked(move |pressed| {
         pressed.set_sensitive(false);
         error.set_visible(false);
         let (editor, fields, sender) = (editor.clone(), fields.clone(), sender.clone());
-        let (error, button) = (error.clone(), pressed.clone());
+        // Weak: the read and the checklist's question can answer after the composer has gone.
+        let (error, button) = (error.clone(), pressed.downgrade());
         let send: Box<dyn FnOnce()> = Box::new(move || {
             read_document(
                 &editor,
@@ -152,14 +154,23 @@ pub(crate) fn connect_send(
                     // failure this is rather than leaving the last message standing.
                     error.set_text(l10n::compose_prepare_error());
                     error.set_visible(true);
-                    button.set_sensitive(true);
+                    if let Some(button) = button.upgrade() {
+                        button.set_sensitive(true);
+                    }
                 },
             );
         });
-        match &reply_draft {
+        match reply_draft.as_ref().and_then(std::rc::Weak::upgrade) {
             Some(draft) => {
-                let kept = pressed.clone();
-                draft.before_send(send, Box::new(move || kept.set_sensitive(true)));
+                let kept = pressed.downgrade();
+                draft.before_send(
+                    send,
+                    Box::new(move || {
+                        if let Some(button) = kept.upgrade() {
+                            button.set_sensitive(true);
+                        }
+                    }),
+                );
             }
             None => send(),
         }

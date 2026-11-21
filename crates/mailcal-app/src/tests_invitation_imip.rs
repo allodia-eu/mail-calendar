@@ -41,8 +41,8 @@ struct Answered {
 
 /// Boots an app over `provider`, syncs both sides, and answers.
 ///
-/// Each dispatch is boxed: this future holds the whole `App` across its awaits, and the
-/// `large_futures` bound sits just under the two together.
+/// Boxed at every call, as is each dispatch inside it: the future holds the whole `App` across
+/// its awaits, and the `large_futures` bound sits just under what that weighs.
 async fn answer(
     provider: InvitationFake,
     response: InvitationResponse,
@@ -90,13 +90,13 @@ async fn a_calendar_that_does_not_schedule_stores_the_meeting_and_emails_the_rep
     // the meeting reaches the calendar (so the user can see what they agreed to), the answer is
     // stored on it, and the reply is posted (so the organiser learns of it). Any one of them
     // missing is a bug a user would report.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Accept,
         None,
         true,
         None,
-    )
+    ))
     .await;
 
     assert_eq!(
@@ -125,13 +125,13 @@ async fn the_stored_document_is_the_invitation_minus_its_method() {
     // the `ATTENDEE` line is the entire reason to store the invitation rather than a plain
     // appointment; without it there is nothing to answer on afterwards, which is precisely why
     // this cannot go through `EventDraft`/`create_event`.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Accept,
         None,
         true,
         None,
-    )
+    ))
     .await;
 
     let puts = answered.puts.lock().unwrap();
@@ -157,13 +157,13 @@ async fn the_reply_is_addressed_from_the_alias_the_invitation_matched() {
     // The same alias rule as the stored answer, now on the envelope. An organiser's scheduler
     // that finds no `ATTENDEE` matching the sender is entitled to ignore the reply: so sending
     // as the account's primary identity would be delivered, accepted, and silently discarded.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Tentative,
         None,
         true,
         None,
-    )
+    ))
     .await;
 
     let drafts = answered.sends.lock().unwrap();
@@ -185,13 +185,13 @@ async fn each_button_writes_its_own_partstat_into_the_reply() {
         (InvitationResponse::Tentative, "PARTSTAT=TENTATIVE"),
         (InvitationResponse::Decline, "PARTSTAT=DECLINED"),
     ] {
-        let answered = answer(
+        let answered = Box::pin(answer(
             InvitationFake::new().without_server_scheduling(),
             choice,
             None,
             true,
             None,
-        )
+        ))
         .await;
         let (_, ical) = itip_of(&answered.sends);
         assert!(ical.contains(expected), "{choice:?} produced {ical}");
@@ -204,13 +204,13 @@ async fn a_note_reaches_the_organizer_on_a_transport_that_could_never_carry_one(
     // the calendar write below is made **without** it; passing it there would be refused and
     // lose the whole answer. On this route the note is ours to carry: it becomes a `COMMENT` in
     // the reply we build, and a line in the message a human reads.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Tentative,
         Some("Might be ten minutes late"),
         true,
         None,
-    )
+    ))
     .await;
 
     let rsvps = answered.rsvps.lock().unwrap();
@@ -233,13 +233,13 @@ async fn clearing_the_notify_tick_stores_the_answer_and_posts_nothing() {
     // `PARTSTAT` changes and there is no way to ask it not to. Here *we* are the sender, so the
     // tick means exactly what it says, and the answer is still recorded in the user's own
     // diary, which is the point of clearing it rather than not answering at all.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Decline,
         None,
         false,
         None,
-    )
+    ))
     .await;
 
     assert_eq!(answered.rsvps.lock().unwrap().len(), 1);
@@ -259,13 +259,13 @@ async fn a_mailbox_with_no_calendar_still_tells_the_organizer() {
     // storing it: no diary exists to contradict the reply. Refusing here would mean an
     // invitation the user can read, can see the times of, and cannot answer, for no better
     // reason than that they have not added a calendar.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().with_mail_only(),
         InvitationResponse::Accept,
         None,
         true,
         None,
-    )
+    ))
     .await;
 
     assert!(answered.puts.lock().unwrap().is_empty());
@@ -280,13 +280,13 @@ async fn an_account_with_no_route_refuses_instead_of_pretending() {
     // A calendar that does not schedule beside a mail transport that cannot put `method=` on a
     // body part; JMAP's shape. Storing the `PARTSTAT` here would succeed and tell nobody,
     // which is the exact silence this whole change exists to end.
-    let answered = answer(
+    let answered = Box::pin(answer(
         InvitationFake::new().with_no_route(),
         InvitationResponse::Accept,
         None,
         true,
         None,
-    )
+    ))
     .await;
 
     assert!(answered.rsvps.lock().unwrap().is_empty());
@@ -302,26 +302,26 @@ async fn the_client_supplies_the_subject_and_the_core_falls_back_to_the_invitati
     // The subject is copy a stranger reads, and the core has no locale: so the client composes
     // it. A client that passes nothing must still send something correct rather than English:
     // `Re:` plus the organiser's own words is true in every language.
-    let localized = answer(
+    let localized = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Accept,
         None,
         true,
         Some("Geaccepteerd: Sprint planning"),
-    )
+    ))
     .await;
     assert_eq!(
         localized.sends.lock().unwrap()[0].subject,
         "Geaccepteerd: Sprint planning"
     );
 
-    let fallback = answer(
+    let fallback = Box::pin(answer(
         InvitationFake::new().without_server_scheduling(),
         InvitationResponse::Accept,
         None,
         true,
         None,
-    )
+    ))
     .await;
     assert_eq!(
         fallback.sends.lock().unwrap()[0].subject,

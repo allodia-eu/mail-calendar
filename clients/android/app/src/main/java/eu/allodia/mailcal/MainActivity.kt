@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.AdvancedPage
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AnalyticsConsent
@@ -129,6 +130,10 @@ class MainActivity : AppCompatActivity() {
     // gestures; the send account is only drawn, since the core opens each composer on its account.
     internal var swipeSettings by mutableStateOf<SwipeSettings?>(null)
     internal var sendAccountSetting by mutableStateOf<SendAccountSetting?>(null)
+
+    // Settings → Advanced as the core draws it: the reset's control and what the last one came
+    // to. Pulled on connect and on every SETTINGS signal.
+    internal var advancedPage by mutableStateOf<AdvancedPage?>(null)
 
     // Settings → Signatures as the core draws it, read on connect and on every SIGNATURES and
     // SETTINGS signal; the composer's per-message picker lists its library too (docs/signatures.md).

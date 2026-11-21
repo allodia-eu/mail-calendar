@@ -143,8 +143,9 @@ struct PageContext {
     devices: Option<mailcal_bindings::AllodiaDevices>,
     /// Where the Signatures page registers itself, so the window can ask it to follow the core.
     signatures: signatures::Shown,
-    /// Where the pages drawn from the calendars register the parts that follow the core.
-    calendar: calendar_follow::Followers,
+    /// Where the pages that follow the core's calendar and settings records in place register
+    /// their parts.
+    follow: calendar_follow::Followers,
     /// Where the own endpoint's form and Writing style register themselves.
     ai_endpoint: calendar_follow::Followers,
     writing_style: calendar_follow::Followers,
@@ -178,8 +179,8 @@ pub(super) struct SettingsWindow {
     top_notice: Option<super::notice_bar::NoticeBar>,
     /// The Signatures page drawn last, which follows the core's signals itself.
     signatures: signatures::Shown,
-    /// The parts of the calendar's pages drawn last, which follow the core's signals themselves.
-    calendar: calendar_follow::Followers,
+    /// The parts of the pages drawn last that follow the core's signals themselves.
+    follow: calendar_follow::Followers,
     ai_endpoint: calendar_follow::Followers,
     writing_style: calendar_follow::Followers,
 }
@@ -301,7 +302,7 @@ impl SettingsWindow {
             page: None,
             devices: None,
             signatures: self.signatures.clone(),
-            calendar: self.calendar.clone(),
+            follow: self.follow.clone(),
             ai_endpoint: self.ai_endpoint.clone(),
             writing_style: self.writing_style.clone(),
             sidebar: category::Sidebar::default(),
@@ -328,7 +329,7 @@ impl SettingsWindow {
             self.rendered_generation = state.generation;
             return;
         }
-        self.calendar.clear();
+        self.follow.clear();
         self.ai_endpoint.clear();
         self.writing_style.clear();
         let (content, pages) = window_content(state.category, &ctx);

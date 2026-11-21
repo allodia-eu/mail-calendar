@@ -105,7 +105,7 @@ extension MailboxModel {
             signatures = app?.signaturesPage() ?? .empty
             aiEndpoint = app?.aiEndpointForm()
             writingStyle.page = app?.writingStylePage()
-            mcpSettings = app?.mcpSettings()
+            advancedPage = app?.advancedPage() ?? .empty
             refreshAccountsSnapshot()
             return
         }
