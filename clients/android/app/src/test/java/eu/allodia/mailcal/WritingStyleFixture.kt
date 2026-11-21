@@ -1,0 +1,207 @@
+// Records the core would answer for the writing assistant's surfaces (docs/ai.md), built here
+// because this suite never loads the cdylib. The shapes are the core's; what each holds in a given
+// state is pinned by the core's own tests.
+package eu.allodia.mailcal
+
+import java.time.ZoneId
+import uniffi.mailcal_bindings.AiEndpointForm
+import uniffi.mailcal_bindings.AiRemedy
+import uniffi.mailcal_bindings.AiRemedyControl
+import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.JurisdictionClass
+import uniffi.mailcal_bindings.StyleLearnRange
+import uniffi.mailcal_bindings.StyleRangeFetch
+import uniffi.mailcal_bindings.StyleLearningAccount
+import uniffi.mailcal_bindings.StyleLearningIntent
+import uniffi.mailcal_bindings.StyleLearningStage
+import uniffi.mailcal_bindings.StyleLearningTrailStage
+import uniffi.mailcal_bindings.StyleSentReach
+import uniffi.mailcal_bindings.WritingStyleCard
+import uniffi.mailcal_bindings.WritingStyleDetail
+import uniffi.mailcal_bindings.WritingStyleEntry
+import uniffi.mailcal_bindings.WritingStyleFacts
+import uniffi.mailcal_bindings.WritingStyleFrequency
+import uniffi.mailcal_bindings.WritingStyleHabit
+import uniffi.mailcal_bindings.WritingStyleHabits
+import uniffi.mailcal_bindings.WritingStyleIntent
+import uniffi.mailcal_bindings.WritingStyleLanguage
+import uniffi.mailcal_bindings.WritingStyleLearning
+import uniffi.mailcal_bindings.WritingStyleLetter
+import uniffi.mailcal_bindings.WritingStyleOpens
+import uniffi.mailcal_bindings.WritingStylePage
+import uniffi.mailcal_bindings.WritingStyleParagraph
+import uniffi.mailcal_bindings.WritingStylePhrases
+import uniffi.mailcal_bindings.WritingStyleRefusal
+import uniffi.mailcal_bindings.WritingStyleReveal
+import uniffi.mailcal_bindings.WritingStyleRevealPage
+import uniffi.mailcal_bindings.WritingStyleSection
+import uniffi.mailcal_bindings.WritingStyleSlot
+import uniffi.mailcal_bindings.WritingStyleSpan
+import uniffi.mailcal_bindings.WritingStyleTopic
+
+internal val STYLE_RUNNING = ControlState(enabled = false, running = true)
+
+internal val UTC: ZoneId = ZoneId.of("UTC")
+
+/** The core's name rule: a blank name is refused. */
+internal fun fakeStyleNameRefusal(name: String): WritingStyleRefusal? =
+    if (name.isBlank()) WritingStyleRefusal.BLANK_NAME else null
+
+internal fun styleFacts(messages: Int = 42, languages: List<String> = listOf("en", "nl")) = WritingStyleFacts(
+    messages = messages.toUInt(),
+    learnedFrom = "alice@test.local",
+    since = 1_700_000_000L,
+    learnedAt = 1_760_000_000L,
+    languages = languages,
+)
+
+internal fun styleEntry(id: String, name: String, opens: WritingStyleOpens = WritingStyleOpens.DETAIL, open: ControlState = FREE) =
+    WritingStyleEntry(id = id, name = name, facts = styleFacts(), opens = opens, open = open)
+
+internal fun styleSlot(account: String, selected: String? = null, picker: ControlState = FREE) =
+    WritingStyleSlot(accountId = account, email = "$account@test.local", selected = selected, picker = picker)
+
+internal fun stylePage(
+    styles: List<WritingStyleEntry> = emptyList(),
+    accounts: List<WritingStyleSlot> = emptyList(),
+    learn: ControlState = FREE,
+) = WritingStylePage(styles = styles, accounts = accounts, learn = learn, learnBlocked = null, run = null, outcome = null)
+
+internal fun learning(
+    stage: StyleLearningStage,
+    back: ControlState? = null,
+    next: ControlState? = null,
+    learn: ControlState? = null,
+    stop: ControlState? = null,
+    close: ControlState = FREE,
+    trail: List<StyleLearningTrailStage> = emptyList(),
+) = WritingStyleLearning(stage = stage, trail = trail, back = back, next = next, learn = learn, stop = stop, close = close)
+
+internal fun chooseAccount(selected: String? = null) = StyleLearningStage.ChooseAccount(
+    accounts = listOf(StyleLearningAccount("alice", "alice@test.local"), StyleLearningAccount("bob", "bob@test.local")),
+    selected = selected,
+)
+
+internal fun chooseRange(
+    selected: StyleLearnRange? = StyleLearnRange.LastTwelveMonths,
+    presets: List<StyleLearnRange> = listOf(
+        StyleLearnRange.LastTwelveMonths,
+        StyleLearnRange.Everything,
+        StyleLearnRange.UntilEndOfLastYear,
+        StyleLearnRange.Between("2025-11-19", "2026-11-19"),
+    ),
+    reach: StyleSentReach = StyleSentReach.Since("2026-08-19"),
+    fetch: StyleRangeFetch = StyleRangeFetch.OLDER,
+) = StyleLearningStage.ChooseRange(
+    email = "alice@test.local",
+    presets = presets,
+    latest = "2026-11-19",
+    selected = selected,
+    reach = reach,
+    fetch = fetch,
+)
+
+internal fun span(text: String, placeholder: Boolean = false) = WritingStyleSpan(text, placeholder)
+
+internal fun styleLanguage(code: String, full: Boolean = true) = WritingStyleLanguage(
+    language = code,
+    letter = WritingStyleLetter(
+        opening = listOf(span("Hi "), span("Name", placeholder = true), span(",")),
+        paragraphs = listOf(WritingStyleParagraph(listOf(1.0, 0.6)), WritingStyleParagraph(listOf(0.8))),
+        closing = listOf(span("Best,")),
+        signsAs = "Alice",
+        words = 80u,
+        paragraphCount = 3u,
+        shape = "Two short paragraphs.",
+    ).takeIf { full },
+    habits = WritingStyleHabits(
+        greetings = listOf(WritingStyleHabit(listOf(span("Hi")), 60u, 70u, WritingStyleFrequency.MOSTLY)),
+        signOffs = listOf(WritingStyleHabit(listOf(span("Best")), 30u, 100u, WritingStyleFrequency.OFTEN)),
+        signsAs = "Alice",
+    ).takeIf { full },
+    cards = if (full) listOf(WritingStyleCard(WritingStyleTopic.REGISTER, "Warm and direct", "Rarely formal.")) else emptyList(),
+    phrases = WritingStylePhrases(used = listOf("Sounds good"), avoided = listOf("Per my last email")).takeIf { full },
+)
+
+internal fun styleReveal(
+    id: String = "style-1",
+    pages: List<WritingStyleRevealPage> = WritingStyleRevealPage.entries.toList(),
+    languages: List<WritingStyleLanguage> = listOf(styleLanguage("en"), styleLanguage("nl", full = false)),
+    save: ControlState = FREE,
+    close: ControlState = FREE,
+    paging: ControlState = FREE,
+) = WritingStyleReveal(
+    id = id,
+    facts = styleFacts(),
+    pages = pages,
+    languages = languages,
+    name = "My style",
+    notes = "",
+    save = save,
+    close = close,
+    paging = paging,
+)
+
+internal fun styleDetail(
+    id: String = "style-1",
+    rename: ControlState = FREE,
+    forget: ControlState = FREE,
+    drafting: List<String> = listOf("alice@test.local"),
+    sections: List<WritingStyleSection> = WritingStyleSection.entries.toList(),
+) = WritingStyleDetail(
+    id = id,
+    facts = styleFacts(),
+    languages = listOf(styleLanguage("en")),
+    name = "Work",
+    notes = "Keep it short.",
+    rename = rename,
+    notesControl = FREE,
+    forget = forget,
+    draftingAccounts = drafting,
+    sections = sections,
+)
+
+internal fun endpointForm(
+    address: String = "",
+    model: String = "",
+    declared: JurisdictionClass? = null,
+    keyKept: Boolean = false,
+    save: ControlState = FREE,
+    remove: ControlState? = null,
+) = AiEndpointForm(
+    address = address,
+    model = model,
+    declared = declared,
+    keyKept = keyKept,
+    save = save,
+    remove = remove,
+    outcome = null,
+)
+
+/** A Settings → Writing style the tests drive, every change recorded in [sent]. */
+internal fun testWritingStyleUi(
+    page: WritingStylePage?,
+    learning: WritingStyleLearning? = null,
+    sent: MutableList<WritingStyleIntent> = mutableListOf(),
+    reveal: (String) -> WritingStyleReveal? = { null },
+    detail: (String) -> WritingStyleDetail? = { null },
+    signIns: MutableList<Unit> = mutableListOf(),
+    version: Int = 0,
+) = WritingStyleUi(
+    page = page,
+    learning = learning,
+    version = version,
+    reveal = reveal,
+    detail = detail,
+    nameRefusal = ::fakeStyleNameRefusal,
+    onChange = { sent += it },
+    onSignIn = { signIns += Unit },
+    zone = UTC,
+)
+
+/** The learning intents among [sent], in order. */
+internal fun learningSent(sent: List<WritingStyleIntent>): List<StyleLearningIntent> =
+    sent.filterIsInstance<WritingStyleIntent.Learning>().map { it.intent }
+
+/** A remedy offered with a control that can be pressed. */
+internal fun offered(remedy: AiRemedy, control: ControlState = FREE) = AiRemedyControl(remedy, control)

@@ -6,7 +6,7 @@ package eu.allodia.mailcal
 import android.util.Log
 import uniffi.mailcal_bindings.JmapSetup
 import uniffi.mailcal_bindings.MailcalApp
-import uniffi.mailcal_bindings.isAllodiaAccountConfig
+import uniffi.mailcal_bindings.isReservedConfig
 import uniffi.mailcal_bindings.jmapAccountConfigToml
 
 private const val TAG = "Mailcal"
@@ -66,14 +66,15 @@ internal object DevLinkedCredentialStore : uniffi.mailcal_bindings.AccountCreden
     override fun delete(accountId: String) = Unit
 }
 
-// The Allodia account a previous dev session signed in to, if any, nothing else.
+// The stored entries that are not mail accounts, nothing else: the Allodia account a previous dev
+// session signed in to, and the own AI endpoint's key.
 //
 // A dev launch injects a canned harness account *instead of* the stored ones, which is right for
 // mail: unlike Apple's and Windows's, this store is not namespaced per dev account, so appending it
-// wholesale would drag the developer's real accounts into a harness run. But the Allodia entry is
-// not a mail account, it holds no mailbox and the core takes it back out of the list before
-// anything reads it as one, so dropping it only made a sign-in made in this mode look like it had
-// never stuck.
+// wholesale would drag the developer's real accounts into a harness run. But neither entry is a mail
+// account, each holds no mailbox and the core takes it back out of the list before anything reads
+// it as one, so dropping them only made a sign-in or an endpoint set up in this mode look like it
+// had never stuck.
 //
 // Which entry that is, is the core's question to answer: a client matching on the stored shape here
 // would be a second reader of it, free to disagree the moment either moves. It arrives as a
@@ -81,8 +82,8 @@ internal object DevLinkedCredentialStore : uniffi.mailcal_bindings.AccountCreden
 // function calling the core directly would be a decision no test could see.
 internal fun devCarriedOverConfigs(
     stored: List<String>,
-    isAllodiaAccount: (String) -> Boolean = ::isAllodiaAccountConfig,
-): List<String> = stored.filter(isAllodiaAccount)
+    isReserved: (String) -> Boolean = ::isReservedConfig,
+): List<String> = stored.filter(isReserved)
 
 // Writes the harness IMAP cert (base64-PEM in the MAILCAL_EXTRA_CA_PEM intent extra) into the app's
 // files dir and exports MAILCAL_EXTRA_CA via Os.setenv so the Rust core's dev-harness TLS policy

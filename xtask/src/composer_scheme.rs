@@ -74,7 +74,7 @@ const SITES: &[Site] = &[
     },
     Site {
         client: "linux",
-        file: "clients/linux/src/ui/composer.rs",
+        file: "clients/linux/src/ui/composer_seed.rs",
         needle: "composer_scheme::current_script()",
         what: "the composer's scheme at load",
     },

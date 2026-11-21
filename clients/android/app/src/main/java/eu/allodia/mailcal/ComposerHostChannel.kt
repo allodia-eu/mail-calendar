@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import uniffi.mailcal_bindings.ComposerHostRequest
 import uniffi.mailcal_bindings.ComposerLinkAnswer
@@ -36,11 +37,15 @@ internal data class LinkDialogRequest(
 // without the native library or a looper.
 internal class ComposerHostChannel(
     private val onLink: (LinkDialogRequest) -> Unit,
+    // Every message as posted, for the core's own readers of the channel: Draft a reply's report,
+    // which `parse` leaves out (docs/ai.md rule 22).
+    private val onMessage: (String) -> Unit = {},
     private val parse: (String) -> ComposerHostRequest? = ::parseComposerHostRequest,
     private val post: (Runnable) -> Unit = Handler(Looper.getMainLooper())::post,
 ) {
     @JavascriptInterface
     fun postMessage(message: String) {
+        post { onMessage(message) }
         when (val request = parse(message) ?: return) {
             is ComposerHostRequest.Link -> {
                 val link = LinkDialogRequest(request.id, request.text, request.address, request.removable)
@@ -56,13 +61,17 @@ internal class ComposerHostChannel(
 }
 
 // The link dialog a WebView is waiting on, if any, and the channel that fills it in.
-internal class ComposerLinkHost {
+internal class ComposerLinkHost(onMessage: (String) -> Unit = {}) {
     var request by mutableStateOf<LinkDialogRequest?>(null)
-    val channel = ComposerHostChannel(onLink = { request = it })
+    val channel = ComposerHostChannel(onLink = { request = it }, onMessage = onMessage)
 }
 
+/** The channel's host; [onMessage] is told every message the editor posts. */
 @Composable
-internal fun rememberComposerLinkHost(): ComposerLinkHost = remember { ComposerLinkHost() }
+internal fun rememberComposerLinkHost(onMessage: (String) -> Unit = {}): ComposerLinkHost {
+    val current by rememberUpdatedState(onMessage)
+    return remember { ComposerLinkHost { current(it) } }
+}
 
 // The core's `COMPOSER_HOST_CHANNEL`, the name the editor bundle looks for. Spelled here rather
 // than asked for over the FFI because the composer is built when its WebView is, and the JVM suite

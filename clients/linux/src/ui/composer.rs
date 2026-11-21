@@ -7,9 +7,8 @@ use std::{
 };
 
 use adw::prelude::*;
-use gtk::{AccessibleRole, accessible::Property as AccessibleProperty, gio};
+use gtk::{AccessibleRole, accessible::Property as AccessibleProperty};
 use mailcal_bindings::MailcalApp;
-use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput,
@@ -22,11 +21,11 @@ use super::{
     composer_file_tiles::{ComposerFileStore, FileTiles},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_importance::{ImportanceControl, ImportanceStore},
-    composer_labels::editor_labels,
     composer_layout::ComposerColumn,
-    composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
+    composer_model::{ComposeContext, compose_title},
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
+    composer_reply_draft::{ReplyDraft, ReplyDraftCore},
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -66,6 +65,8 @@ pub(crate) struct ComposerPane {
     /// The open draft's one scroll, which sizes the editor and follows its caret. The editor's
     /// channel reaches it weakly, so this is what keeps it.
     column: RefCell<Option<Rc<ComposerColumn>>>,
+    /// Draft a reply, for a reply while the assistant is offered (`docs/ai.md`).
+    reply_draft: RefCell<Option<Rc<ReplyDraft>>>,
 }
 
 impl ComposerPane {
@@ -82,6 +83,7 @@ impl ComposerPane {
             autosave: Autosave::default(),
             hint: RefCell::new(None),
             column: RefCell::new(None),
+            reply_draft: RefCell::new(None),
         }
     }
 
@@ -173,8 +175,11 @@ impl ComposerPane {
         // The composer's action bar; things you do *to* the message, as against the From/To/Cc
         // fields you address it with. The signature picker joins it below, once the editor it
         // writes into exists (docs/signatures.md).
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        actions.set_halign(gtk::Align::Start);
+        // Wrapping, so a large text size or a narrow pane moves a button to the next line rather
+        // than pushing the column wider than the pane.
+        let actions = adw::WrapBox::new();
+        actions.set_child_spacing(8);
+        actions.set_line_spacing(8);
         let attach = gtk::Button::with_label(l10n::action_attach());
         actions.append(&attach);
         // Never disabled: a draft is unfinished by definition, so there is no state a composer
@@ -195,6 +200,9 @@ impl ComposerPane {
         hint.add_css_class("dim-label");
         hint.set_visible(false);
         content.append(&hint);
+        // Draft a reply's own notes, filled once the editor it writes into exists.
+        let draft_notes = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        content.append(&draft_notes);
 
         // The composition's files, as the core holds them: a forward's originals, a stored
         // draft's own, a share's; the picker, a drop and a paste add to them.
@@ -234,6 +242,11 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let reply_draft = app.map(|app| reply_draft(app, request, accounts, &from, &web, &sender));
+        if let Some(draft) = &reply_draft {
+            actions.append(draft.slot());
+            draft_notes.append(draft.notes());
+        }
         let importance = app.map(|app| {
             ImportanceControl::new(
                 Arc::clone(app) as Arc<dyn ImportanceStore>,
@@ -257,7 +270,7 @@ impl ComposerPane {
         let seed = Rc::new(RefCell::new(None));
         content.append(&editor_host);
         let column = ComposerColumn::new(&content, &editor_host, web.widget());
-        seed_editor(
+        super::composer_seed::seed_editor(
             &web,
             request,
             &editor_host,
@@ -265,7 +278,15 @@ impl ComposerPane {
             quote_style,
             Rc::clone(&seed),
         );
-        super::composer_host::install(web.widget(), Some(&column));
+        let report = reply_draft.as_ref().map(|draft| {
+            let draft = Rc::downgrade(draft);
+            Rc::new(move |message: String| {
+                if let Some(draft) = draft.upgrade() {
+                    draft.report(message);
+                }
+            }) as Rc<dyn Fn(String)>
+        });
+        super::composer_host::install(web.widget(), Some(&column), report);
         install_drop_target(column.widget(), take_files(PictureAnswer::Ask));
         toolbar.set_content(Some(column.widget()));
         self.root.append(&toolbar);
@@ -305,6 +326,7 @@ impl ComposerPane {
             &fields,
             error.clone(),
             sender.clone(),
+            reply_draft.clone(),
         );
         connect_save_draft(&save_draft, web.widget(), &fields, sender.clone());
         // The idle save takes the same route the button does, so the two cannot come to store
@@ -328,6 +350,14 @@ impl ComposerPane {
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
         self.column.replace(Some(column));
+        self.reply_draft.replace(reply_draft);
+    }
+
+    /// Reads Draft a reply again after the core signalled it may have moved.
+    pub(crate) fn follow_reply_draft(&self, read: u64) {
+        if let Some(draft) = self.reply_draft.borrow().as_ref() {
+            draft.follow_read(read);
+        }
     }
 
     /// Draws what the draft's last save said (`composer_drafts::draw_draft_hint`).
@@ -386,6 +416,7 @@ impl ComposerPane {
         self.signature.take();
         self.draft.take();
         self.column.take();
+        self.reply_draft.take();
         self.checked_generation.set(None);
         while let Some(child) = self.root.first_child() {
             self.root.remove(&child);
@@ -396,85 +427,40 @@ impl ComposerPane {
     }
 }
 
-/// Sends the editor everything an open draft needs, once the bundle has parsed.
-///
-/// This is an **ordering** contract, and one that fails silently. A `window.*` hook called before
-/// the bundle parses lands on an undefined function and `evaluate_javascript` reports nothing, so
-/// every open-time hook belongs in this one batch. Within it the body goes first, since each seed
-/// assigns the whole body, and the signature second: the seam places the region above
-/// `.allodia-quote` when there is one, which is what makes a reply read message → signature →
-/// original. A reopened quote's attribution is completed last, once the body holding it is in.
-fn seed_editor(
-    web: &SecureWebView,
+/// Draft a reply for this composer, sending from what its From picker shows; it follows a change
+/// of From itself.
+fn reply_draft(
+    app: &Arc<MailcalApp>,
     request: &ComposeContext,
-    editor_host: &gtk::Box,
-    signature: Option<&Rc<SignatureControl>>,
-    quote_style: Option<QuoteStylePicker>,
-    seed: Rc<RefCell<Option<String>>>,
-) {
-    let labels = editor_labels();
-    let body = body_seed_script(request);
-    let attribution = attribution_script(request);
-    // Read here, not in the closure: the request is borrowed, the closure outlives this call.
-    let opens_in_body = request.opens_in_body();
-    let moved_signature = request.moved.as_ref().map(|moved| moved.signature.clone());
-    let editor_host = editor_host.clone();
-    // Weak: the control owns the view this closure is attached to.
-    let signature = signature.map(Rc::downgrade);
-    web.connect_finished(move |view| {
-        editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
-        let mut script = format!("window.setComposerLabels({labels});");
-        script.push_str(&super::composer_scheme::current_script());
-        // Before the body is seeded and before the channel is announced, so the first caret and
-        // scroll it reports are already the seeded message's (`docs/composer-layout.md`).
-        script.push_str("window.useFramedComposer();");
-        script.push_str(&super::composer_host::announce_script());
-        if let Some(body) = &body {
-            script.push_str(body);
+    accounts: &[(String, String)],
+    from: &gtk::DropDown,
+    web: &SecureWebView,
+    sender: &relm4::Sender<AppInput>,
+) -> Rc<ReplyDraft> {
+    let ids = accounts
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let picker = from.clone();
+    let draft = ReplyDraft::new(
+        Arc::clone(app) as Arc<dyn ReplyDraftCore>,
+        &request.composition,
+        Rc::new(move || {
+            usize::try_from(picker.selected())
+                .ok()
+                .and_then(|index| ids.get(index))
+                .cloned()
+        }),
+        web.widget(),
+        sender.clone(),
+    );
+    let following = Rc::downgrade(&draft);
+    from.connect_selected_notify(move |_| {
+        if let Some(draft) = following.upgrade() {
+            draft.follow();
         }
-        // Only a composer that manages a signature has a control; one that does not never touches
-        // the region its body already carries, and a moved one carries on without seeding it.
-        if let Some(control) = signature.as_ref().and_then(std::rc::Weak::upgrade) {
-            match &moved_signature {
-                Some(moved) => control.carry_on(moved),
-                None => script.push_str(&control.seed_script()),
-            }
-        }
-        if let Some(attribution) = &attribution {
-            script.push_str(attribution);
-        }
-        if opens_in_body {
-            script.push_str("window.focusComposerBody();");
-        }
-        let seed = Rc::clone(&seed);
-        let quote_style = quote_style.clone();
-        let seeded_view = view.clone();
-        let ready = editor_host.clone();
-        view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
-            let seed = Rc::clone(&seed);
-            let ready = ready.clone();
-            seeded_view.evaluate_javascript(
-                "composerDocument()",
-                None,
-                None,
-                None::<&gio::Cancellable>,
-                move |result| {
-                    if let Ok(value) = result {
-                        let document = value.to_str().to_string();
-                        // The picker opens on the style the quote is in, which for a reopened
-                        // message is the one it was saved in, not the app default.
-                        if let Some(picker) = &quote_style {
-                            picker.reflect(&document);
-                        }
-                        seed.replace(Some(document));
-                        // Named for a test or script (`docs/test-agent.md`) only now: from here a
-                        // composer nobody has written in closes without asking.
-                        ready.set_widget_name("composer-editor");
-                    }
-                },
-            );
-        });
     });
+    draft
 }
 
 #[cfg(test)]

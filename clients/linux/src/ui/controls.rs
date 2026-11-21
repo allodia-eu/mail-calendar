@@ -6,7 +6,7 @@
 use adw::prelude::*;
 use mailcal_bindings::ControlState;
 
-use crate::l10n;
+pub(super) use super::confirm::confirm;
 
 /// A spinner beside a control whose work is running, or nothing.
 fn spinner(control: ControlState) -> Option<adw::Spinner> {
@@ -286,6 +286,98 @@ pub(super) fn text_row(
     row
 }
 
+/// A full-width text row titled `title`, which tells `committed` what was typed on Return and when
+/// it loses focus, once for each edit, as [`text_row`] does: for text longer than a field beside
+/// its title can show.
+pub(super) fn entry_row(
+    title: &str,
+    text: &str,
+    control: ControlState,
+    committed: impl Fn(String) + 'static,
+) -> adw::EntryRow {
+    let row = adw::EntryRow::new();
+    row.set_use_markup(false);
+    row.set_title(title);
+    row.set_text(text);
+    row.set_sensitive(control.enabled);
+    if let Some(spinner) = spinner(control) {
+        row.add_suffix(&spinner);
+    }
+    row.add_css_class(SENDS_ITSELF);
+    let sent = std::rc::Rc::new(std::cell::RefCell::new(text.to_owned()));
+    let unsent_now = sent.clone();
+    row.connect_changed(move |row| {
+        if row.text() == unsent_now.borrow().as_str() {
+            row.remove_css_class(UNSENT);
+        } else {
+            row.add_css_class(UNSENT);
+        }
+    });
+    let commit = std::rc::Rc::new(move |row: &adw::EntryRow| {
+        let typed = row.text().to_string();
+        if typed != *sent.borrow() {
+            sent.replace(typed.clone());
+            row.remove_css_class(UNSENT);
+            committed(typed);
+        }
+    });
+    let on_activate = commit.clone();
+    row.connect_entry_activated(move |row| on_activate(row));
+    let focus = gtk::EventControllerFocus::new();
+    let left = row.downgrade();
+    focus.connect_leave(move |_| {
+        if let Some(row) = left.upgrade() {
+            commit(&row);
+        }
+    });
+    row.add_controller(focus);
+    row
+}
+
+/// A button that opens `popover`, held while `control` is. Its arrow gives way to a spinner while
+/// the work it started runs, so the button keeps its width.
+pub(super) fn menu_button(
+    label: &str,
+    control: ControlState,
+    popover: &gtk::Popover,
+) -> gtk::MenuButton {
+    let button = gtk::MenuButton::new();
+    let text = gtk::Label::new(Some(label));
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.append(&text);
+    match spinner(control) {
+        Some(spinner) => content.append(&spinner),
+        None => content.append(&gtk::Image::from_icon_name(super::icons::SHOW_DETAILS)),
+    }
+    button.set_child(Some(&content));
+    button.set_popover(Some(popover));
+    button.update_property(&[gtk::accessible::Property::Label(label)]);
+    button.set_sensitive(control.enabled);
+    button
+}
+
+/// A check that `toggled` is told about when the person moves it from where it was drawn.
+pub(super) fn check(
+    label: &str,
+    active: bool,
+    control: ControlState,
+    toggled: impl Fn(bool) + 'static,
+) -> gtk::CheckButton {
+    let check = gtk::CheckButton::with_label(label);
+    check.set_active(active);
+    check.set_sensitive(control.enabled);
+    if let Some(text) = check.child().and_downcast::<gtk::Label>() {
+        text.set_wrap(true);
+        text.set_xalign(0.0);
+    }
+    check.connect_toggled(move |check| {
+        if check.is_active() != active {
+            toggled(check.is_active());
+        }
+    });
+    check
+}
+
 /// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// the one it was drawn with.
 pub(super) fn picker_row(
@@ -372,51 +464,6 @@ pub(super) fn choice_row(
     }
     row.add_suffix(&choices);
     row
-}
-
-/// Asks before a change that deletes something: `action` does it, Cancel does not. `answered` is
-/// told which, however the question goes away.
-pub(super) fn confirm(
-    parent: &gtk::Window,
-    title: &str,
-    message: &str,
-    action: &str,
-    answered: impl Fn(bool) + 'static,
-) -> gtk::Window {
-    let (dialog, _) = super::modal::new(parent, title, 440, None);
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
-    content.set_margin_start(28);
-    content.set_margin_end(28);
-    content.set_margin_top(24);
-    content.set_margin_bottom(28);
-    let label = gtk::Label::new(Some(message));
-    label.set_wrap(true);
-    label.set_xalign(0.0);
-    content.append(&label);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    actions.append(&cancel);
-    let confirm = gtk::Button::with_label(action);
-    confirm.add_css_class("destructive-action");
-    actions.append(&confirm);
-    content.append(&actions);
-    dialog.set_child(Some(&content));
-
-    let confirmed = std::rc::Rc::new(std::cell::Cell::new(false));
-    let (done, window) = (confirmed.clone(), dialog.clone());
-    confirm.connect_clicked(move |_| {
-        done.set(true);
-        window.close();
-    });
-    let window = dialog.clone();
-    cancel.connect_clicked(move |_| window.close());
-    dialog.connect_close_request(move |_| {
-        answered(confirmed.get());
-        gtk::glib::Propagation::Proceed
-    });
-    dialog.present();
-    dialog
 }
 
 #[cfg(test)]

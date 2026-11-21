@@ -67,11 +67,15 @@ mode_probe() {
   shift || true
   [[ "${1:-}" == "--" ]] && shift
   [[ -n "$wanted" && $# -gt 0 ]] || usage
-  local target="$REPO_ROOT/clients/linux/src/crash.rs" backup
+  local target="$REPO_ROOT/clients/linux/src/crash.rs" backup restore
   backup="$(mktemp)"
   cp "$target" "$backup"
-  # Restored however this exits, so an interrupted run never leaves the probe in the tree.
-  trap 'cp "$backup" "$target"; rm -f "$backup"; info "probe removed"' EXIT
+  # Restored however this exits, so an interrupted run never leaves the probe in the tree. The
+  # paths are written into the trap now: it runs at the script's exit, after this function's
+  # locals are gone.
+  printf -v restore 'cp %q %q; rm -f %q; info "probe removed"' "$backup" "$target" "$backup"
+  # shellcheck disable=SC2064
+  trap "$restore" EXIT
   python3 - "$target" "$wanted" <<'PY'
 import sys
 
@@ -80,8 +84,14 @@ source = open(path).read()
 anchor = "        glib::log_default_handler(domain, level, Some(message));"
 if anchor not in source:
     raise SystemExit(f"error: {path} no longer has the handler this probe attaches to")
+# A raw string literal, fenced with more hashes than any `"#…` run in the text, holds the text
+# exactly whatever it contains; Python's repr would write a Rust char literal for most of them.
+fence = "#"
+while f'"{fence}' in wanted:
+    fence += "#"
+literal = f'r{fence}"{wanted}"{fence}'
 probe = (
-    f"        if message.contains({wanted!r}) {{\n"
+    f"        if message.contains({literal}) {{\n"
     '            log::error!("GTKTRACE {}", std::backtrace::Backtrace::force_capture());\n'
     "        }\n"
 ) + anchor

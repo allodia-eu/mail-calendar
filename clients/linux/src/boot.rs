@@ -6,7 +6,7 @@ mod dev;
 use std::{fs, path::PathBuf, sync::Arc};
 
 #[cfg(debug_assertions)]
-use dev::{dev_credential_store, dev_secrets, with_stored_allodia_account};
+use dev::{dev_credential_store, dev_secrets, with_stored_reserved};
 use mailcal_bindings::{
     AccountCredentialStore, Appearance, DeviceClass, DeviceInfo, LogLevel, MailcalApp, Observer,
     Platform, device_time_zone,
@@ -167,7 +167,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 logger,
                 log_level,
                 timezone,
-                with_stored_allodia_account(vec![config], secrets.as_ref()),
+                with_stored_reserved(vec![config], secrets.as_ref()),
                 Some("dev"),
                 dev_credential_store(secrets.as_ref()),
             )?;
@@ -188,7 +188,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 logger,
                 log_level,
                 timezone,
-                with_stored_allodia_account(vec![first, second], secrets.as_ref()),
+                with_stored_reserved(vec![first, second], secrets.as_ref()),
                 Some("dev-multi"),
                 dev_credential_store(secrets.as_ref()),
             )?;
@@ -203,7 +203,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 logger,
                 log_level,
                 timezone,
-                with_stored_allodia_account(
+                with_stored_reserved(
                     vec![crate::dev_account::STALWART_IMAP_TOML.to_owned()],
                     secrets.as_ref(),
                 ),
@@ -221,7 +221,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 logger,
                 log_level,
                 timezone,
-                with_stored_allodia_account(
+                with_stored_reserved(
                     crate::dev_account::STALWART_LINKED_TOMLS
                         .map(str::to_owned)
                         .to_vec(),

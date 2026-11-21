@@ -15,6 +15,7 @@ pub(in crate::ui) mod account_names;
 mod account_notices;
 mod account_page;
 pub(super) mod account_rows;
+mod ai_endpoint;
 pub(super) mod sign_in_section;
 pub(super) use account_rows::{link_labels, link_title, suggested_name, use_name};
 mod account_reply_fallback;
@@ -45,6 +46,15 @@ pub(super) mod subscription;
 mod top_notice;
 pub(super) mod videoconferencing;
 mod widgets;
+pub(super) mod writing_style;
+mod writing_style_detail;
+mod writing_style_learning;
+mod writing_style_page;
+mod writing_style_reveal;
+mod writing_style_reveal_cards;
+mod writing_style_reveal_pages;
+mod writing_style_stages;
+pub(super) mod writing_style_words;
 
 pub(super) use give_way::PaneComposer;
 use state::Redraw;
@@ -62,6 +72,7 @@ pub(crate) enum Category {
     Reading,
     Composing,
     Signatures,
+    WritingStyle,
     Notifications,
     Privacy,
     Accounts,
@@ -83,7 +94,7 @@ pub(super) struct RenderState<'a> {
 }
 
 /// Every category, in order. What a given build **shows** is [`visible_categories`].
-const CATEGORIES: [Category; 13] = [
+const CATEGORIES: [Category; 14] = [
     Category::Allodia,
     Category::General,
     Category::Calendar,
@@ -91,6 +102,7 @@ const CATEGORIES: [Category; 13] = [
     Category::Reading,
     Category::Composing,
     Category::Signatures,
+    Category::WritingStyle,
     Category::Notifications,
     Category::Privacy,
     Category::Accounts,
@@ -99,16 +111,19 @@ const CATEGORIES: [Category; 13] = [
     Category::About,
 ];
 
-/// The categories this build shows.
+/// The categories this build shows, and this core offers.
 ///
 /// [`Category::Allodia`] is absent when the build carries no registration, and the whole category
 /// goes rather than its contents: a sidebar row that opens an empty page reads as a broken page
 /// rather than as a build without a route, and that is what every build from source would see.
-fn visible_categories() -> Vec<Category> {
+/// [`Category::WritingStyle`] is absent while the core offers no page for it (`docs/ai.md` rule 4).
+fn visible_categories(writing_style: bool) -> Vec<Category> {
     CATEGORIES
         .into_iter()
-        .filter(|category| {
-            *category != Category::Allodia || mailcal_bindings::allodia_sign_in_available()
+        .filter(|category| match category {
+            Category::Allodia => mailcal_bindings::allodia_sign_in_available(),
+            Category::WritingStyle => writing_style,
+            _ => true,
         })
         .collect()
 }
@@ -130,6 +145,11 @@ struct PageContext {
     signatures: signatures::Shown,
     /// Where the pages drawn from the calendars register the parts that follow the core.
     calendar: calendar_follow::Followers,
+    /// Where the own endpoint's form and Writing style register themselves.
+    ai_endpoint: calendar_follow::Followers,
+    writing_style: calendar_follow::Followers,
+    /// The sidebar's rows, so a page can send the person to another category.
+    sidebar: category::Sidebar,
 }
 
 #[derive(Debug, Default)]
@@ -160,6 +180,8 @@ pub(super) struct SettingsWindow {
     signatures: signatures::Shown,
     /// The parts of the calendar's pages drawn last, which follow the core's signals themselves.
     calendar: calendar_follow::Followers,
+    ai_endpoint: calendar_follow::Followers,
+    writing_style: calendar_follow::Followers,
 }
 
 impl SettingsWindow {
@@ -280,6 +302,9 @@ impl SettingsWindow {
             devices: None,
             signatures: self.signatures.clone(),
             calendar: self.calendar.clone(),
+            ai_endpoint: self.ai_endpoint.clone(),
+            writing_style: self.writing_style.clone(),
+            sidebar: category::Sidebar::default(),
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal
@@ -304,6 +329,8 @@ impl SettingsWindow {
             return;
         }
         self.calendar.clear();
+        self.ai_endpoint.clear();
+        self.writing_style.clear();
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
@@ -381,13 +408,14 @@ fn window_content(category: Category, ctx: &PageContext) -> (gtk::Box, gtk::Stac
     let stack = gtk::Stack::new();
     stack.set_hexpand(true);
     stack.set_vexpand(true);
-    let shown = visible_categories();
-    let selected = initial_category(&shown, category);
+    let shown = visible_categories(ctx.app.writing_style_page().is_some());
+    let selected = category::initial_category(&shown, category);
     let mut button_group: Option<gtk::ToggleButton> = None;
     for category in shown {
         let row = gtk::ListBoxRow::new();
         row.set_activatable(false);
-        let button = category_button(category);
+        let button = category::category_button(category);
+        ctx.sidebar.register(category, &button);
         if let Some(group) = &button_group {
             button.set_group(Some(group));
         } else {
@@ -428,51 +456,6 @@ fn window_content(category: Category, ctx: &PageContext) -> (gtk::Box, gtk::Stac
     (shell, stack)
 }
 
-/// One sidebar row's button: the category's glyph and its name, the way every other platform's
-/// settings sidebar draws it (docs/settings.md).
-///
-/// The name is set on the button as well as drawn inside it, so assistive technology and the UI
-/// suite find the row by the same words whatever the content widget does with them.
-fn category_button(category: Category) -> gtk::ToggleButton {
-    let content = adw::ButtonContent::new();
-    content.set_icon_name(category.icon());
-    content.set_label(category.title());
-    content.set_halign(gtk::Align::Start);
-    let button = gtk::ToggleButton::new();
-    button.set_child(Some(&content));
-    button.add_css_class("flat");
-    button.set_halign(gtk::Align::Fill);
-    button.set_hexpand(true);
-    button.update_property(&[gtk::accessible::Property::Label(category.title())]);
-    button
-}
-
-/// Which category the window opens on: the one the caller asked for, except when the screenshot
-/// hook names `signatures`.
-///
-/// The hook wins over the request so a capture filed under `signatures` cannot silently show a
-/// different category. Normal navigation uses the accessible toggle buttons in the sidebar.
-///
-/// `shown` is the sidebar's own list, never [`CATEGORIES`]: counted over every category instead, a
-/// build carrying no registration selects the row *after* the one asked for, and the last category
-/// selects no row at all.
-fn initial_category(shown: &[Category], requested: Category) -> i32 {
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if crate::showcase::screen() == Ok(crate::showcase::ShowcaseScreen::Signatures)
-        && let Some(index) = index_of(shown, Category::Signatures)
-    {
-        return index;
-    }
-    index_of(shown, requested).unwrap_or_default()
-}
-
-fn index_of(shown: &[Category], wanted: Category) -> Option<i32> {
-    shown
-        .iter()
-        .position(|category| *category == wanted)
-        .and_then(|index| i32::try_from(index).ok())
-}
-
 fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
     let content = match category {
         Category::Allodia => allodia::page(ctx),
@@ -482,6 +465,7 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
         Category::Reading => pages::reading(ctx),
         Category::Composing => pages::composing(ctx),
         Category::Signatures => signatures::signatures(ctx),
+        Category::WritingStyle => writing_style::writing_style(ctx),
         Category::Notifications => pages::notifications(ctx),
         Category::Privacy => pages::privacy(ctx),
         Category::Accounts => accounts::accounts(ctx),
@@ -497,3 +481,6 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
 #[cfg(test)]
 #[path = "settings_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+pub(crate) mod offer_tests;

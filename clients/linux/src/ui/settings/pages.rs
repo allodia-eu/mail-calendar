@@ -264,6 +264,8 @@ pub(super) fn advanced(ctx: &PageContext) -> gtk::Box {
     if let Some(mcp) = super::mcp::section(ctx) {
         content.append(&mcp);
     }
+    // Absent while the core offers no writing assistant (`docs/ai.md` rule 4).
+    content.append(&super::ai_endpoint::section(ctx));
     content
 }
 
