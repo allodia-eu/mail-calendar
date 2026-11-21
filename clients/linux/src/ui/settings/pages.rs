@@ -244,12 +244,15 @@ pub(super) fn privacy(ctx: &PageContext) -> gtk::Box {
     content
 }
 
-/// Settings → Advanced: AI assistant access first, on a host with an endpoint, then the reset.
+/// Settings → Advanced: AI assistant access first, on a host with an endpoint, then the own AI
+/// endpoint's form, then the reset.
 pub(super) fn advanced(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_advanced());
     if let Some(mcp) = super::mcp::section(ctx) {
         content.append(&mcp);
     }
+    // Absent while the core offers no writing assistant (`docs/ai.md` rule 4).
+    content.append(&super::ai_endpoint::section(ctx));
     content.append(&reset::group_following(ctx));
     content
 }

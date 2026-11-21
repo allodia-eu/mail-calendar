@@ -78,14 +78,14 @@ pub(super) fn dev_credential_store(
     }
 }
 
-/// The canned account list a fixture launch connects, plus the one stored entry that is not a mail
-/// account.
+/// The canned account list a fixture launch connects, plus the stored entries that are not mail
+/// accounts: the Allodia grant and the own AI endpoint's key.
 ///
-/// Which entry that is is the core's answer rather than a shape matched here: a client reading the
-/// stored form itself would be a second reader of it, free to disagree the moment either moves.
-/// **Only** that entry is carried over; appending the whole namespace would reconnect every
+/// Which entries those are is the core's answer rather than a shape matched here: a client reading
+/// the stored form itself would be a second reader of it, free to disagree the moment either moves.
+/// **Only** those entries are carried over; appending the whole namespace would reconnect every
 /// fixture account an earlier session left behind.
-pub(super) fn with_stored_allodia_account(
+pub(super) fn with_stored_reserved(
     configs: Vec<String>,
     secrets: Option<&Arc<SecretStore>>,
 ) -> Vec<String> {
@@ -93,7 +93,7 @@ pub(super) fn with_stored_allodia_account(
         return configs;
     };
     match store.configs() {
-        Ok(stored) => carry_over_allodia_account(configs, stored),
+        Ok(stored) => carry_over_reserved(configs, stored),
         Err(error) => {
             log::warn!("this debug build could not read its own secure store: {error}");
             configs
@@ -102,36 +102,40 @@ pub(super) fn with_stored_allodia_account(
 }
 
 /// The filter itself, away from the store so it can be tested without one.
-fn carry_over_allodia_account(mut configs: Vec<String>, stored: Vec<String>) -> Vec<String> {
+fn carry_over_reserved(mut configs: Vec<String>, stored: Vec<String>) -> Vec<String> {
     configs.extend(
         stored
             .into_iter()
-            .filter(|config| mailcal_bindings::is_allodia_account_config(config.clone())),
+            .filter(|config| mailcal_bindings::is_reserved_config(config.clone())),
     );
     configs
 }
 
 #[cfg(test)]
 mod tests {
-    use super::carry_over_allodia_account;
+    use super::carry_over_reserved;
 
-    /// A fixture launch connects its canned accounts and **one** stored entry: the Allodia account.
+    /// A fixture launch connects its canned accounts and the stored entries that are not mail
+    /// accounts: the Allodia account and the own endpoint's key.
     ///
     /// Both halves matter. Dropping it is what made a harness sign-in look like it never stuck,
     /// the grant was in the keyring and nothing put it back. Taking the whole namespace instead is
     /// the other failure: measured on macOS while getting this wrong, it connected five accounts,
     /// four of them fixtures left behind by earlier sessions.
     #[test]
-    fn a_fixture_launch_carries_over_the_allodia_account_and_nothing_else() {
+    fn a_fixture_launch_carries_over_the_reserved_entries_and_nothing_else() {
         let canned = "[jmap]\nurl = \"http://127.0.0.1:28080\"\n".to_owned();
         let allodia =
             "[allodia]\nemail = \"someone@allodia.test\"\nrefresh_token = \"grant\"\n".to_owned();
+        let key = "[ai_endpoint]\nkey = \"sk-local\"\n".to_owned();
         let stale_fixture = "[imap]\naddr = \"imap.example.test:993\"\n".to_owned();
 
-        let connected =
-            carry_over_allodia_account(vec![canned.clone()], vec![stale_fixture, allodia.clone()]);
+        let connected = carry_over_reserved(
+            vec![canned.clone()],
+            vec![stale_fixture, allodia.clone(), key.clone()],
+        );
 
-        assert_eq!(connected, vec![canned.clone(), allodia]);
+        assert_eq!(connected, vec![canned.clone(), allodia, key]);
     }
 
     /// An empty store leaves the canned list exactly as it was; the first launch after this
@@ -141,7 +145,7 @@ mod tests {
         let canned = "[jmap]\nurl = \"http://127.0.0.1:28080\"\n".to_owned();
 
         assert_eq!(
-            carry_over_allodia_account(vec![canned.clone()], Vec::new()),
+            carry_over_reserved(vec![canned.clone()], Vec::new()),
             vec![canned]
         );
     }

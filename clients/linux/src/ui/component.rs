@@ -46,6 +46,7 @@ impl SimpleComponent for AppWindow {
         // Before the window is presented, so it is never painted in the desktop's scheme first.
         // Read from the store's own file, because the core that owns the setting is not open yet.
         appearance::apply(appearance::at_launch(boot::stored_appearance()));
+        appearance::apply_display_hooks();
         let widgets = launch::WindowWidgets::new(root, sender.input_sender().clone());
         launch::open_core(sender.input_sender());
         ComponentParts {
@@ -204,6 +205,9 @@ impl AppModel {
             reading_generation: 0,
             signatures_read: 0,
             calendar_settings_read: 0,
+            writing_style_read: 0,
+            ai_endpoint_read: 0,
+            reply_draft_read: 0,
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,

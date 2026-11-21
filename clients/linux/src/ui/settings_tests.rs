@@ -6,7 +6,8 @@
 use adw::prelude::*;
 
 use super::{
-    CATEGORIES, Category, PaneComposer, Redraw, SettingsState, SettingsWindow, initial_category,
+    CATEGORIES, Category, PaneComposer, Redraw, SettingsState, SettingsWindow,
+    category::initial_category, visible_categories,
 };
 
 /// A generation is either a request to **open** the window or a redraw of an open one, and the
@@ -322,6 +323,19 @@ fn a_build_without_the_allodia_route_still_opens_the_category_asked_for() {
     );
 }
 
+/// Writing style is in the sidebar exactly while the core offers its page, after Signatures
+/// (`docs/settings.md`, `docs/ai.md` rule 4).
+#[test]
+fn writing_style_is_listed_only_while_offered_and_after_signatures() {
+    assert!(!visible_categories(false).contains(&Category::WritingStyle));
+    let offered = visible_categories(true);
+    let at = offered
+        .iter()
+        .position(|category| *category == Category::WritingStyle)
+        .expect("offered");
+    assert_eq!(offered[at - 1], Category::Signatures);
+}
+
 /// A sidebar's icons are for finding a row without reading it, which two rows sharing one defeats.
 /// The two account categories are the pair most easily given the same glyph.
 #[test]
@@ -343,6 +357,7 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
             Category::Reading,
             Category::Composing,
             Category::Signatures,
+            Category::WritingStyle,
             Category::Notifications,
             Category::Privacy,
             Category::Accounts,
@@ -421,6 +436,9 @@ pub(crate) fn a_closed_signature_editor_frees_its_view() {
         devices: None,
         signatures: signatures::Shown::default(),
         follow: super::calendar_follow::Followers::default(),
+        ai_endpoint: super::calendar_follow::Followers::default(),
+        writing_style: super::calendar_follow::Followers::default(),
+        sidebar: super::category::Sidebar::default(),
     };
 
     let held: Rc<RefCell<Option<Rc<signature_editor::Editor>>>> = Rc::default();

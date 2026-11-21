@@ -81,6 +81,12 @@ internal fun CategoryDetail(
     accountsUi: AccountsSettingsUi,
     // Videoconferencing's account rows open that account's page under Accounts.
     onOpenAccount: (String) -> Unit = {},
+    // Writing style and the own endpoint under Advanced, each null while the core does not offer
+    // the writing assistant (docs/ai.md rule 4).
+    writingStyle: WritingStyleUi? = null,
+    aiEndpoint: AiEndpointUi? = null,
+    // Another category, for a remedy that opens one: Writing style's way to the own endpoint.
+    onOpenCategory: (SettingsCategory) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     when (category) {
@@ -136,9 +142,9 @@ internal fun CategoryDetail(
             }
         }
 
-        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md
-        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13), then each
-        // account's default (rule 10).
+        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md,
+        // Videoconferencing), then the person's Jitsi server (docs/conferencing.md, rule 13), then
+        // each account's default (rule 10).
         SettingsCategory.VIDEOCONFERENCING -> {
             MeetingAccountsCard(accountsUi.state.snapshot.meetingAccounts, onOpenAccount)
             SettingsGroupCard(
@@ -214,6 +220,11 @@ internal fun CategoryDetail(
             }
         }
 
+        // Writing style: Learn, the library and each account's style (SettingsWritingStyle.kt).
+        SettingsCategory.WRITING_STYLE -> writingStyle?.let {
+            WritingStyleCategory(it) { onOpenCategory(SettingsCategory.ADVANCED) }
+        }
+
         // Notifications, the new-mail toggle + the battery-exemption card (SettingsNotifications.kt).
         SettingsCategory.NOTIFICATIONS -> NotificationsSettings()
 
@@ -258,9 +269,16 @@ internal fun CategoryDetail(
             },
         ) { entry, page -> AccountPage(entry, page, accountsUi) }
 
-        // Advanced, the core's page: reset the local cache, confirmed by the dialog in
-        // SettingsScreen (SettingsAdvanced.kt).
-        SettingsCategory.ADVANCED -> AdvancedSettings(advanced, onRequestReset)
+        // Advanced: the own AI endpoint while the assistant is offered (SettingsAiEndpoint.kt), then
+        // the core's page: reset the local cache, confirmed by the dialog in SettingsScreen
+        // (SettingsAdvanced.kt).
+        SettingsCategory.ADVANCED -> {
+            if (aiEndpoint?.form != null) {
+                AiEndpointCard(aiEndpoint)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            AdvancedSettings(advanced, onRequestReset)
+        }
 
         // Diagnostics has no inline detail, its hub row opens the full-screen DiagnosticsScreen
         // (DiagnosticsScreen.kt) directly, so this branch is never reached.

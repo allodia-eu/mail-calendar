@@ -115,6 +115,10 @@ icons! {
     /// A document going out. Not `mail-send`, which the pane gives Sent: an Outbox that looks like
     /// Sent is the one confusion that row exists to prevent.
     OUTBOX = "document-send-symbolic";
+
+    // A drafted reply's gap, which the reply fills rather than a tick: a state, not a control.
+    GAP_OPEN = "radio-symbolic";
+    GAP_FILLED = "object-select-symbolic";
     ATTACHMENT = "mail-attachment-symbolic";
     /// A person with no photo, and the account a folder tree hangs from.
     PERSON = "avatar-default-symbolic";
@@ -145,6 +149,8 @@ icons! {
     SETTINGS_READING = "mailcal-mail-read-symbolic";
     SETTINGS_COMPOSING = DRAFTS;
     SETTINGS_SIGNATURES = "mailcal-signature-symbolic";
+    /// How the person writes: Adwaita's formatted-text glyph, not Composing's pencil.
+    SETTINGS_WRITING_STYLE = "format-text-rich-symbolic";
     SETTINGS_NOTIFICATIONS = "mailcal-bell-symbolic";
     SETTINGS_PRIVACY = "channel-secure-symbolic";
     SETTINGS_ACCOUNTS = INBOX;

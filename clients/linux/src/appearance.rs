@@ -84,6 +84,26 @@ const fn launch_override() -> Option<Appearance> {
     None
 }
 
+/// The debug-only `MAILCAL_LARGE_TEXT` and `MAILCAL_REDUCED_MOTION` launch hooks: text at one and a
+/// half times its size, and animations off, the two desktop settings a screen is checked at and
+/// that a private compositor has no way to set. Nothing in a shipped binary reads them.
+#[cfg(debug_assertions)]
+pub(crate) fn apply_display_hooks() {
+    let Some(settings) = gtk::Settings::default() else {
+        return;
+    };
+    if std::env::var_os("MAILCAL_LARGE_TEXT").is_some() {
+        // In 1024ths of a dot per inch: 96 at the desktop's own size.
+        settings.set_gtk_xft_dpi(96 * 1024 * 3 / 2);
+    }
+    if std::env::var_os("MAILCAL_REDUCED_MOTION").is_some() {
+        settings.set_gtk_enable_animations(false);
+    }
+}
+
+#[cfg(not(debug_assertions))]
+pub(crate) const fn apply_display_hooks() {}
+
 /// Reads an override value, or `None` when it is unset or names nothing we know: a typo'd override
 /// must not silently read as "follow the system", which looks exactly like a working one.
 #[cfg(debug_assertions)]
