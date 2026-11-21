@@ -169,6 +169,11 @@ public sealed partial class SettingsDialog
         {
             lines.Children.Add(Line(L10n.LearnReportUndetected((int)report.OtherLanguages), "WritingStyleFlowUndetected"));
         }
+        // Messages found whose body the server did not give, so they were not read.
+        if (report.NotLoaded > 0)
+        {
+            lines.Children.Add(Line(L10n.LearnNotLoaded((int)report.NotLoaded), "WritingStyleFlowNotLoaded"));
+        }
         if (report.Oldest is { } oldest && report.Newest is { } newest)
         {
             lines.Children.Add(Description(L10n.LearnReportDates(StyleDate(oldest), StyleDate(newest))));
