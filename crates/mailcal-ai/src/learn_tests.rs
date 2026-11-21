@@ -9,7 +9,7 @@ use super::{LearnOptions, LearnProgress, REQUEST_BUDGET_TOKENS, learn_style};
 use crate::{
     AiError, GatedBackend,
     corpus::{Corpus, CorpusMessage, CorpusReport},
-    test_support::{RecordingBackend, gated, tool_answer},
+    test_support::{RecordingBackend, gated, lang, tool_answer},
     wire::Purpose,
 };
 
@@ -26,7 +26,7 @@ fn corpus(languages: Vec<(&str, Vec<CorpusMessage>)>) -> Corpus {
     Corpus {
         languages: languages
             .into_iter()
-            .map(|(language, messages)| (language.to_owned(), messages))
+            .map(|(language, messages)| (lang(language).clone(), messages))
             .collect(),
         report: CorpusReport {
             oldest: Some(10),
@@ -54,7 +54,7 @@ fn run(corpus: &Corpus, backend: &GatedBackend) -> Result<super::Learned, super:
         corpus,
         backend,
         &LearnOptions {
-            ui_language: "en",
+            ui_language: lang("en"),
             now: 99,
             cancel: &cancel,
             progress: &|_| {},
@@ -141,7 +141,7 @@ fn a_large_language_is_described_in_parts_and_merged() {
         &corpus,
         &backend,
         &LearnOptions {
-            ui_language: "en",
+            ui_language: lang("en"),
             now: 1,
             cancel: &cancel,
             progress: &move |step| recorded.lock().unwrap().push(step),
@@ -172,7 +172,7 @@ fn a_cancelled_run_stops_before_the_next_request_and_says_what_it_cost() {
         &corpus,
         &backend,
         &LearnOptions {
-            ui_language: "en",
+            ui_language: lang("en"),
             now: 1,
             cancel: &cancel,
             // The person presses stop while the first request is on its way.

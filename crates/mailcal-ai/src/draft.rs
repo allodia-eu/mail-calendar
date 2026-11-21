@@ -3,16 +3,16 @@
 //! The draft is the body only: it opens with the person's greeting and ends with their sign-off,
 //! and the account's signature block follows it as it would any reply. Where the reply needs a
 //! fact that is in neither the thread nor the person's instructions, the model writes a short
-//! bracketed gap (`[date]`) instead of inventing one, and [`Draft::gaps`] lists them so a client
-//! can say "check the parts in brackets". Nothing here sends mail: the draft goes into a composer
-//! the person edits.
+//! bracketed gap (`[date]`) instead of inventing one, and [`Draft::tasks`] opens with an item for
+//! each. Nothing here sends mail: the draft goes into a composer the person edits.
 
 use std::fmt;
 
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
     checklist::{self, Answered, DraftTask},
-    closing, draft_instructions, language,
+    closing, draft_instructions,
+    language::{self, LanguageCode},
     lean::lean,
     prompt::fence,
     tool,
@@ -62,11 +62,11 @@ pub struct DraftRequest<'a> {
     pub intent: Option<&'a str>,
     /// The language to answer in; `None` answers in the language of the message being answered,
     /// or the guide's main language when that cannot be told.
-    pub language: Option<&'a str>,
+    pub language: Option<&'a LanguageCode>,
     /// The plain text of the signature block the composer adds below the body.
     pub signature: Option<&'a str>,
     /// The catalog locale the app is shown in; the summary and the checklist are written in it.
-    pub ui_language: &'a str,
+    pub ui_language: &'a LanguageCode,
 }
 
 impl fmt::Debug for DraftRequest<'_> {
@@ -84,15 +84,16 @@ impl fmt::Debug for DraftRequest<'_> {
 pub struct Draft {
     /// The body, ready to go above the quote.
     pub text: String,
-    /// The bracketed gaps in it, in order, each once.
-    pub gaps: Vec<String>,
     /// What the message being answered asks, in a sentence or two, in the interface language;
     /// empty when the model gave none.
     pub summary: String,
-    /// What the person still has to do before sending: the gaps, then what to attach and do.
+    /// What the person still has to do before sending: a [`TaskKind::FillIn`] for each bracketed
+    /// gap in the body, in order and each once, then what to attach and do.
+    ///
+    /// [`TaskKind::FillIn`]: crate::TaskKind::FillIn
     pub tasks: Vec<DraftTask>,
     /// The language it was written in.
-    pub language: String,
+    pub language: LanguageCode,
     /// What the relay charged and the balance after; `None` from an own endpoint.
     pub metering: Option<Metering>,
     /// The tokens the request read and wrote, when the server said.
@@ -103,7 +104,6 @@ impl fmt::Debug for Draft {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Draft")
             .field("text_len", &self.text.len())
-            .field("gaps", &self.gaps.len())
             .field("tasks", &self.tasks.len())
             .field("language", &self.language)
             .finish_non_exhaustive()
@@ -120,15 +120,15 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     let answering = request.thread.last().ok_or(AiError::Malformed)?;
     let language = request
         .language
+        .cloned()
         .or_else(|| language::detect(&answering.body))
-        .or_else(|| request.guide.main_language())
-        .unwrap_or("en")
-        .to_owned();
+        .or_else(|| request.guide.main_language().cloned())
+        .unwrap_or_else(|| LanguageCode::new("en").expect("a two-letter code"));
     let style = style_for(request.guide, &language);
     let passages = request
         .exemplars
         .languages
-        .get(&language)
+        .get(language.as_str())
         .map_or(&[][..], Vec::as_slice);
 
     let (tool, choice) =
@@ -137,8 +137,8 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
         purpose: Purpose::Draft,
         messages: vec![
             ChatMessage::system(draft_instructions::render(
-                &language,
-                request.ui_language,
+                language.as_str(),
+                request.ui_language.as_str(),
                 style,
                 request.signature,
             )),
@@ -169,8 +169,7 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     ))
     .filter(|text| !text.is_empty())
     .ok_or(AiError::Malformed)?;
-    let gaps = gaps(&text);
-    let tasks = checklist::checklist(&gaps, answered.tasks);
+    let tasks = checklist::checklist(&gaps(&text), answered.tasks);
     log::info!(
         "ai: drafted a reply of {} word(s), with {} item(s) to do",
         text.split_whitespace().count(),
@@ -179,7 +178,6 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     Ok(Draft {
         summary: checklist::summary(&answered.summary),
         tasks,
-        gaps,
         text,
         language,
         metering: response.allodia,
@@ -246,7 +244,7 @@ fn quotes(text: &str, instructions: &str) -> bool {
 
 /// The guide's section for `language`, or for its main language when it has none: a person who
 /// writes Dutch is still themselves in a German reply.
-fn style_for<'a>(guide: &'a StyleGuide, language: &str) -> Option<&'a LanguageStyle> {
+fn style_for<'a>(guide: &'a StyleGuide, language: &LanguageCode) -> Option<&'a LanguageStyle> {
     guide.languages.get(language).or_else(|| {
         guide
             .main_language()

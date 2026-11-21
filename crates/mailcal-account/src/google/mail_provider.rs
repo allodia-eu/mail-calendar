@@ -5,13 +5,15 @@
 //! entry points, to keep both files under the 500-line cap; mirroring
 //! [`crate::graph`]'s identical split.
 
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
 use engine_core::{
     ids::AccountId,
     mail::{Mailbox, Message},
     raw::RawMime,
-    sync::{SyncScope, SyncState, SyncWindow},
+    sync::{MailboxWindows, SyncScope, SyncState},
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
@@ -35,7 +37,7 @@ impl Provider for RefreshingGmailProvider {
                         .lock()
                         .expect("gmail delegate mutex poisoned")
                         .as_ref()
-                        .map(|(_, provider)| provider.connection_info())
+                        .map(|(_, _, provider)| provider.connection_info())
                 }),
         )
     }
@@ -76,7 +78,7 @@ impl Provider for RefreshingGmailProvider {
         &'a self,
         account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        window: SyncWindow,
+        window: MailboxWindows,
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -221,10 +223,11 @@ impl Provider for RefreshingGmailProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         let provider = self.delegate().await?;
         provider
-            .put_draft(account, draft, replacing)
+            .put_draft(account, draft, replacing, keywords)
             .await
             .inspect_err(|err| {
                 if should_reconnect(err) {
@@ -312,6 +315,7 @@ impl Provider for RefreshingGmailProvider {
     }
 }
 
+impl engine_api::CalendarSync for RefreshingGmailProvider {}
 impl CalendarWrites for RefreshingGmailProvider {}
 
 /// A folder change is made **once**: the token is refreshed first, and a dropped connection

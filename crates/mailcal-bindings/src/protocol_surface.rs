@@ -29,6 +29,15 @@ pub enum Surface {
     /// ending, and an account's assignment changing. A host redraws Settings → Signatures and the
     /// composer's signature picker.
     Signatures,
+    /// Settings → Writing style and the learning flow (`docs/ai.md`): the library or a slot
+    /// changing, learning starting, moving or ending, and whether the assistant is offered.
+    WritingStyle,
+    /// Draft a reply in each composer (`docs/ai.md`): a draft starting, arriving, failing or
+    /// stopping, and whether the assistant is offered.
+    ReplyDraft,
+    /// The own AI endpoint's form (pulled via `MailcalApp::ai_endpoint_form`): a save or a removal
+    /// starting or ending, and whether the assistant is offered.
+    AiEndpoint,
     /// The Allodia account's card (pulled via `MailcalApp::allodia_card`): its sign-in or
     /// sign-out moving, or the service refusing the stored sign-in. A host redraws Settings →
     /// Allodia account and the first-run card, and nothing else.

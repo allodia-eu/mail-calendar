@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use mailcal_jurisdiction::{Class, Mode};
 
-use super::{EndpointError, OwnEndpoint};
+use super::{EndpointError, OwnEndpoint, same_server};
 use crate::{
     AiError, GatedBackend, LanguageStyle,
     test_support::CannedTransport,
@@ -162,7 +162,7 @@ fn an_undeclared_endpoint_is_refused_before_the_transport_is_touched() {
 
     assert!(matches!(
         gated.chat(&request()),
-        Err(AiError::Refused(refused)) if refused.class == Class::Unknown
+        Err(AiError::Refused(refused)) if refused.class() == Class::Unknown
     ));
     assert!(sent.lock().unwrap().is_empty());
 }
@@ -242,5 +242,67 @@ fn any_other_refusal_is_not_repeated() {
             AiError::Status(400)
         );
         assert_eq!(sent.lock().unwrap().len(), 1, "{body}");
+    }
+}
+
+#[test]
+fn every_field_is_judged_at_once_and_the_constructor_refuses_by_the_first() {
+    use super::endpoint_errors;
+    assert_eq!(
+        endpoint_errors("  ", " "),
+        [EndpointError::NoAddress, EndpointError::NoModel]
+    );
+    assert_eq!(
+        endpoint_errors("http://models.example.eu/v1", ""),
+        [EndpointError::NotHttps, EndpointError::NoModel]
+    );
+    assert_eq!(
+        endpoint_errors("ftp://models.example.eu", "m"),
+        [EndpointError::InvalidUrl]
+    );
+    assert_eq!(endpoint_errors(" https://models.example.eu/v1 ", " m "), []);
+    assert_eq!(
+        OwnEndpoint::new("", None, "", None),
+        Err(EndpointError::NoAddress)
+    );
+}
+
+#[test]
+fn the_host_is_the_name_alone() {
+    let endpoint = OwnEndpoint::new("https://models.example.eu:8443/v1", None, "m", None).unwrap();
+    assert_eq!(endpoint.host(), "models.example.eu");
+}
+
+/// What decides whether a kept key may go to an address: its host and port, never its path or
+/// scheme alone, and never the raw text.
+#[test]
+fn the_same_server_is_the_same_host_and_port() {
+    let same = [
+        ("https://api.example.eu/v1", "https://api.example.eu/v2/"),
+        ("https://API.Example.EU/v1", " https://api.example.eu/v1 "),
+        ("https://api.example.eu/v1", "https://api.example.eu:443/v1"),
+        ("http://localhost/v1", "https://localhost/v1"),
+        ("http://127.0.0.1:11434/v1", "https://127.0.0.1:11434"),
+        ("https://[::1]:8080/v1", "https://[0:0:0:0:0:0:0:1]:8080/v1"),
+    ];
+    for (a, b) in same {
+        assert!(same_server(a, b), "{a} and {b}");
+    }
+    let different = [
+        ("https://api.example.eu/v1", "https://api.example.com/v1"),
+        (
+            "https://api.example.eu/v1",
+            "https://models.api.example.eu/v1",
+        ),
+        (
+            "https://api.example.eu/v1",
+            "https://api.example.eu:8443/v1",
+        ),
+        ("http://127.0.0.1:11434/v1", "http://127.0.0.1:8080/v1"),
+        ("https://api.example.eu/v1", "not a url"),
+        ("", ""),
+    ];
+    for (a, b) in different {
+        assert!(!same_server(a, b), "{a} and {b}");
     }
 }

@@ -1,4 +1,4 @@
-use super::{detect, detectable};
+use super::{LanguageCode, detect, detectable};
 use crate::catalog::CATALOG;
 
 #[test]
@@ -53,7 +53,7 @@ fn a_short_reply_in_each_language_is_named() {
         ),
     ];
     for (language, text) in samples {
-        assert_eq!(detect(text), Some(language), "{text}");
+        assert_eq!(detect(text), LanguageCode::new(language), "{text}");
     }
 }
 
@@ -71,4 +71,21 @@ fn a_text_with_too_little_to_go_on_is_not_named() {
     assert_eq!(detect("OK"), None);
     assert_eq!(detect("Tak for beskeden, vi ses i morgen."), None);
     assert_eq!(detect(""), None);
+}
+
+#[test]
+fn a_code_is_two_letters_in_lower_case() {
+    assert_eq!(
+        LanguageCode::new(" NL ").map(String::from).as_deref(),
+        Some("nl")
+    );
+    for refused in ["", "e", "eng", "en-GB", "e1", "\u{e9}n"] {
+        assert_eq!(LanguageCode::new(refused), None, "{refused}");
+    }
+}
+
+#[test]
+fn a_stored_code_that_is_not_one_does_not_read_back() {
+    assert!(serde_json::from_str::<LanguageCode>("\"en\"").is_ok());
+    assert!(serde_json::from_str::<LanguageCode>("\"English\"").is_err());
 }

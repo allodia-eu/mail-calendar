@@ -56,6 +56,7 @@ impl Provider for MailOnly {
 }
 
 impl engine_api::MailboxWrites for MailOnly {}
+impl engine_api::CalendarSync for MailOnly {}
 impl CalendarWrites for MailOnly {}
 
 /// A contacts adapter serving one card, which may carry a photo.
@@ -71,6 +72,7 @@ impl Provider for FakeContacts {
 }
 
 impl engine_api::MailboxWrites for FakeContacts {}
+impl engine_api::CalendarSync for FakeContacts {}
 impl CalendarWrites for FakeContacts {}
 
 #[async_trait]
@@ -141,6 +143,7 @@ impl Provider for Directory {
 }
 
 impl engine_api::MailboxWrites for Directory {}
+impl engine_api::CalendarSync for Directory {}
 impl CalendarWrites for Directory {}
 
 #[async_trait]

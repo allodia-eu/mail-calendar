@@ -363,6 +363,11 @@ pub enum Intent {
         /// Which change.
         intent: super::SignatureIntent,
     },
+    /// A change to one of the writing assistant's surfaces ([`AiIntent`](super::AiIntent)).
+    Ai {
+        /// Which change.
+        intent: super::AiIntent,
+    },
     /// A change to what AI assistants may do ([`McpIntent`](super::McpIntent)).
     Mcp {
         /// Which change.

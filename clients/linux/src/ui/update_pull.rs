@@ -99,6 +99,8 @@ impl AppModel {
             // The signature library or an account's signatures moved, or a change to them started
             // or ended.
             Surface::Signatures => self.signatures_read = self.signatures_read.wrapping_add(1),
+            // The writing assistant's surfaces: no screen of this client draws them.
+            Surface::WritingStyle | Surface::ReplyDraft | Surface::AiEndpoint => {}
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),

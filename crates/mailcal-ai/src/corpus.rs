@@ -12,7 +12,7 @@ use std::{
     fmt,
 };
 
-use crate::language;
+use crate::language::{self, LanguageCode};
 
 mod sample;
 mod strip;
@@ -55,8 +55,8 @@ pub struct SentMessage {
     pub recipient: Option<String>,
     /// The subject.
     pub subject: String,
-    /// The body as plain text.
-    pub body: String,
+    /// The body, as far as the app could read it.
+    pub body: SentBody,
     /// Whether it carries a calendar answer.
     pub calendar: bool,
 }
@@ -65,9 +65,31 @@ impl fmt::Debug for SentMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SentMessage")
             .field("sent_at", &self.sent_at)
-            .field("body_len", &self.body.len())
+            .field("body", &self.body)
             .field("calendar", &self.calendar)
             .finish_non_exhaustive()
+    }
+}
+
+/// A sent message's body as the app read it. Every one is found; only a text can be usable.
+#[derive(Clone, PartialEq, Eq)]
+pub enum SentBody {
+    /// The body as plain text.
+    Text(String),
+    /// Nothing to read: the body has no text, or the message is a drafted reply, which is never
+    /// read.
+    NoText,
+    /// The body could not be loaded, so the message was not read.
+    NotLoaded,
+}
+
+impl fmt::Debug for SentBody {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Text(text) => f.debug_struct("Text").field("len", &text.len()).finish(),
+            Self::NoText => f.write_str("NoText"),
+            Self::NotLoaded => f.write_str("NotLoaded"),
+        }
     }
 }
 
@@ -116,7 +138,7 @@ impl fmt::Debug for CorpusMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Corpus {
     /// The sampled messages per ISO 639-1 code, oldest first.
-    pub languages: BTreeMap<String, Vec<CorpusMessage>>,
+    pub languages: BTreeMap<LanguageCode, Vec<CorpusMessage>>,
     /// What was found.
     pub report: CorpusReport,
 }
@@ -124,10 +146,12 @@ pub struct Corpus {
 /// What the corpus builder found, for the screen that asks before anything is sent.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorpusReport {
-    /// Messages handed in.
+    /// Messages handed in, whether or not they could be read.
     pub found: u32,
     /// Messages with enough of their author's own words to learn from, in any language.
     pub usable: u32,
+    /// Messages found whose body could not be loaded, so they were not read.
+    pub not_loaded: u32,
     /// Usable messages in a language the detector does not name.
     pub undetected: u32,
     /// Per language, most messages first.
@@ -141,10 +165,10 @@ pub struct CorpusReport {
 }
 
 /// One language's share of the corpus.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanguageReport {
-    /// ISO 639-1 code.
-    pub language: String,
+    /// The language.
+    pub language: LanguageCode,
     /// Usable messages in it.
     pub usable: u32,
     /// How many the sample holds.
@@ -170,12 +194,20 @@ pub fn build(messages: Vec<SentMessage>, options: &CorpusOptions) -> Corpus {
         ..CorpusReport::default()
     };
     let mut seen = HashSet::new();
-    let mut by_language: BTreeMap<String, Vec<CorpusMessage>> = BTreeMap::new();
+    let mut by_language: BTreeMap<LanguageCode, Vec<CorpusMessage>> = BTreeMap::new();
     for message in messages {
+        let body = match &message.body {
+            SentBody::Text(body) => body,
+            SentBody::NoText => continue,
+            SentBody::NotLoaded => {
+                report.not_loaded += 1;
+                continue;
+            }
+        };
         if message.calendar || is_automatic(&message.subject) {
             continue;
         }
-        let text = stripper.own_text(&message.body, &options.signatures);
+        let text = stripper.own_text(body, &options.signatures);
         if text.split_whitespace().count() < MIN_WORDS || !seen.insert(duplicate_key(&text)) {
             continue;
         }
@@ -189,7 +221,7 @@ pub fn build(messages: Vec<SentMessage>, options: &CorpusOptions) -> Corpus {
             continue;
         };
         by_language
-            .entry(language.to_owned())
+            .entry(language)
             .or_default()
             .push(CorpusMessage {
                 key: message.key,

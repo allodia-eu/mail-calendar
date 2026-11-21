@@ -43,6 +43,7 @@ impl Provider for StuckSubmitProvider {
 }
 
 impl engine_api::MailboxWrites for StuckSubmitProvider {}
+impl engine_api::CalendarSync for StuckSubmitProvider {}
 impl CalendarWrites for StuckSubmitProvider {}
 
 #[expect(

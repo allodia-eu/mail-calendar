@@ -71,6 +71,9 @@ modules:
       env:
         CARGO_HOME: /run/build/mailcal/cargo
         RUSTUP_HOME: /run/build/mailcal/rustup
+        # The core built here is packaged, so a development core fails to compile
+        # (crates/mailcal-bindings/build.rs). package.sh --development-core takes this line out.
+        MAILCAL_PACKAGED_CORE: "1"
       build-args:
         # rustup fetches the toolchain, and cargo crates.io and the pinned engine commit. Flathub's
         # builders run with no network and require every source declared in the manifest instead:

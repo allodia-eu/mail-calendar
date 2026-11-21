@@ -118,6 +118,7 @@ Write-Host "==> Cleaned prior build outputs (bin, obj, AppPackages, BundleArtifa
 #    there by a job that built each arch on its own runner, and compiles nothing; they are checked
 #    for the static CRT here either way.
 $triples = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc')
+. (Join-Path $here 'core-build.ps1')
 if ($PrebuiltNative) {
   foreach ($triple in $triples) {
     foreach ($file in 'mailcal_bindings.dll', 'mailcal-mcp.exe') {
@@ -133,6 +134,12 @@ if ($PrebuiltNative) {
 else {
   & (Join-Path $here 'build-native.ps1') -Arch x64, arm64
 }
+# Whichever built them: a prebuilt cdylib is whatever a job left at that path, a debug core
+# included, and a development core offers the writing assistant to everyone (core-build.ps1).
+foreach ($triple in $triples) {
+  Assert-ProductionCore (Join-Path $root "target/$triple/release/mailcal_bindings.dll")
+}
+Write-Host "==> Both cdylibs are production cores" -ForegroundColor DarkGray
 
 # From this checkout's root, as build-and-run.ps1 says why: cargo builds the workspace it finds
 # there, and rustup and cargo read rust-toolchain.toml and .cargo/config.toml from it too.

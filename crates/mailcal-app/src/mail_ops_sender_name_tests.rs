@@ -221,6 +221,7 @@ impl engine_provider::Provider for IdentityProvider {
 }
 
 impl engine_api::MailboxWrites for IdentityProvider {}
+impl engine_provider::CalendarSync for IdentityProvider {}
 impl engine_provider::CalendarWrites for IdentityProvider {}
 
 /// A one-account app whose provider holds `name` as the server's own display name.

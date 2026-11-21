@@ -275,8 +275,9 @@ impl MailcalApp {
             self.refresh_allodia_entitlement();
             // What the other devices said was said to the sign-in this one replaces.
             self.allodia_sync.new_session();
-            // Each account's page gains its sharing control.
+            // Each account's page gains its sharing control, and the writing assistant its relay.
             self.app.accounts_changed();
+            self.app.ai_relay_changed();
             self.request_allodia_pass();
             Ok(account)
         }
@@ -322,6 +323,9 @@ impl MailcalApp {
         // What the account that is leaving was entitled to describes nobody here any more.
         #[cfg(feature = "allodia-license")]
         self.allodia_entitlement.forget();
+        #[cfg(feature = "allodia-license")]
+        self.publish_ai_entitlement();
+        self.app.ai_relay_changed();
         // Nothing is known about a grant that is not there, so a refusal of the one leaving is not
         // carried over to the next sign-in.
         #[cfg(feature = "allodia-license")]

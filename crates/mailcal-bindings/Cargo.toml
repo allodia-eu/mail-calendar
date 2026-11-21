@@ -12,10 +12,9 @@ license.workspace = true
 
 [features]
 # A release core built for development (the Android dev loop passes `--features dev-harness`): the
-# dev-only extra-CA TLS trust path in the account layer, and the showcase's staged questions
-# (`MAILCAL_SHOWCASE_REAUTH`, `MAILCAL_SHOWCASE_SERVER_CHANGE`, `MAILCAL_SHOWCASE_QUESTIONS`) a
-# debug build reads. Off by
-# default; excluded from production.
+# dev-only extra-CA TLS trust path in the account layer, and the in-memory boots' staged hooks
+# (`MAILCAL_SHOWCASE_REAUTH`, `MAILCAL_SHOWCASE_SERVER_CHANGE`, `MAILCAL_SHOWCASE_QUESTIONS`,
+# `MAILCAL_OFFER_AI`) a debug build reads. Off by default; excluded from production.
 dev-harness = ["mailcal-account/dev-harness"]
 # Allodia's own builds only. `allodia_license/` is source-available rather than GPL and the open
 # tree has to build without it (docs/pledge.md, promise 4), so the dependency below is optional and
@@ -31,6 +30,9 @@ allodia-license = ["dep:allodia-license"]
 # Off by default -- see [features] above.
 allodia-license = { path = "../../allodia_license/crates/allodia-license", optional = true }
 mailcal-app = { workspace = true }
+# The writing assistant's transport port and request types: this crate implements the socket
+# under them (`ai_transport.rs`), which `mailcal-app` cannot open.
+mailcal-ai = { workspace = true }
 # Shared compose document renderer and rich-submit contract.
 mailcal-composer = { workspace = true }
 # The pure view-model types the FFI records mirror.

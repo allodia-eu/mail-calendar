@@ -1,5 +1,5 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
-// page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
+// page of its own (docs/accounts.md rule 11, docs/settings.md, Accounts). The page's sections are
 // files of their own: what the account is used for and linked to (SettingsAccountPage.kt), its
 // shared mailboxes (SettingsSharedMailboxes.kt), how it signs in (SettingsAccountSignIn.kt), its
 // servers and secret (SettingsAccountServers.kt). Add account is first, and the only place a later

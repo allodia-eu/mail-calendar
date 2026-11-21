@@ -10,7 +10,73 @@
 //! Every catalog locale needs a list here; a test fails when the catalog gains one that has none,
 //! and a language outside the lists is reported as not detected rather than guessed.
 
-use std::collections::BTreeMap;
+use std::{borrow::Borrow, collections::BTreeMap, fmt};
+
+use serde::{Deserialize, Serialize};
+
+/// An ISO 639-1 language code: two lower-case ASCII letters, `en` or `nl`.
+///
+/// What a style is keyed by, what a draft is written in and what the interface is shown in; a
+/// type of its own so a code is never taken for a name, a locale tag or anything else a string
+/// could be.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct LanguageCode(String);
+
+impl LanguageCode {
+    /// `code` without the spaces around it and in lower case, when it is two ASCII letters.
+    #[must_use]
+    pub fn new(code: &str) -> Option<Self> {
+        let code = code.trim().to_ascii_lowercase();
+        (code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_lowercase()))
+            .then_some(Self(code))
+    }
+
+    /// The code.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for LanguageCode {
+    type Error = String;
+
+    fn try_from(code: String) -> Result<Self, Self::Error> {
+        Self::new(&code).ok_or_else(|| "not an ISO 639-1 code".to_owned())
+    }
+}
+
+impl From<LanguageCode> for String {
+    fn from(code: LanguageCode) -> Self {
+        code.0
+    }
+}
+
+impl Borrow<str> for LanguageCode {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<&str> for LanguageCode {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl fmt::Display for LanguageCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// A language code is not personal, so it prints as itself.
+impl fmt::Debug for LanguageCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
 
 /// The commonest function words of each language, lower case.
 const STOPWORDS: [(&str, &[&str]); 7] = [
@@ -151,10 +217,10 @@ const MIN_LEAD: f64 = 1.3;
 /// The smallest share of the text's words the winner's function words must make up.
 const MIN_COVERAGE: f64 = 0.2;
 
-/// The ISO 639-1 code of the language `text` is written in, or `None` when it is too short, in
-/// none of the catalog's languages, or too close to call.
+/// The language `text` is written in, or `None` when it is too short, in none of the catalog's
+/// languages, or too close to call.
 #[must_use]
-pub fn detect(text: &str) -> Option<&'static str> {
+pub fn detect(text: &str) -> Option<LanguageCode> {
     let mut sharing: BTreeMap<&str, f64> = BTreeMap::new();
     for (_, words) in STOPWORDS {
         for word in words {
@@ -186,7 +252,7 @@ pub fn detect(text: &str) -> Option<&'static str> {
     let runner_up = ranked[1].1;
     let coverage = f64::from(hits[best]) / f64::from(total.max(1));
     (score >= MIN_SCORE && score >= runner_up * MIN_LEAD && coverage >= MIN_COVERAGE)
-        .then_some(STOPWORDS[best].0)
+        .then(|| LanguageCode(STOPWORDS[best].0.to_owned()))
 }
 
 /// The languages [`detect`] can name.

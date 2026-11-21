@@ -41,6 +41,12 @@ mod outbox_edit_tests;
 mod outbox_recovery_tests;
 #[path = "outbox_tests.rs"]
 mod outbox_tests;
+#[path = "ai/tests_reply_draft_send.rs"]
+mod reply_draft_send_tests;
+#[path = "ai/tests_reply_draft_support.rs"]
+mod reply_draft_support;
+#[path = "ai/tests_reply_draft.rs"]
+mod reply_draft_tests;
 #[path = "mail_ops_resume_tests.rs"]
 mod resume;
 

@@ -1,6 +1,7 @@
 use crate::{
-    CaretSpan, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest,
-    LinkUrl, MessageScroll, answer_script, link_address, parse_host_request,
+    CaretSpan, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LeadText, LinkAnswer,
+    LinkRequest, LinkUrl, MessageScroll, ReplyDraftReport, answer_script, link_address,
+    parse_host_request,
 };
 
 fn link(text: &str, address: &str, removable: bool) -> HostRequest {
@@ -63,6 +64,29 @@ fn reads_a_caret_notice() {
             }),
         })
     );
+}
+
+#[test]
+fn reads_a_reply_draft_report_and_refuses_one_carrying_more() {
+    let message = r#"{"id":0,"request":{"reply_draft":{"serial":3,"lead":"written","inserted":true,"left":[0,2],"edits":17}}}"#;
+    assert_eq!(
+        parse_host_request(message),
+        Some(HostRequest {
+            id: 0,
+            kind: HostRequestKind::ReplyDraft(ReplyDraftReport {
+                serial: 3,
+                lead: LeadText::Written,
+                inserted: true,
+                left: vec![0, 2],
+                edits: 17,
+            }),
+        })
+    );
+    // The report names gaps by their place; one carrying the reply's text is refused.
+    let with_text = r#"{"id":0,"request":{"reply_draft":{"serial":3,"lead":"draft","inserted":true,"left":[],"edits":1,"text":"Hi"}}}"#;
+    assert_eq!(parse_host_request(with_text), None);
+    let unknown_lead = r#"{"id":0,"request":{"reply_draft":{"serial":3,"lead":"half","inserted":true,"left":[],"edits":1}}}"#;
+    assert_eq!(parse_host_request(unknown_lead), None);
 }
 
 #[test]

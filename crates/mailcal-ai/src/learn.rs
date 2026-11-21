@@ -21,6 +21,7 @@ use serde::Deserialize;
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, Provenance, StyleGuide,
     corpus::{Corpus, CorpusMessage, estimate_tokens},
+    language::LanguageCode,
     prompt::{FENCE_PREAMBLE, fence, interface_language_name, language_name},
     tool,
     wire::{ChatMessage, ChatRequest, Metering, Purpose},
@@ -50,7 +51,7 @@ pub struct LearnProgress {
 pub struct LearnOptions<'a> {
     /// The language the person reads the app in; the descriptions are written in it, because
     /// the person reads them back.
-    pub ui_language: &'a str,
+    pub ui_language: &'a LanguageCode,
     /// When the run was started, in seconds since the Unix epoch.
     pub now: i64,
     /// Set by the person to stop. Checked before every request; a request in flight runs to its
@@ -119,7 +120,7 @@ pub fn learn_style(
     backend: &GatedBackend,
     options: &LearnOptions<'_>,
 ) -> Result<Learned, LearnError> {
-    let plans: Vec<(&String, Vec<&[CorpusMessage]>)> = corpus
+    let plans: Vec<(&LanguageCode, Vec<&[CorpusMessage]>)> = corpus
         .languages
         .iter()
         .filter(|(_, messages)| !messages.is_empty())
@@ -147,7 +148,7 @@ pub fn learn_style(
     let mut exemplars = Exemplars::new();
     let mut counts = BTreeMap::new();
     for (language, parts) in plans {
-        let (style, passages) = run.language(language, &parts)?;
+        let (style, passages) = run.language(language.as_str(), &parts)?;
         guide.languages.insert(language.clone(), style);
         exemplars.languages.insert(language.clone(), passages);
         counts.insert(
@@ -197,16 +198,22 @@ impl Run<'_> {
         let mut styles = Vec::new();
         let mut passages = Vec::new();
         for part in parts {
-            let described: Described =
-                self.ask(&describe_request(language, self.options.ui_language, part))?;
+            let described: Described = self.ask(&describe_request(
+                language,
+                self.options.ui_language.as_str(),
+                part,
+            ))?;
             passages.extend(picked(part, &described.exemplars));
             styles.push(described.style.bounded());
         }
         let style = if styles.len() == 1 {
             styles.remove(0)
         } else {
-            let merged: Merged =
-                self.ask(&merge_request(language, self.options.ui_language, &styles))?;
+            let merged: Merged = self.ask(&merge_request(
+                language,
+                self.options.ui_language.as_str(),
+                &styles,
+            ))?;
             merged.style.bounded()
         };
         if passages.is_empty() {

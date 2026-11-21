@@ -111,7 +111,11 @@ for abi in "${ABIS[@]}"; do NDK_ABI_ARGS+=(-t "$abi"); done
 #
 # `CARGO_PROFILE_RELEASE_STRIP=debuginfo` is the equivalent one-liner if a build ever needs the
 # stripping to happen after codegen instead; measured, the two agree to within 2.4 KiB deflated.
-(cd "$ROOT" && CARGO_PROFILE_RELEASE_DEBUG=0 cargo ndk "${NDK_ABI_ARGS[@]}" -o "$HERE/app/src/main/jniLibs" build -p mailcal-ffi --release "${CORE_FEATURES[@]}")
+#
+# MAILCAL_PACKAGED_CORE on this line alone: the core built here is packaged, so a development core
+# fails to compile (crates/mailcal-bindings/build.rs), while the debug core Gradle builds for the
+# binding generator is not refused. The release variants read the result again before packaging.
+(cd "$ROOT" && MAILCAL_PACKAGED_CORE=1 CARGO_PROFILE_RELEASE_DEBUG=0 cargo ndk "${NDK_ABI_ARGS[@]}" -o "$HERE/app/src/main/jniLibs" build -p mailcal-ffi --release "${CORE_FEATURES[@]}")
 
 for abi in "${ABIS[@]}"; do
   so="$HERE/app/src/main/jniLibs/$abi/libmailcal_bindings.so"

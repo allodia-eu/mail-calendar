@@ -1,6 +1,7 @@
 //! Supplies the analytics relay endpoint `src/analytics.rs` reads with `option_env!`, and the
 //! brand values read with `env!`: the publisher's support address for `src/about.rs`, and the app's
-//! name, which is the client name a provider's consent screen shows (`src/*_oauth.rs`).
+//! name, which is the client name a provider's consent screen shows (`src/*_oauth.rs`). Refuses to
+//! build a development core a packager is about to ship.
 //!
 //! The mechanism is [`mailcal_buildenv`], shared with `mailcal-oauth`; the policy is here.
 //!
@@ -10,7 +11,7 @@
 //! outside: an app that says `analytics: no relay endpoint in this build` and sends nothing, which
 //! reads as a broken feature rather than a build that never got the value.
 
-use mailcal_buildenv::{Injected, REQUIRE_VAR};
+use mailcal_buildenv::{Injected, PACKAGED_CORE_VAR, REQUIRE_VAR, development_core_refusal};
 
 /// The relay's base URL. Absent (the default, and every from-source build) means no sink is
 /// constructed and the build sends nothing at all.
@@ -25,6 +26,7 @@ const RELAY_APP_KEY_VAR: &str = "ALLODIA_TELEMETRY_APP_KEY";
 const BRAND_VARS: [&str; 2] = ["MAILCAL_APP_NAME", "MAILCAL_SUPPORT_URL"];
 
 fn main() {
+    refuse_a_packaged_development_core();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     for key in BRAND_VARS {
         match mailcal_l10n::brand_value(&root, key) {
@@ -38,6 +40,21 @@ fn main() {
 
     if injected.is_required() && !injected.missing(&[RELAY_URL_VAR]).is_empty() {
         refuse_a_shipped_build_with_nowhere_to_report();
+    }
+}
+
+/// Fails the build of a development core a packager is about to ship
+/// ([`mailcal_buildenv::development_core_refusal`]). Cargo describes the core being built, not this
+/// script, in `CARGO_CFG_DEBUG_ASSERTIONS` and `CARGO_FEATURE_DEV_HARNESS`.
+fn refuse_a_packaged_development_core() {
+    println!("cargo::rerun-if-env-changed={PACKAGED_CORE_VAR}");
+    let packaged = std::env::var(PACKAGED_CORE_VAR).ok();
+    if let Some(refusal) = development_core_refusal(
+        packaged.as_deref(),
+        std::env::var_os("CARGO_CFG_DEBUG_ASSERTIONS").is_some(),
+        std::env::var_os("CARGO_FEATURE_DEV_HARNESS").is_some(),
+    ) {
+        panic!("{refusal}");
     }
 }
 

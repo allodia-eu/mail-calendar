@@ -22,6 +22,7 @@ pub const SCOPES: &[&str] = &[
     "mailcal:accounts:write",
     "mailcal:subscription:read",
     "mailcal:subscription:write",
+    "mailcal:ai:use",
 ];
 
 /// The ones a sign-in is not worth completing without, sent whether or not the service lists them.

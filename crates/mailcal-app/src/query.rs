@@ -34,6 +34,7 @@ use crate::{App, reference::MessageRef};
 mod list;
 mod search;
 mod text;
+pub(crate) use text::to_plain;
 
 /// The deepest store read a query will drive, in messages.
 ///

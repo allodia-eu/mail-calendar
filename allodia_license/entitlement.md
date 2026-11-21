@@ -9,7 +9,10 @@ EU-hosted account service, whose address is fixed at build time by the injected 
 so there is nothing for the `JurisdictionGate` to decide and it would be a no-op, in the style of
 the 2026-07-11 analytics carve-out; see [`../AGENTS.md`](../AGENTS.md). A build with no registration
 baked in (every build from source) has no Allodia sign-in at all and reaches the service never, so
-an air-gapped or self-hosted deployment behaves identically to a connected one.
+an air-gapped or self-hosted deployment behaves identically to a connected one. The writing
+assistant's relay request is **not** under this carve-out: it carries mail text, and passes the
+gate as `eu-native` like every other request of that feature
+([`docs/ai.md`](../docs/ai.md), "Sovereignty scope").
 
 Re-ratified 2026-08-27, when the service's sign-in page gained Apple and Google beside an ordinary
 email and password. That is an identity provider one step further out than this rule reaches: the
@@ -66,6 +69,19 @@ beside the store. The answer is derived, not a credential, so it belongs there, 
 platform keystore, which is for secrets and costs a prompt on some platforms. Signing out erases
 it, and so does signing in as a different account. No client reads or stores it.
 
+What it grants of `ai` is told to the writing assistant's offer (`ai_offer`, [`docs/ai.md`](../docs/ai.md)
+rule 5) from memory, never by a read: at launch, after each read, on each trigger above whether or
+not a read is due, and at sign-out. The last of those is what lets a stored answer's grace run out
+on a device that is never answered. A relay request refused as `not_entitled` reads the
+entitlement again at once, interval or not, since the stored answer is then known to be stale.
+**A sign-in the service refused grants the offer nothing**, though the stored answer otherwise
+stands through grace while the grant is refused (the notice below): the grace rests on a paid
+capability being inert without Allodia, and the own endpoint is not. The refusal is known from
+memory, so after a relaunch the offer follows the stored answer until the launch's first call to
+the service is refused again.
+A label a stored answer holds as unknown is read again by a version that knows it, so a capability
+granted before an update grants after it without waiting for the next read.
+
 Two horizons, and they answer different questions:
 
 | | Question | Value |
@@ -76,8 +92,13 @@ Two horizons, and they answer different questions:
 Grace is deliberately long. Someone on a three-week trip with poor connectivity must not lose a
 capability they are paying for, and the cost of being wrong in that direction is close to nothing:
 what a paid capability turns on is inert without Allodia's servers anyway, so an extra fortnight of
-a stale *yes* grants the use of something that cannot work regardless. Being wrong in the other
+a stale *yes* grants the use of something that cannot work regardless. The writing assistant's own
+endpoint is the one exception, and the stale *yes* there is accepted for an outage alone (below). Being wrong in the other
 direction takes a capability from someone who paid for it, during an outage that is Allodia's fault.
+
+**An answer dated after the device's clock has no age**, so it is stale and due: it grants nothing
+and is read again at the next trigger. A clock set back, or a stored file edited, would otherwise
+keep it granting for as long as the clock stays behind it, past any grace.
 
 ## The distinction that matters
 
@@ -87,6 +108,11 @@ collapse them.**
 - The service replied, and what it sent no longer grants: a cancellation, a lapsed card, a plan
   that ended, all of which arrive as `free` with the free capabilities. It takes
   effect **immediately**. The stored answer is replaced by what the server said.
+- The service refused to read it (`401` or `403`) for a token minted for the read. That is a reply
+  too, about this account, and it grants nothing: the stored answer is erased at once and the next
+  trigger asks again. The token held for the process may be one the service stopped taking, so a
+  refusal of it is first asked once more with a fresh one; a fresh token that cannot be had
+  learns nothing, as an outage does.
 - The request did not arrive: an outage, a captive portal, a plane. The stored answer **stands**,
   until grace runs out.
 
@@ -107,16 +133,28 @@ Obfuscation buys delay against someone who already has the source. Platform atte
 available on desktop and would break the promise that a from-source build keeps working, so it is
 out by our own commitments.
 
-That costs nothing, because **every paid capability needs Allodia to do something**:
+That costs nothing where **a paid capability needs Allodia to do something**, which is every one
+but the writing assistant's own endpoint:
 
 | Capability | What only Allodia can do |
 |---|---|
 | `push` | The relay wakes the device. |
 | `send_later` | A server holds the message and submits it at the hour. |
 | `central_admin` | The administration surfaces are the service. |
+| `ai` | The relay forwards each request to an EU-native model and spends the person's credits ([`docs/ai.md`](../docs/ai.md)). |
 
-A build that invents a capability draws a switch and then gets a refusal. What it cannot do is
-take a capability, because the capability is not on the device.
+A build that invents one of these draws a switch and then gets a refusal. What it cannot do is
+take the capability, because the capability is not on the device.
+
+**The own endpoint is on the device.** Under early access `ai` also offers the writing assistant
+with an endpoint the person runs or chose ([`docs/ai.md`](../docs/ai.md) rule 5), and a request
+there never reaches Allodia, so nothing on the service can refuse it. It is hidden by the app's own
+check alone, which a modified build or an edited stored answer passes. That is accepted: the
+software is GPL, and anyone may build it to talk to their own endpoint. The check keeps the feature
+out of sight in the builds Allodia ships until it is ready; it protects no service and claims to
+protect none, and by the rule below the own endpoint does not belong behind a plan, which is why
+it leaves `ai` for every build once the relay is sold. The relay is enforced by the service on
+every request.
 
 **So the enforcement point is the server, on every request, resolved from the access token, never
 from anything the client asserts.** `GET /api/v1/entitlement` already takes no input for that
@@ -246,6 +284,13 @@ same way:
 The last is the one that fails invisibly: without it a token *is* issued and *does* work against
 the service's own `userinfo`, so it looks entirely valid right up to the `401`, which names
 neither the audience nor the scope.
+
+**`mailcal:ai:use` raises no standing prompt**, for the reason
+[`purchasing.md`](purchasing.md) gives for the subscription scopes: `Feature::UseAi` is not in
+`Feature::ALL`. It is asked for only where the service advertises it, and a grant recorded without
+it is said where the person uses the writing assistant, by the relay's status
+(`RelayStatus::SignInNeeded`) and the failure `RelaySignIn` ([`docs/ai.md`](../docs/ai.md) rules 2
+and 27). A grant whose scopes were never recorded concludes nothing; the relay's own `401` decides.
 
 ### What a client calls
 
@@ -378,6 +423,7 @@ the service verifies, because neither is written down here.
 | Say a refused grant in the app's banner, with sign in again | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Signing in again widens the grant, end to end | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
 | Draw a paid capability | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Offer the writing assistant on `ai`, with the grace and degrade rules | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 The core's first two rows are **verified against the production service**, not only against a local
 one: sign-in, a JWT minted for the discovered audience, a refresh token, and the entitlement read

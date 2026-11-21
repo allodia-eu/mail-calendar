@@ -1,6 +1,7 @@
 use serde_json::json;
 
 use super::{Exemplars, Habit, LanguageStyle, SCHEMA_VERSION, StyleGuide};
+use crate::{LanguageCode, test_support::lang};
 
 /// A guide written by a newer version carries fields this one does not know. Editing the notes
 /// here and writing it back must keep them, or two devices on different versions erase each
@@ -99,7 +100,7 @@ fn debug_output_carries_no_text() {
     let mut guide = StyleGuide::new();
     guide.notes = "secret note".to_owned();
     guide.languages.insert(
-        "en".to_owned(),
+        lang("en").clone(),
         LanguageStyle {
             phrases: vec!["secret phrase".to_owned()],
             ..LanguageStyle::default()
@@ -108,7 +109,7 @@ fn debug_output_carries_no_text() {
     let mut exemplars = Exemplars::new();
     exemplars
         .languages
-        .insert("en".to_owned(), vec!["secret passage".to_owned()]);
+        .insert(lang("en").clone(), vec!["secret passage".to_owned()]);
 
     let printed = format!("{guide:?} {:?} {exemplars:?}", guide.languages["en"]);
     assert!(!printed.contains("secret"), "{printed}");
@@ -119,14 +120,14 @@ fn the_main_language_is_the_one_most_messages_were_learned_from() {
     let mut guide = StyleGuide::new();
     guide
         .languages
-        .insert("en".to_owned(), LanguageStyle::default());
+        .insert(lang("en").clone(), LanguageStyle::default());
     guide
         .languages
-        .insert("nl".to_owned(), LanguageStyle::default());
-    assert_eq!(guide.main_language(), Some("en"));
+        .insert(lang("nl").clone(), LanguageStyle::default());
+    assert_eq!(guide.main_language().map(LanguageCode::as_str), Some("en"));
     guide.learned = Some(super::Provenance {
-        messages_per_language: [("en".to_owned(), 3), ("nl".to_owned(), 30)].into(),
+        messages_per_language: [(lang("en").clone(), 3), (lang("nl").clone(), 30)].into(),
         ..super::Provenance::default()
     });
-    assert_eq!(guide.main_language(), Some("nl"));
+    assert_eq!(guide.main_language().map(LanguageCode::as_str), Some("nl"));
 }

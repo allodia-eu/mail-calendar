@@ -53,6 +53,7 @@ impl Provider for MailOnly {
 }
 
 impl engine_api::MailboxWrites for MailOnly {}
+impl engine_api::CalendarSync for MailOnly {}
 impl CalendarWrites for MailOnly {}
 
 /// A contacts adapter serving one address book of canned cards.
@@ -172,6 +173,7 @@ impl Provider for FakeContacts {
 }
 
 impl engine_api::MailboxWrites for FakeContacts {}
+impl engine_api::CalendarSync for FakeContacts {}
 impl CalendarWrites for FakeContacts {}
 
 #[async_trait]

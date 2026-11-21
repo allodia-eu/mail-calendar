@@ -27,6 +27,9 @@ pub struct OwnEndpoint {
 /// Why an own endpoint was not accepted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EndpointError {
+    /// No address was given.
+    #[error("an address is required")]
+    NoAddress,
     /// The address is not a URL, or carries a user name, a query or a fragment.
     #[error("the address is not a usable URL")]
     InvalidUrl,
@@ -44,43 +47,39 @@ impl OwnEndpoint {
     ///
     /// The base URL is what the provider documents as its API root, `https://api.example.eu/v1`;
     /// `/chat/completions` is appended. Plain HTTP is accepted only to this device (`localhost`,
-    /// a loopback address), where a local model server usually listens.
+    /// a loopback address), where a local model server usually listens. Every field is used
+    /// without the spaces around it, the key included.
     ///
     /// # Errors
     ///
-    /// Returns [`EndpointError`] naming the first setting that is not usable.
+    /// Returns the first of [`endpoint_errors`].
     pub fn new(
         base_url: &str,
         api_key: Option<String>,
         model: &str,
         declared: Option<Class>,
     ) -> Result<Self, EndpointError> {
+        if let Some(first) = endpoint_errors(base_url, model).first() {
+            return Err(*first);
+        }
         let parsed = url::Url::parse(base_url.trim()).map_err(|_| EndpointError::InvalidUrl)?;
-        if !parsed.username().is_empty()
-            || parsed.password().is_some()
-            || parsed.query().is_some()
-            || parsed.fragment().is_some()
-        {
-            return Err(EndpointError::InvalidUrl);
-        }
-        match parsed.scheme() {
-            "https" => {}
-            "http" if is_this_device(&parsed) => {}
-            "http" => return Err(EndpointError::NotHttps),
-            _ => return Err(EndpointError::InvalidUrl),
-        }
-        let model = model.trim();
-        if model.is_empty() {
-            return Err(EndpointError::NoModel);
-        }
         Ok(Self {
             base_url: parsed.as_str().trim_end_matches('/').to_owned(),
             api_key: api_key
                 .map(|key| key.trim().to_owned())
                 .filter(|key| !key.is_empty()),
-            model: model.to_owned(),
+            model: model.trim().to_owned(),
             declared,
         })
+    }
+
+    /// The name of the host requests go to, which is what a consent names.
+    #[must_use]
+    pub fn host(&self) -> String {
+        url::Url::parse(&self.base_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_default()
     }
 
     /// The base URL as validated.
@@ -113,6 +112,55 @@ impl fmt::Debug for OwnEndpoint {
             .field("declared", &self.declared)
             .finish_non_exhaustive()
     }
+}
+
+/// Every reason `base_url` and `model` would not make an endpoint, in the order the fields are
+/// shown: what is wrong with the address, then a missing model. Empty when both are usable.
+///
+/// [`OwnEndpoint::new`] refuses by the first of these, so a form that shows them all before a
+/// save and the save itself cannot disagree.
+#[must_use]
+pub fn endpoint_errors(base_url: &str, model: &str) -> Vec<EndpointError> {
+    let mut errors = Vec::new();
+    if let Err(error) = address_error(base_url.trim()) {
+        errors.push(error);
+    }
+    if model.trim().is_empty() {
+        errors.push(EndpointError::NoModel);
+    }
+    errors
+}
+
+fn address_error(base_url: &str) -> Result<(), EndpointError> {
+    if base_url.is_empty() {
+        return Err(EndpointError::NoAddress);
+    }
+    let parsed = url::Url::parse(base_url).map_err(|_| EndpointError::InvalidUrl)?;
+    if !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(EndpointError::InvalidUrl);
+    }
+    match parsed.scheme() {
+        "https" => Ok(()),
+        "http" if is_this_device(&parsed) => Ok(()),
+        "http" => Err(EndpointError::NotHttps),
+        _ => Err(EndpointError::InvalidUrl),
+    }
+}
+
+/// Whether two addresses reach the same server: the same host and port as the URL parser
+/// normalises them, a scheme's default port counting as none given, so a change of path or of
+/// scheme alone keeps the server. An address that is not a URL reaches none.
+#[must_use]
+pub fn same_server(a: &str, b: &str) -> bool {
+    let server = |address: &str| {
+        let url = url::Url::parse(address.trim()).ok()?;
+        Some((url.host()?.to_owned(), url.port()))
+    };
+    matches!((server(a), server(b)), (Some(a), Some(b)) if a == b)
 }
 
 /// Whether a URL's host is this device.

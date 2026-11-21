@@ -280,7 +280,7 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
     let key = engine_core::ids::ProviderKey::new("draft-1").expect("valid key");
 
     let saved = provider
-        .put_draft(&account, &draft, None)
+        .put_draft(&account, &draft, None, &std::collections::BTreeSet::new())
         .await
         .unwrap_err();
     assert_eq!(saved.class(), FailureClass::Authentication, "{saved}");
@@ -288,19 +288,19 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
     assert_eq!(removed.class(), FailureClass::Authentication, "{removed}");
 }
 
-/// Asserts that `provider`, built over a token source whose grant is dead, takes an invitation
-/// answer and the calendar-user lookup to its delegate, the way
+/// Asserts that `provider`, built over a token source whose grant is dead, takes the calendar
+/// and event fetches, an invitation answer and the calendar-user lookup to its delegate, the way
 /// [`assert_drafts_reach_the_delegate`] does for drafts. The defaults answer without asking
-/// anyone: `rsvp_event` refuses as unsupported, and `calendar_user_addresses` reports `Unknown`.
-pub(crate) async fn assert_calendar_answers_reach_the_delegate(
-    provider: &dyn engine_provider::Provider,
-) {
+/// anyone: the fetches and `rsvp_event` refuse as unsupported, so a calendar wrapper left with
+/// an empty `CalendarSync` impl syncs no calendar at all, and `calendar_user_addresses` reports
+/// `Unknown`.
+pub(crate) async fn assert_calendar_reaches_the_delegate(provider: &dyn engine_provider::Provider) {
     use engine_core::{
         calendar::Event,
         error::FailureClass,
         ids::{CalendarId, EventId, Uid},
         membership::Memberships,
-        time::CalendarDateTime,
+        time::{CalendarDateTime, Horizon, UtcDateTime},
     };
     use engine_provider::{EventRsvp, RsvpResponse};
 
@@ -312,7 +312,20 @@ pub(crate) async fn assert_calendar_answers_reach_the_delegate(
         CalendarDateTime::Floating("2026-09-01T09:00:00".parse().expect("valid time")),
     );
     let rsvp = EventRsvp::to(&event, "mailto:me@example.com", RsvpResponse::Accepted);
+    let calendar = CalendarId::try_from("calendar").expect("valid calendar id");
+    let window = Horizon::new(
+        UtcDateTime::new(2026, 8, 1, 0, 0, 0).expect("valid start"),
+        UtcDateTime::new(2026, 10, 1, 0, 0, 0).expect("valid end"),
+    )
+    .expect("valid window");
 
+    let listed = provider.sync_calendars(&account, None).await.unwrap_err();
+    assert_eq!(listed.class(), FailureClass::Authentication, "{listed}");
+    let fetched = provider
+        .sync_events(&account, &calendar, None, window)
+        .await
+        .unwrap_err();
+    assert_eq!(fetched.class(), FailureClass::Authentication, "{fetched}");
     let answered = provider
         .rsvp_event(&account, &event, &rsvp)
         .await

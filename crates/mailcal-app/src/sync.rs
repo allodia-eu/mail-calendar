@@ -295,6 +295,14 @@ impl<P: Provider> App<P> {
         self.warm_added_account(id).await;
     }
 
+    /// Reads one account's mail again from its server, its cursors cleared: for the first sync
+    /// under the drafted-reply keyword's names, which an incremental pass would not bring to the
+    /// mail it already holds (`docs/ai.md` rule 25).
+    pub async fn read_mail_again(&self, id: &AccountId) {
+        self.refresh_account_with_busy_retry(id, "keyword-names", true)
+            .await;
+    }
+
     /// Re-snapshots one account after a user changed its sync-depth window. The mail cursors
     /// are cleared once, which also stops a pass still running under the old window at its
     /// next commit. A pass that claims a folder after the clear (a poll that began before the
@@ -341,7 +349,7 @@ impl<P: Provider> App<P> {
     /// One account's pass. `announce` is what the account may say about itself while it runs:
     /// a poll or a catch-up names itself in the status hint once it downloads mail, the
     /// follow-up to the user's own edit says nothing at all.
-    async fn refresh_account_once(
+    pub(crate) async fn refresh_account_once(
         &self,
         id: &AccountId,
         label: &'static str,
@@ -385,7 +393,7 @@ impl<P: Provider> App<P> {
 
     pub(crate) fn sync_tuning_for(&self, id: &AccountId) -> StreamTuning {
         StreamTuning::new(STREAM_FETCH_BATCH, STREAM_CHUNK_SIZE)
-            .within(sync_window(self.effective_sync_depth(id.as_str())))
+            .within(self.mailbox_windows_for(id))
     }
 }
 

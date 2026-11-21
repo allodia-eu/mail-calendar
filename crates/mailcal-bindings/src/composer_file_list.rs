@@ -126,6 +126,19 @@ impl FileList {
         }
     }
 
+    fn added_since(&self, mark: u64) -> usize {
+        self.files.iter().filter(|file| file.id.0 >= mark).count()
+    }
+
+    fn changed(&self, since: Option<u64>, before: Option<usize>) -> FilesChanged {
+        FilesChanged {
+            files: self.snapshot(),
+            added: since
+                .zip(before)
+                .map(|(mark, before)| (before, self.added_since(mark))),
+        }
+    }
+
     fn snapshot(&self) -> ComposerFiles {
         ComposerFiles {
             tiles: self
@@ -150,6 +163,14 @@ impl FileList {
             total_size: self.files.iter().filter_map(|file| file.size).sum(),
         }
     }
+}
+
+/// A list as a change left it, with how many of its files were added since the mark the change
+/// was asked to count from, before the change and after it.
+#[derive(Debug)]
+pub(crate) struct FilesChanged {
+    pub(crate) files: ComposerFiles,
+    pub(crate) added: Option<(usize, usize)>,
 }
 
 /// Every open composition's files.
@@ -178,30 +199,43 @@ impl ComposerFileLists {
         }
     }
 
+    /// Adds `files` after what the list holds, counting the files added since `since`
+    /// ([`Self::mark`]) on either side of the change, under the one lock the change takes.
     pub(crate) fn add(
         &self,
         composition: &CompositionId,
         files: Vec<ComposerFileAttachment>,
-    ) -> ComposerFiles {
+        since: Option<u64>,
+    ) -> FilesChanged {
         let files = read_files(files);
         let mut lists = self.lock();
         let list = lists.entry(composition.clone()).or_default();
+        let before = since.map(|mark| list.added_since(mark));
         list.add(files);
-        list.snapshot()
+        list.changed(since, before)
     }
 
-    /// Takes the file off the list. An id the list does not hold changes nothing, and a
-    /// composition that has gone (a Remove pressed as it was sent or discarded) is not started
-    /// again with an empty list.
-    pub(crate) fn remove(&self, composition: &CompositionId, file: &str) -> ComposerFiles {
+    /// Takes the file off the list, counting as [`Self::add`] does. An id the list does not hold
+    /// changes nothing, and a composition that has gone (a Remove pressed as it was sent or
+    /// discarded) is not started again with an empty list.
+    pub(crate) fn remove(
+        &self,
+        composition: &CompositionId,
+        file: &str,
+        since: Option<u64>,
+    ) -> FilesChanged {
         let mut lists = self.lock();
         let Some(list) = lists.get_mut(composition) else {
-            return FileList::default().snapshot();
+            return FilesChanged {
+                files: FileList::default().snapshot(),
+                added: None,
+            };
         };
+        let before = since.map(|mark| list.added_since(mark));
         if let Some(id) = FileId::parse(file) {
             list.files.retain(|held| held.id != id);
         }
-        list.snapshot()
+        list.changed(since, before)
     }
 
     pub(crate) fn read(&self, composition: &CompositionId) -> ComposerFiles {
@@ -222,6 +256,18 @@ impl ComposerFileLists {
                 })
                 .collect()
         })
+    }
+
+    /// Where `composition`'s list stands: the number its next file will be given.
+    pub(crate) fn mark(&self, composition: &CompositionId) -> u64 {
+        self.lock().get(composition).map_or(0, |list| list.next)
+    }
+
+    /// How many files on `composition`'s list were added since `mark` ([`Self::mark`]).
+    pub(crate) fn added_since(&self, composition: &CompositionId, mark: u64) -> usize {
+        self.lock()
+            .get(composition)
+            .map_or(0, |list| list.added_since(mark))
     }
 
     pub(crate) fn forget(&self, composition: &CompositionId) {
@@ -257,9 +303,10 @@ impl MailcalApp {
         composition: String,
         files: Vec<ComposerFileAttachment>,
     ) -> Result<ComposerFiles, MailcalError> {
-        Ok(self
-            .composer_files
-            .add(&composition_id(composition)?, files))
+        let composition = composition_id(composition)?;
+        let since = self.app.reply_draft_files_mark(&composition);
+        let changed = self.composer_files.add(&composition, files, since);
+        Ok(self.files_changed(&composition, changed))
     }
 
     /// Takes the file `file` (a tile's `id`) off `composition`, and answers with the list as it
@@ -273,9 +320,22 @@ impl MailcalApp {
         composition: String,
         file: String,
     ) -> Result<ComposerFiles, MailcalError> {
-        Ok(self
-            .composer_files
-            .remove(&composition_id(composition)?, &file))
+        let composition = composition_id(composition)?;
+        let since = self.app.reply_draft_files_mark(&composition);
+        let changed = self.composer_files.remove(&composition, &file, since);
+        Ok(self.files_changed(&composition, changed))
+    }
+}
+
+impl MailcalApp {
+    /// Hands the drafted reply's record what a change to the list did to the files it counts
+    /// (`docs/ai.md` rule 23), and answers with the list.
+    fn files_changed(&self, composition: &CompositionId, changed: FilesChanged) -> ComposerFiles {
+        if let Some((before, after)) = changed.added {
+            self.app
+                .reply_draft_files_changed(composition, before, after);
+        }
+        changed.files
     }
 }
 

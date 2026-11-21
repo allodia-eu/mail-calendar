@@ -6,18 +6,21 @@
 //! Its own file, as [`super::fake`] is for the submitting one, so each test module stays
 //! under the 500-line limit.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 
 use engine_api::{
-    AccountId, CalendarWrites, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey,
-    SubmissionReceipt, TimeZoneId,
+    AccountId, CalendarWrites, Draft, DraftReceipt, EmailAddress, Engine, MessageIdHeader,
+    ProviderKey, SubmissionReceipt, TimeZoneId,
 };
 use engine_core::{
     ids::{MailboxId, MessageId},
     mail::{Keyword, Mailbox, MailboxRole, Message, SystemKeyword},
     membership::Memberships,
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderResult, ScopeSync,
@@ -42,6 +45,9 @@ pub(super) struct ThreadProvider {
     /// whether a save names the copy it replaces is the whole draft contract
     /// (`docs/drafts.md`).
     draft_puts: Arc<Mutex<Vec<DraftSave>>>,
+    /// The keywords each save asked for, and which of them the receipt says were kept.
+    draft_keywords: Arc<Mutex<Vec<BTreeSet<Keyword>>>>,
+    kept_draft_keywords: fn(&BTreeSet<Keyword>) -> BTreeSet<Keyword>,
     /// Every stored draft removed.
     draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
     /// When set, `submit_email` fails **permanently**: the one send outcome that leaves the
@@ -62,6 +68,7 @@ pub(super) type DraftSave = (Draft, Option<ProviderKey>);
 pub(super) struct ProviderLogs {
     pub(super) submissions: Arc<Mutex<Vec<Draft>>>,
     pub(super) draft_puts: Arc<Mutex<Vec<DraftSave>>>,
+    pub(super) draft_keywords: Arc<Mutex<Vec<BTreeSet<Keyword>>>>,
     pub(super) draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
 }
 
@@ -81,6 +88,8 @@ impl ThreadProvider {
             submissions: Arc::new(Mutex::new(Vec::new())),
             source_fails: false,
             draft_puts: Arc::new(Mutex::new(Vec::new())),
+            draft_keywords: Arc::default(),
+            kept_draft_keywords: BTreeSet::clone,
             draft_deletes: Arc::new(Mutex::new(Vec::new())),
             send_fails: false,
             send_queues: false,
@@ -94,9 +103,23 @@ impl ThreadProvider {
         self
     }
 
+    /// A provider with a Sent folder, for messages filed there.
+    pub(super) fn with_sent_folder(mut self) -> Self {
+        let mut sent = Mailbox::new(MailboxId::try_from("sent").unwrap(), "Sent");
+        sent.role = Some(MailboxRole::Sent);
+        self.mailboxes.push(sent);
+        self
+    }
+
     /// A provider whose every send fails outright, with nothing queued behind it.
     pub(super) fn failing_send(mut self) -> Self {
         self.send_fails = true;
+        self
+    }
+
+    /// A provider whose drafts keep no keyword, as IMAP's do where Drafts takes no new flag.
+    pub(super) fn keeping_no_draft_keywords(mut self) -> Self {
+        self.kept_draft_keywords = |_| BTreeSet::new();
         self
     }
 
@@ -110,6 +133,7 @@ impl ThreadProvider {
         ProviderLogs {
             submissions: Arc::clone(&self.submissions),
             draft_puts: Arc::clone(&self.draft_puts),
+            draft_keywords: Arc::clone(&self.draft_keywords),
             draft_deletes: Arc::clone(&self.draft_deletes),
         }
     }
@@ -166,7 +190,7 @@ impl Provider for ThreadProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -207,18 +231,21 @@ impl Provider for ThreadProvider {
         ))
     }
 
-    /// Stores a draft, answering with a key that **moves on every save**, which is what
-    /// three of the four real adapters do: a caller that never passes `replacing` therefore
+    /// Stores a draft, answering with a key that **moves on every save**, which is what the
+    /// IMAP and JMAP adapters do: a caller that never passes `replacing` therefore
     /// leaves a second copy here too, rather than passing quietly.
     async fn put_draft(
         &self,
         _account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         let mut puts = self.draft_puts.lock().unwrap();
         puts.push((draft.clone(), replacing.cloned()));
-        Ok(ProviderKey::new(format!("draft-{}", puts.len())).unwrap())
+        self.draft_keywords.lock().unwrap().push(keywords.clone());
+        let key = ProviderKey::new(format!("draft-{}", puts.len())).unwrap();
+        Ok(DraftReceipt::stored(key).with_keywords((self.kept_draft_keywords)(keywords)))
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
@@ -291,6 +318,7 @@ impl Provider for ThreadProvider {
 }
 
 impl engine_api::MailboxWrites for ThreadProvider {}
+impl engine_api::CalendarSync for ThreadProvider {}
 impl CalendarWrites for ThreadProvider {}
 
 /// Builds a one-account app over a [`ThreadProvider`] seeded with `messages`, returning

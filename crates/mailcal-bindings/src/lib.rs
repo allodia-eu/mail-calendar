@@ -24,6 +24,8 @@ mod account_work;
 mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
+mod ai_host;
+mod ai_transport;
 mod allodia;
 mod allodia_devices;
 #[cfg(feature = "allodia-license")]
@@ -49,6 +51,7 @@ mod app_accounts_google;
 mod app_accounts_microsoft;
 mod app_accounts_uses;
 mod app_accounts_view;
+mod app_ai;
 mod app_allodia;
 mod app_allodia_devices;
 mod app_allodia_purchase;
@@ -91,6 +94,7 @@ mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
 mod convert_status;
+mod core_build;
 mod crash;
 mod credential_log;
 pub mod credential_store;
@@ -132,6 +136,7 @@ mod records_account_page;
 mod records_account_sign_in;
 mod records_accounts;
 mod records_advanced;
+mod records_ai;
 mod records_avatar;
 mod records_calendar;
 mod records_calendar_pane;
@@ -144,6 +149,7 @@ mod records_notices;
 mod records_outbox;
 mod records_signatures;
 mod records_video_meeting;
+mod reply_draft;
 mod retry;
 pub mod sync_state;
 mod talk_offer;
@@ -170,6 +176,7 @@ mod store_files;
 mod timezone;
 mod token_sink;
 mod use_outages;
+mod writing_style;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
@@ -177,6 +184,7 @@ pub use account_page::setup_link_pickers;
 pub use account_sign_in::AccountSignInOptions;
 pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
+pub use ai_host::is_reserved_config;
 pub use allodia::*;
 pub use allodia_devices::*;
 pub use allodia_health::AllodiaGrantHealth;
@@ -242,9 +250,10 @@ pub use native_fault::watch_for_native_faults;
 pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
-    InvitationResponse, McpIntent, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope,
-    SelectedRow, SignatureIntent,
+    AccountPageIntent, AiEndpointIntent, AiIntent, AllodiaIntent, BulkAction, EventIntent,
+    FolderIntent, Intent, InvitationResponse, McpIntent, NoticeIntent, OutboxIntent,
+    PreferenceIntent, SearchScope, SelectedRow, SignatureIntent, StyleLearningIntent,
+    WritingStyleIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -270,6 +279,7 @@ pub use records_accounts::{
     MailSyncTechnology, SignInMethod, UseProblem,
 };
 pub use records_advanced::*;
+pub use records_ai::*;
 pub use records_avatar::Avatar;
 pub use records_calendar::*;
 pub use records_calendar_pane::*;
@@ -306,6 +316,7 @@ pub use rendering::{
     render_message_html, render_message_print_html, should_open_external_link,
 };
 pub use repeat_editor::repeat_change_of;
+pub use reply_draft::*;
 pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
@@ -326,6 +337,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
+pub use writing_style::*;
 /// A shared registry of each connected account's re-connection state ([`account_registry`]).
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 
@@ -455,45 +467,31 @@ impl MailcalApp {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod tests_showcase;
-
-#[cfg(test)]
-mod tests_showcase_first_run;
-
-#[cfg(test)]
-mod tests_showcase_accounts;
-
-#[cfg(test)]
-mod tests_showcase_invitation;
-
-#[cfg(test)]
-mod tests_showcase_meeting;
-
-#[cfg(test)]
-mod tests_showcase_sender_name;
-
-#[cfg(test)]
-mod tests_send_account;
-
-#[cfg(test)]
-mod tests_boot;
-
-#[cfg(test)]
-mod tests_credentials;
-
-#[cfg(test)]
-mod tests_credential_ordering;
-
-#[cfg(test)]
-mod tests_calendar;
-
-#[cfg(test)]
-mod tests_setup;
-
 #[cfg(test)]
 mod tests_background;
-
+#[cfg(test)]
+mod tests_boot;
+#[cfg(test)]
+mod tests_calendar;
+#[cfg(test)]
+mod tests_credential_ordering;
+#[cfg(test)]
+mod tests_credentials;
 #[cfg(test)]
 mod tests_reading;
+#[cfg(test)]
+mod tests_send_account;
+#[cfg(test)]
+mod tests_setup;
+#[cfg(test)]
+mod tests_showcase;
+#[cfg(test)]
+mod tests_showcase_accounts;
+#[cfg(test)]
+mod tests_showcase_first_run;
+#[cfg(test)]
+mod tests_showcase_invitation;
+#[cfg(test)]
+mod tests_showcase_meeting;
+#[cfg(test)]
+mod tests_showcase_sender_name;

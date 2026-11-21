@@ -1,16 +1,22 @@
 //! The submitting provider fake the send tests drive: it records what it was asked to submit,
 //! and can be told to fail the send, to deliver without filing the sender's copy, or to fail
 //! the after-the-fact repair as well. It stores drafts too, moving the key on every save the
-//! way three of the four real adapters do.
+//! way the IMAP and JMAP adapters do.
 //!
 //! Split from [`super`] (the tests themselves) so each file stays under the 500-line limit.
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+use std::{
+    collections::BTreeSet,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
 };
 
-use engine_api::{AccountId, CalendarWrites, Draft, Mailbox, ProviderKey, SubmissionReceipt};
+use engine_api::{
+    AccountId, CalendarWrites, Draft, DraftReceipt, Keyword, Mailbox, ProviderKey,
+    SubmissionReceipt,
+};
 use engine_core::sync::SyncState;
 use engine_provider::{
     Capabilities, ConnectionInfo, HandOver, Provider, ProviderError, ProviderResult, ScopeSync,
@@ -54,6 +60,8 @@ pub(super) struct SubmitProvider {
     /// replacing is the whole draft contract (`docs/drafts.md`), and a log of drafts alone
     /// cannot tell a correct save from one storing a second copy.
     draft_puts: Arc<Mutex<Vec<DraftSave>>>,
+    /// The keywords each draft save asked for, every one of which it keeps.
+    draft_keywords: Arc<Mutex<Vec<BTreeSet<Keyword>>>>,
     /// Every stored draft this provider was asked to remove.
     draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
     /// Draft saves left to refuse as retryable, as `offline_sends` does for sends.
@@ -95,6 +103,7 @@ impl SubmitProvider {
             repair_gate: None,
             offline_sends: Arc::new(Mutex::new(0)),
             draft_puts: Arc::new(Mutex::new(Vec::new())),
+            draft_keywords: Arc::default(),
             draft_deletes: Arc::new(Mutex::new(Vec::new())),
             offline_saves: Arc::new(Mutex::new(0)),
             saves_before_outage: Arc::new(Mutex::new(None)),
@@ -228,6 +237,10 @@ impl SubmitProvider {
         Arc::clone(&self.draft_puts)
     }
 
+    pub(super) fn draft_keywords(&self) -> Arc<Mutex<Vec<BTreeSet<Keyword>>>> {
+        Arc::clone(&self.draft_keywords)
+    }
+
     pub(super) fn draft_deletes(&self) -> Arc<Mutex<Vec<ProviderKey>>> {
         Arc::clone(&self.draft_deletes)
     }
@@ -301,8 +314,8 @@ impl Provider for SubmitProvider {
         Ok(SubmissionReceipt::filed(key, id, &handed))
     }
 
-    /// Stores a draft, answering with a key that **moves on every save**, which is what
-    /// three of the four real adapters do. A fake echoing the key back would let a caller
+    /// Stores a draft, answering with a key that **moves on every save**, which is what the
+    /// IMAP and JMAP adapters do. A fake echoing the key back would let a caller
     /// that never passes `replacing` pass this suite and store a second copy per save
     /// against a real server.
     async fn put_draft(
@@ -310,7 +323,8 @@ impl Provider for SubmitProvider {
         _account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         {
             let mut offline = self.offline_saves.lock().unwrap();
             if *offline > 0 {
@@ -333,12 +347,13 @@ impl Provider for SubmitProvider {
         let key = {
             let mut puts = self.draft_puts.lock().unwrap();
             puts.push((draft.clone(), replacing.cloned()));
+            self.draft_keywords.lock().unwrap().push(keywords.clone());
             ProviderKey::new(format!("draft-{}", puts.len())).unwrap()
         };
         if let Some(gate) = &self.save_gate {
             gate.notified().await;
         }
-        Ok(key)
+        Ok(DraftReceipt::stored(key).with_keywords(keywords.clone()))
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
@@ -363,4 +378,5 @@ impl Provider for SubmitProvider {
 }
 
 impl engine_api::MailboxWrites for SubmitProvider {}
+impl engine_api::CalendarSync for SubmitProvider {}
 impl CalendarWrites for SubmitProvider {}

@@ -256,6 +256,7 @@ impl AccountDial {
                 tokens,
                 identity,
                 affiliation_unknown,
+                naming,
                 ..
             } => {
                 // Google has no "connected before calendar support" case, so there is never a
@@ -268,6 +269,7 @@ impl AccountDial {
                             Arc::clone(&tokens),
                             None,
                             &identity,
+                            naming,
                         )
                         .await
                         .map_err(ConnectFailure::from)

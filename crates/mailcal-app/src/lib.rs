@@ -7,9 +7,8 @@
 //! signals the changed [`Surface`] through an [`AppObserver`] the host then pulls a
 //! snapshot for.
 //!
-//! Multiple accounts ride one engine: a [`Surface::MailboxList`] snapshot is either the
-//! unified "all inboxes" (every account's INBOX merged, each row tagged with its account)
-//! or one selected account's folders. Mail actions route to the message's **owning**
+//! Multiple accounts ride one engine: a [`Surface::MailboxList`] snapshot is the unified "all
+//! inboxes" or one selected account's folders. Mail actions route to the message's **owning**
 //! account; compose/new-mail uses the selected account (else the first).
 
 use std::{
@@ -28,6 +27,7 @@ use tokio::sync::watch;
 
 pub mod account_links;
 mod accounts;
+pub mod ai;
 mod avatars;
 mod background_sync;
 mod calendar_cache;
@@ -190,11 +190,9 @@ pub use zones::available_time_zones;
 /// when a surface changes.
 pub struct App<P> {
     engine: Engine,
-    /// The configured accounts, each behind an [`Arc`]. Behind an async `RwLock` because
-    /// [`App::add_account`] mutates the set at runtime while the sync/snapshot/action paths
-    /// read it. The `Arc` lets a reader clone one account's handle out under the guard and
-    /// then **drop the guard before any network `.await`**: so a long provider round-trip
-    /// never holds the (write-preferring) lock and stalls a concurrent `add_account`.
+    /// The configured accounts, each behind an [`Arc`], and an async `RwLock` because
+    /// [`App::add_account`] mutates the set while the sync, snapshot and action paths read it. A
+    /// reader clones one account's handle out and **drops the guard before any network `.await`**.
     accounts: accounts::AccountList<P>,
     /// What the mailbox list is showing: the unified inbox, one account, or one folder of one
     /// account. One value, so a folder key never travels without the account it belongs to
@@ -229,8 +227,7 @@ pub struct App<P> {
     /// spawned, so two keystrokes race and the loser must not win by finishing last.
     contacts_generation: AtomicU64,
     /// The open message body, one per reader: the pane, plus any detached reading window
-    /// (`crate::ReaderId`, `docs/reading-window.md`). Every reader is filled by the same open,
-    /// so a window inherits the mark-read, the retry and the pending threshold.
+    /// (`crate::ReaderId`, `docs/reading-window.md`), each filled by the same open.
     reading: SurfacedMap<ReaderId, ReadingSnapshot>,
     /// The unanswered "shall we email the organiser ourselves?" question, if a calendar server
     /// has just failed to deliver a reply. Session state ([`invitations_fallback`] says why).
@@ -276,6 +273,8 @@ pub struct App<P> {
     /// The user's signature library and each account's two assignments
     /// ([`signatures`](crate::signatures)), surfaced via [`Surface::Signatures`].
     signatures: Mutex<SignatureState>,
+    /// The writing assistant's stores, ports and work ([`ai`]), boxed so futures stay small.
+    ai: Box<ai::AiState<P>>,
     /// The persisted local-MCP (AI assistant access) decisions: whether the server is on, which
     /// accounts it exposes, and the two send controls. Surfaced via [`Surface::Settings`]; the
     /// binding layer reads it to (re)configure the server. Off with nothing exposed by default;

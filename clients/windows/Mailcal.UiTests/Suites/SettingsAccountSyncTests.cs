@@ -1,5 +1,5 @@
 // How an account is shared with the person's other devices, and what those devices have to say,
-// while nobody is signed in to an Allodia account (docs/settings.md category 10). The core draws
+// while nobody is signed in to an Allodia account (docs/settings.md, Accounts). The core draws
 // both only while someone is signed in, so a client that drew either from a list of its own, or
 // from a record it kept from before a sign-out, shows a control that changes nothing and a card
 // that speaks for devices this one is no longer linked to.

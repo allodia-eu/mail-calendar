@@ -237,6 +237,7 @@ docker/stalwart/
 ├── seed-calendar-week.sh   # the living week, re-anchored on the current Monday at every seed
 └── seed/
     ├── mail/*.eml          # messages: dup/missing Message-ID, attachment, HTML+remote image, …
+    ├── sent/*.eml          # alice's own replies in Sent Items, dated relative to the seed day
     ├── calendar/*.ics      # events: recurring+exceptions, attendees, …
     └── calendar/work/*.ics # alice's second calendar, Work: one sign-in serving two calendars
 ```

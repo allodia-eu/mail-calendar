@@ -29,6 +29,7 @@ mod row_menu;
 mod send;
 
 use folders::resolve_move_target;
+pub(crate) use folders::{sent_keys, sent_mailboxes};
 use result::MailActionError;
 
 /// What an optimistic removal actually asks the provider to do.
