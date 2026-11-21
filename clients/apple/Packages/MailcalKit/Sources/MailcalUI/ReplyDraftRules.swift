@@ -70,6 +70,12 @@ func settingsCategory(for remedy: AiRemedy) -> SettingsCategory? {
     }
 }
 
+/// Whether a remedy a composer hands on opens the learning flow (`StyleLearningIntent::Open`)
+/// before Settings opens at Writing style, which draws the flow's host: Learn style does.
+func opensLearningFlow(_ remedy: AiRemedy) -> Bool {
+    remedy == .learnStyle
+}
+
 enum ReplyDraftWords {
     /// A suggestion under the instruction's line, which fills it.
     static func suggestion(_ suggestion: ReplyDraftSuggestion) -> String {

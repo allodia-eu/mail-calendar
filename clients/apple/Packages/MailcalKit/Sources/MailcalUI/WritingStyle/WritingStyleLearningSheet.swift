@@ -38,7 +38,9 @@ struct WritingStyleLearningSheet: View {
                 WritingStyleLearningStage(model: model, stage: flow.stage)
             }
         }
-        .interactiveDismissDisabled(key == .learning)
+        // A swipe down is closing, held exactly as Close is; a run it closes on goes on, on the
+        // page.
+        .interactiveDismissDisabled(!flow.close.enabled)
     }
 
     /// The one forward action the stage offers: Learn on the review, which is the consent; Next;
