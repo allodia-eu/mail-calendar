@@ -156,9 +156,9 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
     assert_eq!(order.len(), 7, "{order:?}");
     assert!(order[0].is::<gtk::Grid>(), "the header first");
     assert!(
-        descendants::<gtk::Button>(&order[1])
+        descendants::<gtk::Label>(&order[1])
             .iter()
-            .any(|button| button.label().as_deref() == Some(l10n::action_attach())),
+            .any(|label| label.text() == l10n::action_attach()),
         "then the action row"
     );
     assert!(

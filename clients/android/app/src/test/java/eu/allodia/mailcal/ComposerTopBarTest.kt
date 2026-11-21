@@ -6,6 +6,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import uniffi.mailcal_bindings.ControlState
 
 @RunWith(RobolectricTestRunner::class)
 class ComposerTopBarTest {
@@ -26,12 +28,17 @@ class ComposerTopBarTest {
 
     private val pressed = mutableListOf<String>()
 
-    private fun bar(keepsDrafts: Boolean = true, signatures: Boolean = true) {
+    private fun bar(
+        keepsDrafts: Boolean = true,
+        signatures: Boolean = true,
+        attach: ControlState = FREE,
+    ) {
         compose.setContent {
             AppTheme {
                 ComposerTopBar(
                     title = "New message",
                     onClose = { pressed += "close" },
+                    attach = attach,
                     onAttach = { pressed += "attach" },
                     signatureMenu = if (signatures) {
                         { expanded, onExpand ->
@@ -99,5 +106,14 @@ class ComposerTopBarTest {
         bar(keepsDrafts = false, signatures = false)
 
         compose.onNodeWithTag(COMPOSER_OVERFLOW_TAG).assertDoesNotExist()
+    }
+
+    /** Files the person chose still being copied: Attach shows its spinner and is held. */
+    @Test
+    fun attach_shows_files_still_on_their_way_and_is_held() {
+        bar(attach = ControlState(enabled = false, running = true))
+
+        compose.onNodeWithTag("$COMPOSER_ATTACH_TAG-running").assertIsDisplayed()
+        compose.onNodeWithTag(COMPOSER_ATTACH_TAG).assertIsNotEnabled()
     }
 }

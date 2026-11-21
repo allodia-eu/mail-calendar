@@ -248,3 +248,109 @@ fn a_change_counts_the_files_added_since_a_mark_before_and_after_it() {
     assert_eq!(lists.remove(&c, &opened, Some(mark)).added, Some((1, 1)));
     assert_eq!(lists.add(&c, Vec::new(), None).added, None);
 }
+
+#[test]
+fn an_addition_finished_after_a_mark_counts_as_one_made_at_once() {
+    // A reply drafted while a film was still being copied: the film lands after the mark and is
+    // counted as an addition, as a file added at once would be.
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    lists.begin_adding(&c);
+    let mark = lists.mark(&c);
+    let ended = lists.finish_adding(&c, vec![file("/p/film.mov", "film.mov")], Some(mark));
+    assert_eq!(ended.added, Some((0, 1)));
+    assert_eq!(lists.finish_adding(&c, Vec::new(), None).added, None);
+}
+
+fn attach(lists: &ComposerFileLists, id: &CompositionId) -> (bool, bool) {
+    let attach = lists.read(id).attach;
+    (attach.enabled, attach.running)
+}
+
+#[test]
+fn attach_is_free_while_no_file_is_on_its_way() {
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    assert_eq!(attach(&lists, &c), (true, false));
+    lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    lists.add(&c, vec![file("/p/b.pdf", "b.pdf")], None);
+    assert_eq!(attach(&lists, &c), (true, false));
+}
+
+#[test]
+fn attach_runs_from_the_start_of_an_addition_until_its_files_are_in() {
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.open(&c, Vec::new());
+    let started = lists.begin_adding(&c);
+    assert!(started.attach.running);
+    assert!(!started.attach.enabled, "a running control is held");
+    assert!(started.tiles.is_empty());
+    assert!(!started.changed, "nothing has arrived yet");
+    let finished = lists
+        .finish_adding(&c, vec![file("/p/film.mov", "film.mov")], None)
+        .files;
+    assert_eq!(names(&lists, &c), ["film.mov"]);
+    assert!(finished.changed);
+    assert_eq!(attach(&lists, &c), (true, false));
+}
+
+#[test]
+fn attach_runs_until_every_addition_under_way_has_ended() {
+    // A drop while a pick is still being copied: the first to end must not stop the spinner the
+    // other still needs.
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.begin_adding(&c);
+    lists.begin_adding(&c);
+    lists.finish_adding(&c, vec![file("/p/a.pdf", "a.pdf")], None);
+    assert_eq!(attach(&lists, &c), (false, true));
+    lists.finish_adding(&c, vec![file("/p/b.pdf", "b.pdf")], None);
+    assert_eq!(attach(&lists, &c), (true, false));
+    assert_eq!(names(&lists, &c), ["a.pdf", "b.pdf"]);
+}
+
+#[test]
+fn an_addition_that_brought_nothing_ends_without_a_change() {
+    // Every chosen picture failed to copy: the addition still ends, and the list is as it was.
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    lists.begin_adding(&c);
+    let ended = lists.finish_adding(&c, Vec::new(), None).files;
+    assert_eq!(names(&lists, &c), ["a.pdf"]);
+    assert!(!ended.changed);
+    assert_eq!((ended.attach.enabled, ended.attach.running), (true, false));
+}
+
+#[test]
+fn only_an_addition_that_was_started_ends_one() {
+    // Files ready at once (a share at opening) go through `add`, which ends nothing; and an end
+    // with none under way leaves the count at none rather than owing the next one.
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.begin_adding(&c);
+    lists.add(&c, vec![file("/shared/a.pdf", "a.pdf")], None);
+    assert_eq!(attach(&lists, &c), (false, true));
+    lists.finish_adding(&c, Vec::new(), None);
+    lists.finish_adding(&c, Vec::new(), None);
+    lists.begin_adding(&c);
+    assert_eq!(attach(&lists, &c), (false, true));
+}
+
+#[test]
+fn an_addition_ending_after_its_composition_has_gone_starts_no_list() {
+    // A film still being copied when the message was discarded: its files have nowhere to go,
+    // and the composition must not be started again for the rest of the process.
+    let lists = ComposerFileLists::default();
+    let c = composition("gone");
+    lists.open(&c, Vec::new());
+    lists.begin_adding(&c);
+    lists.forget(&c);
+    let answer = lists
+        .finish_adding(&c, vec![file("/p/film.mov", "film.mov")], None)
+        .files;
+    assert!(answer.tiles.is_empty());
+    assert!(!lists.lock().contains_key(&c));
+}

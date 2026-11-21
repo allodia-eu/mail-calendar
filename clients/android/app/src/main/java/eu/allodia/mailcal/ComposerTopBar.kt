@@ -33,15 +33,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.ControlState
 
 /** The overflow button, for a test that opens the menu without depending on its localised name. */
 internal const val COMPOSER_OVERFLOW_TAG = "composer-overflow"
+
+/** Attach, whose spinner is `composer-attach-running` while it runs. */
+internal const val COMPOSER_ATTACH_TAG = "composer-attach"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ComposerTopBar(
     title: String,
     onClose: () -> Unit,
+    // Attach's state, the core's (`ComposerFiles.attach`).
+    attach: ControlState,
     onAttach: () -> Unit,
     // The signature menu, opened from the overflow's Signature item and hanging from the same
     // button, or null when signatures are off for this composer or the user has written none: with
@@ -74,12 +81,15 @@ internal fun ComposerTopBar(
         },
         actions = {
             replyDraft?.invoke()
-            IconButton(onClick = onAttach) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_attachment),
-                    contentDescription = L10n.action_attach(ctx),
-                )
-            }
+            // Running while files the person chose are still being copied (docs/waiting.md).
+            ControlIconButton(
+                icon = R.drawable.ic_attachment,
+                label = L10n.action_attach(ctx),
+                control = attach,
+                tag = COMPOSER_ATTACH_TAG,
+                iconSize = 24.dp,
+                onClick = onAttach,
+            )
             IconButton(enabled = sendEnabled, onClick = onSend) {
                 Icon(
                     painter = painterResource(R.drawable.ic_send),

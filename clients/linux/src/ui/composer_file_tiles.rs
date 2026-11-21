@@ -7,9 +7,11 @@
 //! the core, so the file on screen and the file that goes out cannot differ.
 //!
 //! An add reads each file's size and first bytes, which on a network mount can take seconds, so
-//! it runs on a worker (`docs/waiting.md`); a remove and a read only take the core's lock.
+//! it runs on a worker, Attach running from the press until the files are in (`docs/waiting.md`);
+//! a remove and a read only take the core's lock. Attach is drawn here, from the same answer.
 
 use std::{
+    cell::RefCell,
     rc::{Rc, Weak},
     sync::Arc,
 };
@@ -17,7 +19,7 @@ use std::{
 use adw::prelude::*;
 use gtk::{gio, glib};
 use mailcal_bindings::{
-    ComposerFileAttachment, ComposerFileTile, ComposerFiles, MailcalApp, MailcalError,
+    ComposerFileAttachment, ComposerFileTile, ComposerFiles, ControlState, MailcalApp, MailcalError,
 };
 
 use super::{composer_file_preview, controls, icons};
@@ -29,12 +31,13 @@ const TILE_WIDTH: i32 = 220;
 /// The most columns a wide window gets, so a tile never stretches past a readable width.
 const MOST_COLUMNS: u32 = 6;
 
-/// The core's three calls on a composition's files. A trait so the tiles and the routes into them
-/// can be built in a test with no core behind them; `Send` and `Sync`, because an add runs on a
-/// worker.
+/// The core's calls on a composition's files. A trait so the tiles and the routes into them
+/// can be built in a test with no core behind them; `Send` and `Sync`, because an addition
+/// finishes on a worker.
 pub(crate) trait ComposerFileStore: Send + Sync {
     fn files(&self, composition: String) -> Result<ComposerFiles, MailcalError>;
-    fn add(
+    fn begin(&self, composition: String) -> Result<ComposerFiles, MailcalError>;
+    fn finish(
         &self,
         composition: String,
         files: Vec<ComposerFileAttachment>,
@@ -47,12 +50,16 @@ impl ComposerFileStore for MailcalApp {
         self.composer_files(composition)
     }
 
-    fn add(
+    fn begin(&self, composition: String) -> Result<ComposerFiles, MailcalError> {
+        self.begin_adding_composer_files(composition)
+    }
+
+    fn finish(
         &self,
         composition: String,
         files: Vec<ComposerFileAttachment>,
     ) -> Result<ComposerFiles, MailcalError> {
-        self.add_composer_files(composition, files)
+        self.finish_adding_composer_files(composition, files)
     }
 
     fn remove(&self, composition: String, file: String) -> Result<ComposerFiles, MailcalError> {
@@ -60,10 +67,16 @@ impl ComposerFileStore for MailcalApp {
     }
 }
 
-/// One composer's file tiles, under the line that counts them.
+/// What Attach opens: the file dialog, set once the composer's window is known.
+pub(crate) type Pick = Rc<dyn Fn()>;
+
+/// One composer's file tiles, under the line that counts them, and its Attach.
 pub(crate) struct FileTiles {
     store: Option<Arc<dyn ComposerFileStore>>,
     composition: String,
+    /// Where Attach is drawn, in the composer's action row.
+    attach: gtk::Box,
+    pick: RefCell<Option<Pick>>,
     block: gtk::Box,
     summary: gtk::Label,
     flow: gtk::FlowBox,
@@ -92,6 +105,8 @@ impl FileTiles {
         let tiles = Rc::new(Self {
             store,
             composition: composition.to_owned(),
+            attach: gtk::Box::new(gtk::Orientation::Horizontal, 0),
+            pick: RefCell::new(None),
             block,
             summary,
             flow,
@@ -104,8 +119,18 @@ impl FileTiles {
         &self.block
     }
 
-    /// Attaches `files` after what the composition holds, on a worker, and redraws once they
-    /// are in. The redraw reads the list as it stands then rather than the add's own answer: two
+    /// Attach, for the composer's action row.
+    pub(crate) fn attach_widget(&self) -> &gtk::Box {
+        &self.attach
+    }
+
+    /// What pressing Attach opens.
+    pub(crate) fn set_pick(&self, pick: Pick) {
+        *self.pick.borrow_mut() = Some(pick);
+    }
+
+    /// Attaches `files` after what the composition holds, on a worker, Attach running until they
+    /// are in. The redraw reads the list as it stands then rather than the call's own answer: two
     /// adds can finish in either order, and the later answer drawn last is the whole list.
     pub(crate) fn add(self: &Rc<Self>, files: Vec<ComposerFileAttachment>) {
         if files.is_empty() {
@@ -116,11 +141,14 @@ impl FileTiles {
         };
         let store = Arc::clone(store);
         let composition = self.composition.clone();
+        if let Ok(started) = store.begin(composition.clone()) {
+            self.draw(&started);
+        }
         // Weak: a composer closed while the files are read has nothing to redraw.
         let tiles: Weak<Self> = Rc::downgrade(self);
         glib::MainContext::default().spawn_local(async move {
-            let added = gio::spawn_blocking(move || store.add(composition, files).is_ok()).await;
-            if let (Ok(true), Some(tiles)) = (added, tiles.upgrade()) {
+            let added = gio::spawn_blocking(move || store.finish(composition, files)).await;
+            if let (Ok(_), Some(tiles)) = (added, tiles.upgrade()) {
                 tiles.draw(&tiles.current());
             }
         });
@@ -144,10 +172,33 @@ impl FileTiles {
                 tiles: Vec::new(),
                 changed: false,
                 total_size: 0,
+                attach: ControlState {
+                    enabled: true,
+                    running: false,
+                },
             })
     }
 
     fn draw(self: &Rc<Self>, files: &ComposerFiles) {
+        while let Some(child) = self.attach.first_child() {
+            self.attach.remove(&child);
+        }
+        let owner: Weak<Self> = Rc::downgrade(self);
+        self.attach.append(&controls::button(
+            l10n::action_attach(),
+            files.attach,
+            false,
+            move || {
+                let Some(tiles) = owner.upgrade() else {
+                    return;
+                };
+                // Cloned out first: the dialog it opens may redraw these tiles.
+                let pick = tiles.pick.borrow().clone();
+                if let Some(pick) = pick {
+                    pick();
+                }
+            },
+        ));
         self.flow.remove_all();
         for tile in &files.tiles {
             self.flow.append(&self.tile(tile));

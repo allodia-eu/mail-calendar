@@ -56,6 +56,7 @@ class ComposerReplyDraftOfferTest {
                         title = "Re: Thursday",
                         onClose = {},
                         onAttach = {},
+                        attach = NO_COMPOSER_FILES.attach,
                         signatureMenu = null,
                         onSaveDraft = {},
                         onDiscard = {},

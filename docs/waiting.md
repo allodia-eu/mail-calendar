@@ -136,6 +136,12 @@ an editor on a new signature saves under the page's `new_id`, so a second press 
 signature. The editor's Save is held besides while `signature_name_refusal` refuses the name
 typed, and what a save came to is the page's `outcome`, told once by its serial. A slot's picker is
 an assignment applied before `dispatch` returns.
+A composer's Attach is the core's as well: `ComposerFiles::attach`, running from the moment files
+the person chose are on their way (a picker has closed, a drop has landed) until the client has
+copied or read them and handed them over, since a film from the photo library is converted first
+and a file on a network mount is slow to read ([`composer-layout.md`](composer-layout.md) rule 3).
+The client announces each such addition as it starts and ends it once, with nothing when nothing
+arrived.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -176,6 +182,7 @@ record, not a state the client keeps.
 | Settings → Signatures: drawn from `signatures_page`, Save and Delete as `SignatureIntent`s running until written, a double press on Save saving once, a failed write the `SettingsNotSaved` notice | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Settings → Advanced's reset: drawn from `advanced_page`, `Intent::ResetDatabase` running from the confirmation until mail is downloaded again, once at a time, what it came to said under it with Settings left open | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Settings → Advanced's AI assistant access: drawn from `advanced_page`, each grant an `McpIntent`, the status the listener's own and followed while the page is open | ✅ | — | ✅ | — | ✅ |
+| A composer's Attach: drawn from `ComposerFiles::attach`, running while files the person chose are copied or read | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -263,6 +270,11 @@ record, not a state the client keeps.
   page held while one runs and its own control running, and
   [`app_signatures_tests.rs`](../crates/mailcal-bindings/src/app_signatures_tests.rs) drives a
   double press, a refusal, a deletion and a failed write through `dispatch`.
+- [`composer_file_list_tests.rs`](../crates/mailcal-bindings/src/composer_file_list_tests.rs)
+  pins a composer's Attach: running from an addition's start until every one under way has ended,
+  one that brought nothing ending without a change, and one ending after its composition has gone
+  starting no list; [`tests_composer_files.rs`](../crates/mailcal-bindings/src/tests_composer_files.rs)
+  drives it through the app, a move leaving Attach free in the composer it moves to.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

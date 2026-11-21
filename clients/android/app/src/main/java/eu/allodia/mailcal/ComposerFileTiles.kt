@@ -21,6 +21,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,12 +35,18 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.ComposerFileTile
 import uniffi.mailcal_bindings.ComposerFiles
+import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.MailcalApp
 
 private const val TAG = "Mailcal"
 
 /** A composer holding no files, before the core has been asked or where there is none. */
-internal val NO_COMPOSER_FILES = ComposerFiles(tiles = emptyList(), changed = false, totalSize = 0uL)
+internal val NO_COMPOSER_FILES = ComposerFiles(
+    tiles = emptyList(),
+    changed = false,
+    totalSize = 0uL,
+    attach = ControlState(enabled = true, running = false),
+)
 
 /**
  * The core's calls on one composition's files. Each answers with the list as it now stands, or
@@ -46,6 +57,12 @@ internal interface ComposerFileList {
     fun current(): ComposerFiles?
 
     fun add(files: List<ComposerFileAttachment>): ComposerFiles?
+
+    /** Starts an addition of files still being copied: Attach runs until [finish] ends it. */
+    fun begin(): ComposerFiles?
+
+    /** Ends one addition with the files that arrived, none when nothing did. */
+    fun finish(files: List<ComposerFileAttachment>): ComposerFiles?
 
     fun remove(id: String): ComposerFiles?
 }
@@ -58,8 +75,49 @@ internal fun composerFileList(instance: MailcalApp, composition: String): Compos
         override fun add(files: List<ComposerFileAttachment>) =
             asked { instance.addComposerFiles(composition, files) }
 
+        override fun begin() = asked { instance.beginAddingComposerFiles(composition) }
+
+        override fun finish(files: List<ComposerFileAttachment>) =
+            asked { instance.finishAddingComposerFiles(composition, files) }
+
         override fun remove(id: String) = asked { instance.removeComposerFile(composition, id) }
     }
+
+/**
+ * A composer's files as the core last answered: what it opened holding (a forward's originals, a
+ * stored draft's own, a share's), then whatever each change answered. A refused change leaves them
+ * as they were, and without a core there are none and nothing changes them.
+ */
+@Stable
+internal class ComposerFilesState(private val list: ComposerFileList?) {
+    var files by mutableStateOf(list?.current() ?: NO_COMPOSER_FILES)
+        private set
+
+    /** Files ready at once, such as a dropped picture the person chose to attach. */
+    fun add(staged: List<ComposerFileAttachment>) {
+        if (staged.isNotEmpty()) {
+            answered(list?.add(staged))
+        }
+    }
+
+    /**
+     * Files the person chose that are still being copied: Attach runs from here until [finish]
+     * ends it, however little the copies brought (docs/waiting.md).
+     */
+    fun begin() = answered(list?.begin())
+
+    fun finish(staged: List<ComposerFileAttachment>) = answered(list?.finish(staged))
+
+    fun remove(id: String) = answered(list?.remove(id))
+
+    private fun answered(answer: ComposerFiles?) {
+        answer?.let { files = it }
+    }
+}
+
+@Composable
+internal fun rememberComposerFiles(list: ComposerFileList?): ComposerFilesState =
+    remember { ComposerFilesState(list) }
 
 private fun asked(call: () -> ComposerFiles): ComposerFiles? = try {
     call()

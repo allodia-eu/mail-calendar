@@ -1,7 +1,9 @@
 // The composer's files. The core holds them (docs/composer-layout.md, rule 3): the picker and a
 // drop add to them, a tile's Remove takes one off, and every change draws the tiles again from the
-// list the core answers with.
+// list the core answers with. Attach is drawn from the same answer, running while files the person
+// chose are still being read (docs/waiting.md).
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.Storage.Pickers;
@@ -12,11 +14,15 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class ComposerView
 {
+    /// <summary>What a composer the core cannot answer for draws: no files, and Attach free. The
+    /// total size has a default, so the C# binding puts it last and it is left out here.</summary>
+    private static readonly ComposerFiles NoFiles = new([], false, new ControlState(true, false));
+
     /// <summary>The list as the core last answered it: what the tiles show, and the files' half of
     /// whether anything was written (<see cref="ComposerFiles.Changed"/>).</summary>
     private ComposerFiles? _files;
 
-    private async void OnAttachFiles(object sender, RoutedEventArgs e)
+    private async void AttachFromPicker()
     {
         IReadOnlyList<PickFileResult> results;
         try
@@ -31,6 +37,11 @@ public sealed partial class ComposerView
             Log.Warn($"composer: attach picker failed ({ex.GetType().Name})");
             return;
         }
+        if (results.Count == 0)
+        {
+            return;
+        }
+        StartAttaching();
         var picked = new List<StorageFile>();
         foreach (var result in results)
         {
@@ -49,23 +60,47 @@ public sealed partial class ComposerView
                 Log.Warn($"composer: a picked file is unreadable ({ex.GetType().Name})");
             }
         }
-        await AttachAsync(picked);
+        await FinishAttachingAsync(picked);
     }
 
-    /// <summary>Hands <paramref name="files"/> to the core's list and draws what it answers.</summary>
-    /// <remarks>Off the UI thread: the core reads each file's size, and a file may sit on a network
-    /// share.</remarks>
-    private async Task AttachAsync(IEnumerable<StorageFile> files)
+    /// <summary>Hands <paramref name="files"/>, which are ready, to the core's list and draws what
+    /// it answers, Attach running while the core reads them.</summary>
+    private async Task AttachAsync(IReadOnlyList<StorageFile> files)
     {
-        var attachments = files
-            .Select(file => new ComposerFileAttachment(file.Path, file.Name, MediaType(file)))
-            .ToList();
-        if (_model is not { } model || attachments.Count == 0)
+        if (files.Count == 0)
         {
             return;
         }
+        StartAttaching();
+        await FinishAttachingAsync(files);
+    }
+
+    /// <summary>Starts an addition: Attach runs until <see cref="FinishAttachingAsync"/> ends it,
+    /// which is called exactly once for each start.</summary>
+    private void StartAttaching()
+    {
+        if (_model is { } model)
+        {
+            ShowFiles(model.BeginAddingComposerFiles(_composition));
+        }
+    }
+
+    /// <summary>Ends one addition with <paramref name="files"/>, none when nothing arrived.</summary>
+    /// <remarks>Off the UI thread: the core reads each file's size, and a file may sit on a network
+    /// share. Draws the list read afterwards rather than the call's own answer, because two
+    /// additions can end in either order and the one drawn last must be whole.</remarks>
+    private async Task FinishAttachingAsync(IEnumerable<StorageFile> files)
+    {
+        if (_model is not { } model)
+        {
+            return;
+        }
+        var attachments = files
+            .Select(file => new ComposerFileAttachment(file.Path, file.Name, MediaType(file)))
+            .ToList();
         var composition = _composition;
-        ShowFiles(await Task.Run(() => model.AddComposerFiles(composition, attachments)));
+        await Task.Run(() => model.FinishAddingComposerFiles(composition, attachments));
+        ShowFiles(model.ComposerFilesOf(composition));
     }
 
     private void RemoveFile(string file)
@@ -76,8 +111,8 @@ public sealed partial class ComposerView
         }
     }
 
-    /// <summary>Draws one tile per file. A call that failed answers <c>null</c> and leaves what is
-    /// drawn, which is still the core's last answer.</summary>
+    /// <summary>Draws one tile per file, and Attach. A call that failed answers <c>null</c> and
+    /// leaves what is drawn, which is still the core's last answer.</summary>
     private void ShowFiles(ComposerFiles? files)
     {
         if (files is null)
@@ -85,6 +120,9 @@ public sealed partial class ComposerView
             return;
         }
         _files = files;
+        AttachHost.Children.Clear();
+        AttachHost.Children.Add(ControlComponents.Button(
+            L10n.ActionAttach(), files.Attach, "ComposerAttach", AttachFromPicker));
         FileTiles.ItemsSource = files.Tiles
             .Select(tile => new ComposerFileTileView(tile, () => RemoveFile(tile.Id)))
             .ToList();

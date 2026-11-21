@@ -130,6 +130,11 @@ final class RichComposerEditor: NSObject {
     /// the web view exists.
     @ObservationIgnored var acceptDroppedFiles: (([URL]) -> Void)?
 
+    /// Starts the composer's wait while a drop on the message is copied, and answers with what
+    /// ends it. Set beside `acceptDroppedFiles`; only a touch drop is copied before it is handed
+    /// over.
+    @ObservationIgnored var startDropCopies: (() -> () -> Void)?
+
     /// The document as it stood once the bundle had loaded and the quoted original (if any) had
     /// been seeded, the "nothing written yet" baseline `bodyChangedFromSeed()` compares against.
     /// `nil` until the editor is ready, at which point nothing can have been typed into it.
@@ -159,6 +164,11 @@ final class RichComposerEditor: NSObject {
             (view as? EditorWebView)?.acceptDroppedFiles = { [weak self] urls in
                 self?.acceptDroppedFiles?(urls)
             }
+            #if os(iOS)
+            (view as? EditorWebView)?.startDropCopies = { [weak self] in
+                self?.startDropCopies?() ?? {}
+            }
+            #endif
             #if os(macOS)
             (view as? EditorWebView)?.columnTakesScroll = { [weak self] towardsEnd in
                 self?.columnTakesScroll(towardsEnd: towardsEnd) ?? false

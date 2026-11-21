@@ -22,19 +22,23 @@ import uniffi.mailcal_bindings.ComposerFileAttachment
 
 // The Attach action's picker. Each chosen document is copied (content resolver → app cache) off
 // the main thread, because a large selection would otherwise block the UI, and the result is
-// applied back on it. `onFailed` covers a selection that staged nothing at all.
+// applied back on it. `onStarted` is told as the copies begin and `onStaged` once they end, with
+// what was copied, however little; `onFailed` covers a selection that staged nothing at all.
 @Composable
 internal fun rememberAttachmentPicker(
+    onStarted: () -> Unit,
     onStaged: (List<ComposerFileAttachment>) -> Unit,
     onFailed: () -> Unit,
 ): ManagedActivityResultLauncher<Array<String>, List<Uri>> {
     val ctx = LocalContext.current
     return rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
+            onStarted()
             thread(name = "mailcal-stage-attachments") {
                 val staged = uris.mapNotNull { uri -> stageComposerFile(ctx, uri) }
                 Handler(Looper.getMainLooper()).post {
-                    if (staged.isEmpty()) onFailed() else onStaged(staged)
+                    onStaged(staged)
+                    if (staged.isEmpty()) onFailed()
                 }
             }
         }

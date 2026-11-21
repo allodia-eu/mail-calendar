@@ -53,6 +53,7 @@ class ComposerImportanceTest {
                 ComposerTopBar(
                     title = "New message",
                     onClose = {},
+                    attach = NO_COMPOSER_FILES.attach,
                     onAttach = {},
                     signatureMenu = null,
                     importanceMenu = { expanded, onExpand ->
