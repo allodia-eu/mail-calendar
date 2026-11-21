@@ -152,7 +152,8 @@ struct WritingStyleDetailView: View {
                         .accessibilityIdentifier("writingStyle.detail.name")
                 }
                 ControlButton(
-                    title: L10n.writing_style_rename(), control: detail.nameSave(name)
+                    title: L10n.writing_style_rename(), control: detail.rename,
+                    ready: refusal == nil && name != detail.name
                 ) {
                     problem = nil
                     model.changeWritingStyle(.rename(style: styleId, name: name))

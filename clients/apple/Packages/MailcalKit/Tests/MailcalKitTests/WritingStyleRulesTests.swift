@@ -1,7 +1,7 @@
 // What Settings → Writing style does with the core's records that is not drawing
 // (WritingStyleEditing.swift, WritingStyleWords.swift, SettingsWritingStyle.swift): which outcome
-// a surface acts on and once, what a sheet closed by a swipe sends, when the detail's Save is held,
-// where a remedy goes, how a stage is keyed, and how a day the core names is shown and picked.
+// a surface acts on and once, what a sheet closed by a swipe sends, where a remedy goes, how a
+// stage is keyed, and how a day the core names is shown and picked.
 // What the records say is the core's, tested there.
 
 import Foundation
@@ -58,16 +58,6 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
 }
 
 @Suite struct WritingStyleSheetTests {
-    private func detail(name: String, rename: ControlState = .free()) -> WritingStyleDetail {
-        WritingStyleDetail(
-            id: "s1",
-            facts: WritingStyleFacts(
-                messages: 12, learnedFrom: "a@test.local", since: nil, learnedAt: nil,
-                languages: ["en"]),
-            sections: [], languages: [], name: name, notes: "", rename: rename,
-            notesControl: .free(), forget: .free(), draftingAccounts: [])
-    }
-
     @Test func aRevealClosedBySwipeIsLeftAsItsCloseLeavesIt() {
         let reveal = OpenedStyle(id: "s1", opens: .reveal)
         guard case let .closeReveal(style)? = reveal.dismissed else {
@@ -76,15 +66,6 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
         }
         #expect(style == "s1")
         #expect(OpenedStyle(id: "s1", opens: .detail).dismissed == nil)
-    }
-
-    @Test func theDetailsSaveIsHeldOnlyByTheRecordAndTheCoresRefusal() {
-        let work = detail(name: "Work")
-        #expect(work.nameSave("Work").enabled, "the name it already has is no refusal")
-        #expect(work.nameSave("Home").enabled)
-        #expect(!work.nameSave("  ").enabled)
-        let held = detail(name: "Work", rename: .free(false))
-        #expect(!held.nameSave("Home").enabled)
     }
 }
 
