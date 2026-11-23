@@ -95,6 +95,8 @@ impl fmt::Debug for AppInput {
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::OpenAttachment { .. } => "OpenAttachment",
             Self::AttachmentSaved(_) => "AttachmentSaved",
+            Self::SaveAllAttachments { .. } => "SaveAllAttachments",
+            Self::AttachmentsSaved(_) => "AttachmentsSaved",
             Self::ExportMessage { .. } => "ExportMessage",
             Self::MessageExported(_) => "MessageExported",
             Self::PrintFailed => "PrintFailed",

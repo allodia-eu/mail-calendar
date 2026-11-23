@@ -56,6 +56,7 @@ import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.MessageScheme
 import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.ThreadMessage
+import uniffi.mailcal_bindings.attachmentsOfferSaveAll
 import uniffi.mailcal_bindings.messageCanvas
 
 // The header context for an opened message (the row the user tapped). The body itself is
@@ -180,6 +181,8 @@ internal fun ReadingScreen(
         attachmentId: UInt,
         destinationPath: String,
     ) -> Boolean,
+    // Every attachment into a folder: the paths written, or null when the save failed.
+    onSaveAllAttachments: (account: String, key: String, directoryPath: String) -> List<String>?,
     onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     onArchive: (account: String, key: String) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
@@ -216,6 +219,17 @@ internal fun ReadingScreen(
         pendingSave = null
         if (uri != null && attachment != null) {
             saveAttachmentTo(ctx, uri, message.account, message.key, attachment, onSaveAttachment)
+        }
+    }
+    var savingAll by remember(message.key) { mutableStateOf(false) }
+    val saveAllAttachments = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { tree ->
+        if (tree != null) {
+            savingAll = true
+            saveAllAttachmentsTo(ctx, tree, message.account, message.key, onSaveAllAttachments) {
+                savingAll = false
+            }
         }
     }
     // This screen renders outside the Scaffold (which would pad its content), so it must clear
@@ -334,6 +348,9 @@ internal fun ReadingScreen(
         if (body != null && body.attachments.isNotEmpty()) {
             AttachmentList(
                 attachments = body.attachments,
+                offerSaveAll = attachmentsOfferSaveAll(body.attachments.size.toUInt()),
+                savingAll = savingAll,
+                onSaveAll = { saveAllAttachments.launch(null) },
                 onSave = { attachment ->
                     pendingSave = attachment
                     saveAttachment.launch(attachment.fileName.ifEmpty { "attachment" })

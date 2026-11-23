@@ -23,7 +23,7 @@ mod print;
 mod scheme;
 
 use self::{
-    attachments::attachment_row,
+    attachments::{attachment_row, save_all_button},
     canvas as reading_canvas,
     header::ActionRow,
     overflow::{ExportName, export_name_for},
@@ -412,6 +412,11 @@ impl ReadingPane {
         let group = adw::PreferencesGroup::builder()
             .title(l10n::attachments_title())
             .build();
+        if mailcal_bindings::save::attachments_offer_save_all(
+            u32::try_from(rows.len()).unwrap_or(u32::MAX),
+        ) {
+            group.set_header_suffix(Some(&save_all_button(&self.window, &self.source, sender)));
+        }
         for attachment in rows {
             group.add(&attachment_row(
                 attachment,

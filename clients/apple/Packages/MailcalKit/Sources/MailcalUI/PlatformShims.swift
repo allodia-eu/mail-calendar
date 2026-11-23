@@ -116,8 +116,13 @@ extension UIViewController: PresentationChainNode {
 /// a way to look at it.
 enum PlatformShare {
     @MainActor static func present(_ url: URL) {
+        present([url])
+    }
+
+    /// One sheet for several files, so "Save to Files" puts them all in one folder at once.
+    @MainActor static func present(_ urls: [URL]) {
         guard let host = topPresentedViewController() else { return }
-        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
         if let pop = sheet.popoverPresentationController {
             pop.sourceView = host.view
             pop.sourceRect = CGRect(x: host.view.bounds.midX, y: host.view.bounds.midY, width: 0, height: 0)

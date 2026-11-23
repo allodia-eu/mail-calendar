@@ -248,6 +248,23 @@ impl AppModel {
             } => {
                 self.open_attachment(&source, id, &file_name, sender.input_sender().clone());
             }
+            AppInput::SaveAllAttachments {
+                source,
+                directory,
+                done,
+            } => {
+                self.save_all_attachments(&source, directory, done, sender.input_sender().clone());
+            }
+            AppInput::AttachmentsSaved(saved) => {
+                self.notice = Some(
+                    if saved {
+                        l10n::attachments_saved()
+                    } else {
+                        l10n::attachments_save_failed()
+                    }
+                    .to_owned(),
+                );
+            }
             AppInput::AttachmentSaved(saved) => {
                 self.notice = Some(
                     if saved {

@@ -305,6 +305,33 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
+    /// Write every attachment of a message into a folder the user picked
+    /// (docs/reading-actions.md). The core numbers a name the folder already holds and removes
+    /// what it wrote when a write fails.
+    /// </summary>
+    internal bool SaveAllAttachments(string account, string key, string directoryPath)
+    {
+        if (_app is null)
+        {
+            return false;
+        }
+        try
+        {
+            _app.SaveAllAttachments(account, key, directoryPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"save all attachments failed: {ex.GetType().Name}");
+            return false;
+        }
+    }
+
+    /// <summary>Whether the reading view offers Save all over this many attachments.</summary>
+    public static bool OffersSaveAll(int attachmentCount) =>
+        MailcalBindingsMethods.AttachmentsOfferSaveAll((uint)attachmentCount);
+
+    /// <summary>
     /// Write one message out as the bytes that were delivered, at a host-selected path
     /// (docs/reading-actions.md).
     /// </summary>

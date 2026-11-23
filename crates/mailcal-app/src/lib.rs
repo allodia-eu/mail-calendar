@@ -102,6 +102,7 @@ mod recipients;
 mod reference;
 mod reset;
 mod row_cache;
+pub mod save_all;
 mod scope;
 mod send_settings;
 mod sender_identity;

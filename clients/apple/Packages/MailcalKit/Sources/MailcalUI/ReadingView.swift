@@ -125,6 +125,9 @@ struct ReadingView: View {
     /// Save spin independently. Not `private`, see `attachmentError`.
     @State var openingIDs: Set<UInt32> = []
     @State var savingIDs: Set<UInt32> = []
+    /// Whether Save all is writing, so its button spins and ignores re-taps. Not `private`, see
+    /// `attachmentError`.
+    @State var savingAll = false
     /// Whether the overflow's popover is open. Not `private`, see `attachmentError`.
     @State var overflowOpen = false
     /// Whether an export is in flight, so the overflow button spins and the item ignores

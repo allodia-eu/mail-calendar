@@ -68,6 +68,72 @@ pub(super) fn attachment_row(
     row
 }
 
+/// Save all, in the attachment group's header: every file into a folder the user picks. From the
+/// folder being chosen until the files are written it holds, with a spinner beside its label
+/// (`../../../docs/waiting.md`).
+pub(super) fn save_all_button(
+    window: &gtk::Window,
+    source: &ReadingSource,
+    sender: &relm4::Sender<AppInput>,
+) -> gtk::Button {
+    let button = gtk::Button::with_label(l10n::action_save_all());
+    // Its child is swapped while it runs, so the name is set rather than read from a label.
+    button.update_property(&[AccessibleProperty::Label(l10n::action_save_all())]);
+    button.set_valign(gtk::Align::Center);
+    let input_sender = sender.clone();
+    // Weak: the window holds this button.
+    let parent = window.downgrade();
+    let reader = source.clone();
+    button.connect_clicked(move |button| {
+        let Some(parent) = parent.upgrade() else {
+            return;
+        };
+        let dialog = gtk::FileDialog::new();
+        let input_sender = input_sender.clone();
+        let source = reader.clone();
+        let button = button.downgrade();
+        glib::MainContext::default().spawn_local(async move {
+            let Ok(folder) = dialog.select_folder_future(Some(&parent)).await else {
+                return;
+            };
+            let Some(directory) = folder.path() else {
+                return;
+            };
+            let (done, finished) = futures::channel::oneshot::channel();
+            if let Some(button) = button.upgrade() {
+                show_running(&button, true);
+            }
+            input_sender.emit(AppInput::SaveAllAttachments {
+                source,
+                directory,
+                done,
+            });
+            let _ = finished.await;
+            // The pane may have moved to another message meanwhile and dropped this button.
+            if let Some(button) = button.upgrade() {
+                show_running(&button, false);
+            }
+        });
+    });
+    button
+}
+
+/// Draws Save all as running (held, a spinner before its label) or as it was.
+fn show_running(button: &gtk::Button, running: bool) {
+    let text = gtk::Label::new(Some(l10n::action_save_all()));
+    if running {
+        let spinner = adw::Spinner::new();
+        spinner.set_valign(gtk::Align::Center);
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        content.append(&spinner);
+        content.append(&text);
+        button.set_child(Some(&content));
+    } else {
+        button.set_child(Some(&text));
+    }
+    button.set_sensitive(!running);
+}
+
 /// One attachment's Open or Save, named for the file it acts on.
 ///
 /// A message can carry several, so the bare verb is the same word repeated down the list; and it

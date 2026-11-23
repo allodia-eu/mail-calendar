@@ -120,6 +120,39 @@ dispatch → snapshot loop never sees it.
 message whose body has been read exports with no network at all; one that has not been opened
 since a size cap dropped its source will fetch it.
 
+## Saving every attachment
+
+**Save all sits in the attachment list's header**, beside its title, as an ordinary button of the
+same size as each file's Save. It is offered from **two files up**, which the core decides
+(`attachments_offer_save_all`): with one file, the Save beside it already does exactly this.
+
+**The core writes the files** (`save_all_attachments`), into a folder the host names, and returns
+the paths it wrote in the order the list shows them. The bytes never cross the FFI.
+
+- **Each file keeps the sender's name**, made safe for a filesystem by the same normalisation a
+  composer attachment gets: no separators, no control or bidirectional characters, bounded length.
+- **Nothing in the folder is written over.** A name already taken, by a file that was there or by
+  an earlier attachment of the same name, is numbered before its extension (`scan (2).pdf`), as a
+  file manager names a second copy. Each file is created exclusively, so one that appears between
+  the check and the write is not truncated either.
+- **All or nothing.** Every file is decoded before the first is written, and a write that fails
+  removes what the save already wrote: a folder never holds part of a message's files with
+  nothing saying which part.
+
+**The host chooses where**, as it does for one file. A folder picker on the desktops, written into
+directly. On iPhone and iPad the files go into a staging folder of the app's own and then to **one
+share sheet**, whose "Save to Files" takes them all to one folder. Android has no path the core can
+write to in a picked folder, so the core writes into a staging folder and the client copies each
+file into a document it creates in the picked tree, under the same name; that copy is all or
+nothing too.
+
+**The button shows it is working** from the moment a folder is chosen until the files are written,
+as each file's Save does ([`waiting.md`](waiting.md)), and a failure is reported with
+`attachments_save_failed` wherever that client reports a failed attachment save. Success is
+announced (`attachments_saved`) only where a single save is: on Android and Linux.
+
+It is not an `Intent`, for the reason exporting is not one.
+
 ## Printing a message
 
 **The page is built once, in the core**, through `render_message_print_html`: the subject, then the
@@ -166,6 +199,9 @@ It is not an `Intent`, for the reason exporting is not one.
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |
 | Print | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Save all attachments, from two files up | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Save all destination | folder picker | share sheet | folder picker | folder picker, copied in | folder dialog |
+| Save all shows it is working | spinner | spinner | spinner | spinner | spinner |
 | Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `PrintManager`, with preview | `PrintManager` | `WebKitPrintOperation`, through the print portal in the Flatpak |
 
 ## Known gaps

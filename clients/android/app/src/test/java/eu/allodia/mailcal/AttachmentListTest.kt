@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertTrue
@@ -60,6 +61,28 @@ class AttachmentListTest {
         // reachable as the first. Without this a "fix" that merely clipped the list would pass.
         show(20)
         rule.onNodeWithText("quote-20.csv").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun saveAllIsDrawnWhenTheCoreOffersIt() {
+        var pressed = false
+        rule.setContent {
+            AttachmentList(
+                attachments = files(2),
+                onSave = {},
+                onOpen = {},
+                offerSaveAll = true,
+                onSaveAll = { pressed = true },
+            )
+        }
+        rule.onNodeWithText("Save all").performClick()
+        assertTrue("Save all reached nothing", pressed)
+    }
+
+    @Test
+    fun saveAllIsAbsentWhenTheCoreDoesNotOfferIt() {
+        show(1)
+        rule.onNodeWithText("Save all").assertDoesNotExist()
     }
 
     @Test

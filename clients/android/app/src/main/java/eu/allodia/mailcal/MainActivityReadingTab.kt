@@ -82,6 +82,14 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     false
                                 }
                             },
+                            onSaveAllAttachments = { account, key, directoryPath ->
+                                try {
+                                    instance.saveAllAttachments(account, key, directoryPath)
+                                } catch (e: MailcalException) {
+                                    Log.w(TAG, "save all attachments failed: ${e.javaClass.simpleName}")
+                                    null
+                                }
+                            },
                             onExportMessage = { account, key, destinationPath ->
                                 try {
                                     instance.saveMessageSource(account, key, destinationPath)

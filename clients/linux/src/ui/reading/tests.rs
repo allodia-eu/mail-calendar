@@ -123,6 +123,11 @@ pub(crate) fn the_attachment_rows_sit_in_a_list() {
         rendered.iter().any(|text| text == "Q4 report.pdf"),
         "{rendered:?}"
     );
+    // Two files: the core offers Save all, in the group's header.
+    assert!(
+        rendered.iter().any(|text| text == l10n::action_save_all()),
+        "{rendered:?}"
+    );
     crate::ui::mailbox::tests::every_row_belongs_to_a_list(pane.widget().upcast_ref());
 }
 
