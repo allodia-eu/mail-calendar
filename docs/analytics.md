@@ -115,8 +115,17 @@ Every client meets all of these:
   anything; the decision is taken once, on "Get started". Under Art. 5(3) the *act* of storing the
   install id is what needs consent, so it may not precede the affirmative action.
 - **"See exactly what we send"**: the consent screen shows the literal JSON from
-  `analytics_payload_preview()`, built from the *same type* the sink serializes, so what the user
-  reads is what actually goes on the wire. **This holds in a build with no relay too**
+  `analytics_payload_preview()`, built from the *same type* the sink serialises, so what the user
+  reads is what actually goes on the wire. It is **one batch holding every kind of event** the app
+  can send, under this device's context: an event that names a feature or a protocol appears once
+  for each one, a duration shows one bucket, and the settings are this device's own. The app sends
+  each event in a batch of its own, under the same context. The events come from `EventKind::ALL`
+  and the label enums' `ALL`, so a kind or a label added to the code is on the screen with no other
+  change; `the_payload_preview_shows_every_kind_and_every_label` holds the preview to every kind,
+  every feature, every protocol and every key in `PROPERTY_KEYS`, and
+  `the_payload_preview_matches_what_actually_goes_on_the_wire` finds every event actually sent in
+  it. A client draws the string as it comes, monospaced, unwrapped and scrolling, and builds or
+  filters nothing of its own. **This holds in a build with no relay too**
   (`Telemetry::unsent`, not `Telemetry::off`): a build that cannot send still knows its device, and
   a hollow preview (`os_version: "0"`, `device_class: "unknown"`) would be a lie told on the one
   screen whose whole purpose is not to tell one.
@@ -178,7 +187,7 @@ and a what's-new, show them as separate steps with the consent first, alone.
 | Reported at | `MailcalApp.newAccounts` / `newBackgroundWorker` | `MailcalApp.NewAccounts` | `MailcalApp.newAccounts` / `newBackgroundWorker` | ✅ `MailcalApp::new_accounts` |
 | Welcome / consent screen | ✅ `WelcomeView.swift` (shared macOS + iOS + iPadOS) | ✅ `Views/WelcomeView.xaml` | ✅ `WelcomeScreen.kt` | ✅ `ui/welcome.rs`, ahead of setup |
 | Settings → Privacy toggle | ✅ `AnalyticsSettings.swift`, mounted by `SettingsCategoryDetail` (every Apple platform) | ✅ `Dialogs/SettingsDialog.Privacy.cs` | ✅ `AnalyticsConsentUi.kt`, mounted by `SettingsScreen.kt` | ✅ `ui/settings/pages.rs` |
-| Payload preview panel | ✅ `AnalyticsPayloadPanel` (shared by both surfaces) | ✅ inline reveal (a nested `ContentDialog` is not allowed) | ✅ `AnalyticsPayloadPanel` | ✅ modal, shared core JSON |
+| Payload preview panel (the core's string, unchanged) | ✅ `AnalyticsPayloadPanel` (shared by both surfaces), inside the page's vertical scroll | ✅ inline reveal (a nested `ContentDialog` is not allowed), inside the page's vertical scroll | ✅ `AnalyticsPayloadPanel`, inside the page's vertical scroll | ✅ modal with its own scrolled view |
 | Launch reported | ✅ `reportAppOpened()` in `MailcalModel.connect` | ✅ `ReportAppOpened()` in `ConnectAsync` | ✅ `reportAppOpened()` in `connect()` | ✅ after stored or first-run choice |
 | Consent storage | core `preferences.toml` (shared, no per-client store) | same | same | same |
 | Driven end to end | ✅ macOS (AX API) · iOS + iPadOS (`idb`, simulator) | ✅ Windows 11 arm64 (UIA) | ✅ emulator + 60 JVM tests | ✅ GNOME 50 runtime (AT-SPI) |
