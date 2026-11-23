@@ -11,8 +11,8 @@ app zich installeert, hebben wij helemaal niets van je.
 
 - **Je e-mail blijft tussen je apparaat en je provider.** Wij zitten niet in dat pad en kunnen je
   e-mail, je afspraken en je inloggegevens niet lezen. De enige uitzondering is een verzoek dat je
-  zelf start via de dienst van onze schrijfassistent: dat gaat via onze servers naar een
-  AI-aanbieder in de EU en wordt niet bewaard (§5.2).
+  zelf start via de dienst van onze schrijfassistent: dat gaat via onze servers en een EU-router
+  naar een AI-aanbieder in de EU, en de inhoud ervan wordt niet bewaard (§5.2).
 - **Standaard stuurt de app ons niets**: geen telemetrie, geen crashrapporten, geen identifiers,
   zelfs niet het feit dát je de app hebt geïnstalleerd.
 - **Drie dingen kunnen ons bereiken, elk alleen als jij daarvoor kiest:** een Allodia-account (§4),
@@ -129,8 +129,9 @@ later in **Instellingen → Allodia-account**.
 apparaat bent ingelogd: de lijst met e-mailaccounts daarop, per account het e-mailadres, de
 servernamen en poorten, de gebruikersnaam en de verbindingsinstellingen. Hoort de schrijfassistent
 bij je account, dan ook dát hij erbij hoort en, zodra je onze dienst ervoor gebruikt, het tegoed aan
-credits waar zijn verzoeken van afgaan (§5.2). Koop je een abonnement, dan wat §7 noemt. Meer is
-het niet, en de app doet geen ander verzoek aan ons.
+credits waar zijn verzoeken van afgaan en een gebruiksregistratie van elk verzoek, bewaard onder de
+identificatie van je account en nooit onder je e-mailadres (§5.2). Koop je een abonnement, dan wat
+§7 noemt. Meer is het niet, en de app doet geen ander verzoek aan ons.
 
 **Wat wij nooit hebben.** Je e-mail, een postvak, of een wachtwoord of token voor je provider: die
 blijven in je sleutelopslag, zodat een nieuw apparaat je accounts invult en je nog steeds om elk
@@ -150,7 +151,8 @@ inloggen gebeurt zonder derde partij.
 **Hoe lang, en hoe je stopt.** Tot het account wordt verwijderd. Uitloggen in Instellingen →
 Allodia-account wist de inlog van dat apparaat; je e-mailaccounts blijven erop staan, en de lijst
 blijft bij je account. **Instellingen → Allodia-account → Account verwijderen** verwijdert het
-account en alles wat wij erin hebben: het opent je accountpagina, ook te vinden op
+account en wat wij erin hebben, behalve de gegevens van de schrijfassistent, die op verzoek worden
+gewist (§5.2): het opent je accountpagina, ook te vinden op
 **https://mailcal.allodia.eu/account** op elk apparaat zonder de app, waar je inlogt en het
 bevestigt. Of mail **info@allodia.eu**.
 
@@ -206,11 +208,12 @@ adresboek.
   is wat er daar gebeurt aan wie hem beheert. De sleutel blijft in je sleutelopslag en gaat alleen
   naar de server waarvoor hij is opgegeven.
 - **De dienst van Allodia**, als je geen eigen endpoint hebt en bent ingelogd op een Allodia-account
-  waar de schrijfassistent bij hoort. Het verzoek gaat naar onze servers in de EU, die het doorgeven
-  aan een AI-aanbieder in de EU, beheerd door een Europees bedrijf, die onze dienst kiest. Allodia
-  bewaart niets van het verzoek of het antwoord en legt geen inhoud vast: alleen het soort verzoek,
-  de grootte, hoe lang het duurde en de credits die het kostte, afgeschreven van het tegoed van je
-  account.
+  waar de schrijfassistent bij hoort. Het verzoek gaat naar onze servers in de EU, die het via
+  **EU-router B.V.** (Nederland), een router die het namens ons verwerkt, doorgeven aan een
+  AI-aanbieder in de EU, beheerd door een Europees bedrijf, die onze dienst kiest. Allodia bewaart
+  niets van het verzoek of het antwoord en legt geen inhoud vast. Van elk verzoek bewaart het een
+  gebruiksregistratie: het model en de aanbieder die antwoordden, de gebruikte tokens en credits,
+  hoe lang het duurde, wanneer, en de identificaties die de registratie aan je tegoed koppelen.
 
 **Gecontroleerd voordat er iets wordt gelezen.** Voordat de app je verzonden e-mail of het bericht
 waarop je antwoordt leest, en opnieuw vóór elk verzoek, controleert hij de bestemming: alleen een
@@ -238,8 +241,9 @@ lid 1, onder b). De persoonsgegevens van de afzender in het bericht waarop je an
 gerechtvaardigd belang, namelijk jouw belang om je eigen e-mail te beantwoorden (art. 6, lid 1,
 onder f). Met een eigen endpoint verwerkt Allodia niets, en geldt er dus geen grondslag van ons.
 
-**Hoe lang, en hoe je stopt.** Een verzoek wordt niet bewaard; het tegoed aan credits blijft tot je
-Allodia-account wordt verwijderd. Een stijl vergeten haalt hem van je apparaat, en je endpoint
+**Hoe lang, en hoe je stopt.** De inhoud van een verzoek wordt niet bewaard. Het tegoed aan
+credits en de gebruiksregistraties worden bewaard zolang je Allodia-account bestaat, en op verzoek
+gewist: mail **info@allodia.eu**. Een stijl vergeten haalt hem van je apparaat, en je endpoint
 verwijderen haalt het adres, het model en de sleutel weg.
 
 ## 6. Gebruiksstatistieken (optioneel)
@@ -366,8 +370,8 @@ contactformulier valt onder §8.
 |---|---|---|
 | Je e-mail, afspraken, contacten, instellingen, handtekeningen, schrijfstijlen, diagnostisch logboek | Tot je het verwijdert, of de gegevens van de app of de app zelf | Je apparaat |
 | Je Allodia-account en de lijst met e-mailaccounts (§4) | Tot het account wordt verwijderd | Servers beheerd door Allodia, EU |
-| Een verzoek aan de dienst van onze schrijfassistent (§5.2) | Niet bewaard | Via servers beheerd door Allodia, EU, doorgegeven aan een AI-aanbieder in de EU |
-| Het tegoed aan credits van de schrijfassistent, zodra je onze dienst gebruikt (§5.2) | Tot je Allodia-account wordt verwijderd | Servers beheerd door Allodia, EU |
+| De inhoud van een verzoek aan de dienst van onze schrijfassistent (§5.2) | Niet bewaard | Via servers beheerd door Allodia, EU, en EU-router B.V., NL, doorgegeven aan een AI-aanbieder in de EU |
+| Het tegoed aan credits en de gebruiksregistraties van de schrijfassistent, zodra je onze dienst gebruikt (§5.2) | Zolang je Allodia-account bestaat; op verzoek gewist | Servers beheerd door Allodia, EU |
 | Gebruiksstatistieken, als je ervoor kiest (§6) | Tot je ze intrekt, maximaal 24 maanden | Servers beheerd door Allodia, EU |
 | Een abonnement dat je bij ons koopt, en de betaalgeschiedenis ervan (§7) | Tot je account wordt verwijderd, facturen uitgezonderd | Servers beheerd door Allodia, EU; betalingen door Mollie, NL |
 | Een abonnement gekocht bij Apple of Google, en de referentie van de store (§7) | Tot je account wordt verwijderd | Servers beheerd door Allodia, EU |

@@ -11,8 +11,8 @@ app installs, we hold nothing about you.
 
 - **Your mail stays between your device and your provider.** We are not in that path and cannot
   read your mail, events or credentials. The one exception is a request you start through our
-  writing assistant service, which passes through our servers to an AI provider in the EU and is
-  not kept (§5.2).
+  writing assistant service, which passes through our servers and an EU router to an AI provider
+  in the EU, and whose content is not kept (§5.2).
 - **By default the app sends us nothing**: no telemetry, no crash reports, no identifiers, not even
   the fact that you installed it.
 - **Three things can reach us, each only if you choose it:** an Allodia account (§4), requests to
@@ -118,7 +118,8 @@ Allodia account**.
 are signed in on a device, the list of mail accounts on it: for each, the email address, server
 names and ports, user name and connection settings. If your account includes the writing
 assistant, also that it does and, once you use our service for it, the balance of credits its
-requests draw on (§5.2). If you buy a subscription, what §7 lists. Nothing else, and the app
+requests draw on and a usage record of each request, held under your account's identifier and
+never your email address (§5.2). If you buy a subscription, what §7 lists. Nothing else, and the app
 makes no other request to us.
 
 **What we never hold.** Your mail, a mailbox, or a password or token for your provider: those stay
@@ -138,9 +139,10 @@ signing in directly involves no third party.
 
 **How long, and how to stop.** Until the account is deleted. Signing out in Settings → Allodia
 account erases the sign-in from that device; your mail accounts stay on it, and the list stays with
-your account. **Settings → Allodia account → Delete account** deletes the account and everything we
-hold in it: it opens your account page, also at **https://mailcal.allodia.eu/account** on any
-device without the app, where you sign in and confirm. Or write to **info@allodia.eu**.
+your account. **Settings → Allodia account → Delete account** deletes the account and what we hold
+in it, apart from the writing assistant's records, which are erased on request (§5.2): it opens your
+account page, also at **https://mailcal.allodia.eu/account** on any device without the app, where
+you sign in and confirm. Or write to **info@allodia.eu**.
 
 ## 5. AI
 
@@ -189,10 +191,12 @@ and never your address book.
   request goes there and nowhere else, Allodia is not in that path, and what happens there is up to
   whoever runs it. Its key stays in your keystore and goes only to the server it was given for.
 - **Allodia's service**, when you have no endpoint of your own and are signed in to an Allodia
-  account that includes it. The request goes to our servers in the EU, which pass it to an AI
-  provider in the EU, run by a European company, that our service chooses. Allodia keeps nothing of
-  the request or the answer and logs no content: only the kind of request, its size, how long it
-  took and the credits it used, drawn from your account's balance.
+  account that includes it. The request goes to our servers in the EU, which pass it through
+  **EU-router B.V.** (the Netherlands), a router that processes it on our behalf, to an AI provider
+  in the EU, run by a European company, that our service chooses. Allodia keeps nothing of the
+  request or the answer and logs no content. Of each request it keeps a usage record: the model
+  and provider that answered, the tokens and credits used, how long it took, when, and the ids that
+  tie the record to your balance of credits.
 
 **Checked before anything is read.** Before the app reads your sent mail or the message you are
 answering, and again before each request, it checks the destination: only a service processing in
@@ -216,9 +220,10 @@ mark, only the device that sent or saved the reply knows. Nothing about the mark
 interest in replying to your own mail (Art. 6(1)(f)). With an endpoint of your own Allodia
 processes nothing, so no legal basis of ours applies.
 
-**How long, and how to stop.** A request is not kept; the balance of credits stays until your
-Allodia account is deleted. Forgetting a style removes it from your device, and removing your
-endpoint removes its address, model and key.
+**How long, and how to stop.** A request's content is not kept. The balance of credits and the
+usage records are kept while your Allodia account exists, and erased on request: write to
+**info@allodia.eu**. Forgetting a style removes it from your device, and removing your endpoint
+removes its address, model and key.
 
 ## 6. Usage statistics (optional)
 
@@ -334,8 +339,8 @@ ask first. It is hosted in the Netherlands and Germany. Its contact form is cove
 |---|---|---|
 | Your mail, events, contacts, settings, signatures, writing styles, diagnostic log | Until you delete it, the app's data or the app | Your device |
 | Your Allodia account and its mail-account list (§4) | Until the account is deleted | Allodia-operated servers, EU |
-| A request to our writing assistant service (§5.2) | Not kept | Passed through Allodia-operated servers, EU, to an AI provider in the EU |
-| The writing assistant's balance of credits, once you use our service (§5.2) | Until your Allodia account is deleted | Allodia-operated servers, EU |
+| The content of a request to our writing assistant service (§5.2) | Not kept | Passed through Allodia-operated servers, EU, and EU-router B.V., NL, to an AI provider in the EU |
+| The writing assistant's balance of credits and usage records, once you use our service (§5.2) | While your Allodia account exists; erased on request | Allodia-operated servers, EU |
 | Usage statistics, if you opt in (§6) | Until you withdraw, at most 24 months | Allodia-operated servers, EU |
 | A subscription bought from us, and its payment history (§7) | Until your account is deleted, invoices excepted | Allodia-operated servers, EU; payments by Mollie, NL |
 | A subscription bought from Apple or Google, and the store's reference (§7) | Until your account is deleted | Allodia-operated servers, EU |
