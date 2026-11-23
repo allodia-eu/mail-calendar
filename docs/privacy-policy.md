@@ -406,6 +406,12 @@ Microsoft as a category, named "Writing assistant", which you see there. Where a
 such mark, only the device that sent or saved the reply knows. The mark is stored with your mail at
 your provider, and nothing about it is sent to Allodia.
 
+**Why we may process it.** A request through Allodia's service is processed to give you what you
+asked for: performance of our contract with you (GDPR Art. 6(1)(b)). The message you are answering
+carries its sender's personal data, which we process on the basis of legitimate interest: your
+interest in replying to your own mail (Art. 6(1)(f)). With an endpoint of your own, Allodia
+processes nothing of a request, so no legal basis of ours applies.
+
 ## 8. When you contact us
 
 If you email us (e.g. **info@allodia.eu**), we process what you send, namely your address,

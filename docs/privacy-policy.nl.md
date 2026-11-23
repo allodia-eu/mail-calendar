@@ -438,6 +438,13 @@ categorie, met de naam "Writing assistant", die je daar ziet. Waar een server zo
 bewaart, weet alleen het apparaat dat het antwoord verstuurde of opsloeg ervan. De markering wordt
 bij je e-mail bij je provider bewaard, en er gaat daarover niets naar Allodia.
 
+**Waarom we het mogen verwerken.** Een verzoek via de dienst van Allodia wordt verwerkt om je te
+geven waar je om vroeg: uitvoering van onze overeenkomst met jou (AVG art. 6, lid 1, onder b). Het
+bericht waarop je antwoordt, bevat persoonsgegevens van de afzender, die we verwerken op grond van
+gerechtvaardigd belang: jouw belang om je eigen e-mail te beantwoorden (art. 6, lid 1, onder f).
+Met een eigen endpoint verwerkt Allodia niets van een verzoek, en geldt er dus geen grondslag van
+ons.
+
 ## 8. Als je contact met ons opneemt
 
 Als je ons mailt (bijvoorbeeld naar **info@allodia.eu**), verwerken we wat je stuurt, namelijk
