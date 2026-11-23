@@ -246,7 +246,9 @@ verwijderen haalt het adres, het model en de sleutel weg.
 
 **Of je ze deelt.** Bij de eerste start vraagt de app het. De schakelaar staat **uit**: er wordt
 niets opgeslagen of verstuurd tenzij je hem aanzet en bevestigt, en een nee wordt onthouden. Het
-toestemmingsscherm toont een batch precies zoals die wordt verstuurd.
+toestemmingsscherm toont de gegevens precies zoals ze worden verstuurd: je apparaat en accountvorm,
+hoe je instellingen staan, en een voorbeeld van elke soort gebeurtenis hieronder, met elke functie
+en elke protocolsoort op de lijst. Het is doorslaggevend boven deze samenvatting.
 
 **Wat er wordt verstuurd als je ervoor kiest.** Elke rij is één soort gegevens.
 
@@ -287,9 +289,9 @@ te wissen wat onder dat id is opgeslagen (art. 17).
 
 **Wat er kan bijkomen.** Van tijd tot tijd voegen we labels toe binnen deze soorten, zoals een
 instelling in de rij Instellingen, onder dezelfde regels: een label uit een vaste lijst, over hoe de
-app wordt gebruikt, nooit inhoud en nooit iets wat jou identificeert. Deze tabel wordt bij elk label
-bijgewerkt. De app vraagt je opnieuw om toestemming voordat hij een nieuwe soort gegevens verstuurt,
-een nieuwe rij.
+app wordt gebruikt, nooit inhoud en nooit iets wat jou identificeert. Elk label verschijnt op het
+toestemmingsscherm en in deze tabel. De app vraagt je opnieuw om toestemming voordat hij een nieuwe
+soort gegevens verstuurt, een nieuwe rij.
 
 ## 7. Betalen, en de appstores
 

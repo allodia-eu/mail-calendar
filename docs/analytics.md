@@ -340,10 +340,8 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you change ana
    `SettingsSnapshot` or an `AccountMix` flag, keeps the consent as given and lands in one change
    with: its key in `PROPERTY_KEYS` **and** the relay's ingest whitelist (or it is rejected at
    ingest), and the policy's table and version line in every locale. The payload preview follows on
-   its own, being the `Batch` type the sink serialises, but it holds only the batch context and an
-   `app_opened` event: a label on any other event reaches the person through the policy's table
-   alone. A row the table does not have is a new category: it bumps `NOTICE_VERSION`, and rule 5
-   applies.
+   its own and shows every kind of event and every label ("See exactly what we send", above). A row
+   the table does not have is a new category: it bumps `NOTICE_VERSION`, and rule 5 applies.
 4. A new platform ships the consent screen, the Settings toggle, and the payload preview **before**
    it ships to users; any shortfall goes under "Known gaps" with a follow-up, never left silent.
 5. **A new data *category* re-opens the store declarations** ("The store privacy declarations"

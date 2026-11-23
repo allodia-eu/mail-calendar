@@ -223,8 +223,10 @@ endpoint removes its address, model and key.
 ## 6. Usage statistics (optional)
 
 **Whether.** At first start the app asks. The switch is **off**: nothing is stored or sent unless
-you switch it on and confirm, and a no is remembered. The consent screen shows a batch exactly as
-it is sent.
+you switch it on and confirm, and a no is remembered. The consent screen shows the data exactly as
+it is sent: your device and account shape, how your settings are set, and an example of every kind
+of event below, with every feature and protocol kind on its list. It is authoritative over this
+summary.
 
 **What is sent if you opt in.** Each row is one kind of data.
 
@@ -263,8 +265,8 @@ everything held under that id (Art. 17).
 
 **What may be added.** From time to time we add labels within these kinds, such as a setting to
 the settings row, under the same rules: a label from a fixed list, about how the app is used, never
-content and never anything that identifies you. This table is updated with each one. The app asks
-for your consent again before it sends a new kind of data, a new row.
+content and never anything that identifies you. Each one appears on the consent screen and in this
+table. The app asks for your consent again before it sends a new kind of data, a new row.
 
 ## 7. Paying, and the app stores
 
