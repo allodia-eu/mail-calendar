@@ -150,20 +150,31 @@ fn each_state_says_what_it_is_among_the_notes() {
         .emit_clicked();
 
     // A reason the person can act on is said in the input, so the notes say nothing of it; the
-    // one they cannot act on is a line here.
+    // one they cannot act on is a line here. Both records as the core sends them: each names its
+    // reason in `held_by`, and only the second holds the control.
+    let learn = Some(AiRemedyControl {
+        remedy: AiRemedy::LearnStyle,
+        control: FREE,
+    });
     let held = ComposerReplyDraft {
+        draft: HELD,
         held_by: Some(ReplyDraftHold {
             failure: AiFailure::NoStyle,
-            remedy: None,
+            remedy: learn,
         }),
         ..record(ReplyDraftState::Unavailable {
             failure: AiFailure::NoStyle,
-            remedy: None,
+            remedy: learn,
         })
     };
     assert!(!drawn(&held, &asked).is_visible());
     let gone = ComposerReplyDraft {
         control: HELD,
+        draft: HELD,
+        held_by: Some(ReplyDraftHold {
+            failure: AiFailure::MessageGone,
+            remedy: None,
+        }),
         ..record(ReplyDraftState::Unavailable {
             failure: AiFailure::MessageGone,
             remedy: None,
