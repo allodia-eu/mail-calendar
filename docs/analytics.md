@@ -252,14 +252,14 @@ Four judgment calls, so nobody has to make them twice:
   returns early unless consent is live, so the app behaves identically for every user who declines.
   Claiming App Functionality would assert the payload is needed to make the app work, which is both
   untrue and in tension with the opt-in model.
-- **Not linked to identity, even though §5 of the privacy policy calls the install id personal
+- **Not linked to identity, even though §6 of the privacy policy calls the install id personal
   data.** These answer different questions. GDPR's bar is *identifiability*, which a persistent
   pseudonymous id clears by singling-out alone; Apple's bar is whether **we** can tie the record to
-  a person, and we cannot; the policy says so itself in §11: *"an install id doesn't tell us who
-  you are, so we can't look yours up from your name or email."* Apple's label has a "Data Not Linked
+  a person, and we cannot; the policy says so itself in §12: *"since an install id does not tell
+  us who you are, we cannot find yours by name or email"*. Apple's label has a "Data Not Linked
   to You → Identifiers" bucket precisely for this case. **Do not "fix" the policy to match** by
   calling the id anonymous: that would be wrong under GDPR (Recital 26) and would trade a correct
-  legal posture for a cosmetic consistency. §5 is the more cautious statement of the two; it stays.
+  legal posture for a cosmetic consistency. §6 is the more cautious statement of the two; it stays.
 - **No tracking, and no IDFA.** There is no `NSUserTrackingUsageDescription`, no
   `AppTrackingTransparency` import, and no `advertisingIdentifier` / `ASIdentifierManager` reference
   anywhere under `clients/apple/`, so no ATT prompt, and no Device-ID-for-tracking declaration is

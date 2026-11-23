@@ -432,7 +432,7 @@ API. That is a real difference and it is the honest way to describe it.
 Finally: whatever the connected assistant reads, its own provider may also receive, under their
 policy. If it is a cloud assistant, message content leaves the device the moment the user asks it
 to read something. That is the user's dispatch to a party they chose, the same shape as loading a
-remote image, and the privacy policy says so ([`privacy-policy.md`](privacy-policy.md) §6).
+remote image, and the privacy policy says so ([`privacy-policy.md`](privacy-policy.md) §5.1).
 
 ## The tool set
 

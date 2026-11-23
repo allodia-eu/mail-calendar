@@ -10,7 +10,7 @@ add their first mail account. This file decides what is on it, in what order, an
 half of it is not there. It binds every platform that ships the screen.
 
 Two things it deliberately does not decide, because they are decided once elsewhere: what an
-Allodia account is and what it stores ([`privacy-policy.md`](privacy-policy.md) §3, the published
+Allodia account is and what it stores ([`privacy-policy.md`](privacy-policy.md) §4, the published
 contract and the only place that describes it), and how server settings are found from an address
 ([`account-autodetect.md`](account-autodetect.md)).
 

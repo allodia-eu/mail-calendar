@@ -1,276 +1,232 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 3.0 · Effective: 2026-11-21**
+**Version 3.0 · Effective: 2026-11-23**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
-mail provider **you** choose. This policy explains, in plain language, what that means for your
-data: what stays on your device (almost everything), what the app sends and to whom (by default,
-nothing to us), and the things you can choose to share with us (an Allodia account, usage
-statistics, and requests to our writing assistant, each of them only if you choose it).
-
-It has two halves for that reason. **Without an Allodia account**, which is the state the app
-installs in, we hold nothing about you at all (§2). **With one**, which the app recommends when you
-add your first mail account and which you can skip in a tap, we hold who you are and the list of
-mail accounts you asked us to keep in step across your devices, and still never your mail (§3).
+providers **you** choose. This policy says what stays on your device, what the app sends and to
+whom, and what reaches us. By default nothing does: without an Allodia account, which is how the
+app installs, we hold nothing about you.
 
 ## The short version
 
-- **Your mail does not touch Allodia unless you ask it to.** The app syncs directly between your
-  device and your own mail provider. We are not in that path, we have no servers in that path, and
-  we cannot read your mail, your events, or your credentials. The one exception is a request you
-  start yourself: when our writing assistant learns your style or drafts a reply through Allodia's
-  own service, what that request carries passes through our servers to an AI provider in the EU,
-  and we keep none of it (§7.2).
-- **By default, the app sends us nothing.** No telemetry, no crash reports, no identifiers, not
-  even the fact that you installed it.
-- **An Allodia account is optional, and the app recommends one.** When you add your first mail
-  account the app offers it as the easier route, because it is what keeps your accounts in step
-  across your devices. Connecting your mail directly is on the same screen, and costs you nothing.
-  An account never carries your mail: it holds addresses and server names, not a mailbox (§3).
-- **Usage statistics are offered, and you decide.** At first start the app asks whether you want
-  to share usage statistics. The switch is off; the app shows you the exact data before you decide;
-  saying no costs you nothing and is remembered. You can withdraw in one click at any time.
-- **An AI assistant can be given access to your mail, and only if you say so.** It is off, it
-  runs on your own computer, it reaches nothing until you tick an account, and Allodia is not in
-  that path either (§7.1).
-- **The writing assistant does nothing until you use it, and you choose where it sends.** It
-  learns how you write from your own sent mail only after showing you what it would send and
-  where, and it drafts a reply only when you ask. Give it an AI endpoint of your own and Allodia
-  is not in that path (§7.2).
-- **If you pay for the app, we never see your card.** You can buy from us or inside the app
-  from Apple or Google. Your payment details go to our payment processor or to that store, never
-  to us; what we keep is the subscription itself, so it works on every device you sign in on
-  (§10).
-- **We never sell data, never show ads, never profile you, and never use third-party analytics
-  or tracking services.** Anything we do receive stays on servers we ourselves operate in the EU.
-- **Your rights are the GDPR's**, and most of them you can exercise directly in the app, because the
-  data is already in your hands.
+- **Your mail stays between your device and your provider.** We are not in that path and cannot
+  read your mail, events or credentials. The one exception is a request you start through our
+  writing assistant service, which passes through our servers to an AI provider in the EU and is
+  not kept (§5.2).
+- **By default the app sends us nothing**: no telemetry, no crash reports, no identifiers, not even
+  the fact that you installed it.
+- **Three things can reach us, each only if you choose it:** an Allodia account (§4), requests to
+  our writing assistant service (§5.2) and usage statistics (§6). A subscription you buy is kept
+  with the account (§7).
+- **An Allodia account never holds your mail**, a mailbox or a password: only who you are and the
+  list of mail accounts it keeps in step across your devices.
+- **AI acts only when you ask.** An assistant on your computer reaches only the accounts you tick,
+  and the writing assistant sends only when you press Learn or Draft a reply (§5).
+- **We never see your card, sell data, show ads, profile you, or use third-party analytics or
+  tracking.** What we receive stays in the EU, with one exception we name (§10).
+- **Your rights are the GDPR's**, and most of them you can exercise in the app (§12).
 
 ## 1. Who we are
 
-Allodia ("Allodia", "we"),
-registered with the Dutch Chamber of Commerce (KvK) under no. **56789823**, Kamerlingh Onnesweg 2, 3316GL Dordrecht, the Netherlands.
+Allodia, registered with the Dutch Chamber of Commerce (KvK) under no. **56789823**, Kamerlingh
+Onnesweg 2, 3316GL Dordrecht, the Netherlands. For anything in this policy: **info@allodia.eu**.
 
-For anything in this policy: **info@allodia.eu**.
+We are the controller only for what reaches us: an Allodia account (§4), requests to our writing
+assistant service (§5.2), usage statistics (§6), a subscription (§7), messages you send us (§8)
+and the website (§9). What the app processes on your device we never receive, so for that we are
+neither controller nor processor.
 
-We are the "controller" only for the little that actually reaches us: an Allodia account if you
-create one (§3), a subscription if you buy one (§10), optional usage statistics (§6), requests
-you send through our writing assistant (§7.2), messages you send us (§8), and the website (§11).
-For everything the app processes on your device, we are neither controller nor processor, because
-we never receive it (§2).
+## 2. Your device
 
-## 2. The default: everything stays on your device
+**What is kept there.** Your mail, events, contacts, attachments, account settings, signatures,
+writing styles and a diagnostic log. None of it is uploaded to Allodia; there is no cloud copy of
+ours.
 
-The app stores your mail, calendar events, contacts, attachments, account settings, your email
-signatures, your writing styles, and a local diagnostic log **on your device**. None of your
-content is uploaded to Allodia. There is no cloud copy and no backend of ours holding it, and unless
-you choose to sign in to an Allodia account (§3), we hold nothing about you whatsoever. Signing in
-adds exactly one thing to that picture, your list of mail accounts, and §3 says precisely what is
-in it.
+**How it is protected.**
 
-The only network connections the app makes by default are between your device and **the mail,
-calendar and address-book providers you connect**, over open standards (IMAP, SMTP, JMAP, CalDAV,
-CardDAV) or a provider's own API (e.g. Microsoft 365, or Google for Gmail + Google Calendar). Your provider processes your
-mail under **its** terms and privacy policy, exactly as it would with any other mail app;
-connecting it here changes nothing about that relationship, and does not add us to it.
+- Passwords, sign-in tokens and keys live in the platform keystore (Keychain, Windows Credential
+  Manager, Android Keystore, or the Linux system keyring through Secret Service), never in the
+  app's database or log. The message store is protected by your device's encryption at rest.
+- Remote images are blocked by default, so a tracking pixel cannot report that you opened a
+  message. You can load them one message at a time.
+- Message HTML is sanitised and scripts never run, so a message cannot execute code, navigate the
+  app, contact a server or read anything on your device.
+- The diagnostic log holds counts, durations and technical events, never message content,
+  subjects, addresses, credentials or signatures. It is capped at a few megabytes and leaves your
+  device only if you send it to us (§8).
+- Notifications are made on your device, never by a service of ours. Whether a preview (sender,
+  subject, opening line) shows on the lock screen follows your system settings.
 
-Signing in to a provider that uses OAuth (e.g. Microsoft 365, Google, or a JMAP server such as
-Fastmail) happens in your system browser, directly between you and the provider. Allodia operates
-no sign-in server, never sees your password, and the resulting tokens are stored only in your
-device's secure keystore.
+**How long.** Until you delete it, the app's data or the app.
 
-For a **JMAP** account the app can offer this sign-in even for a provider we have never
-integrated, by reading what your server itself publishes: it asks your server where its sign-in
-service is and what permissions exist, then registers itself with that server as an app on your
-device. Three things bound it. Those requests go **only to your own mail server**, never to
-Allodia, and never to any third party. Only your **domain** is involved, never your full email
-address, until you reach your provider's own sign-in page. And the app asks for the **narrowest**
-permissions that let it do its job: your mail, your calendars, and permission to stay signed in.
-Never your contacts, and never anything else your server may offer. If your server does not
-publish this, nothing is sent and you simply sign in with a password or an API token as before.
+## 3. Your mail, calendar and contact providers
 
-**Your contacts.** If the account you connect has an address book, the app can read it (over
-CardDAV, JMAP, or Google's own contacts service, from the same provider, using the same
-credentials), so you can look your contacts up in the app and get suggestions while addressing a
-message. They are stored on your device like your mail, they are never uploaded to Allodia, and
-the app does not read your phone's own contacts. The app also remembers who you have **sent**
-mail to, from your own Sent folder on your own server, to make those suggestions useful before
-you have added anyone.
+**What goes where.** The app connects only to the providers you add, over IMAP, SMTP, JMAP,
+CalDAV, CardDAV or a provider's own API (such as Microsoft 365 or Google). They process your data
+under their own terms, as with any mail app. We are not part of that relationship, and nothing of
+it is sent to Allodia.
 
-You can **add a contact and edit one**, and when you do, the app writes that card to the address
-book it came from, at your provider. It writes nothing you did not type, it writes only when you
-save, and it never deletes a contact: deleting is not something the app offers. Where an address
-book cannot be written to (a colleague from your organisation's directory, or an address your
-provider saved for you automatically), the app does not offer to change it.
+**Signing in.** OAuth sign-in happens in your system browser, directly with the provider: we run no
+sign-in server and never see your password. Where a JMAP server publishes its own sign-in, the app
+asks only your own mail server, involves only your **domain** (never your full address) until you
+reach the provider's page, and asks only for your mail, your calendars and staying signed in, never
+your contacts or anything else. A server that publishes none is sent nothing.
 
-When you sign in with **Microsoft, Google, or a provider that uses a sign-in screen**, the app
-asks for access to your contacts as part of that sign-in, and where the provider has one, to
-your organisation's directory. You see exactly what is being asked on the consent screen before
-you agree. It uses them for the same things as any other address book (looking a contact up,
-suggesting an address, and adding or editing one), plus the small picture shown next to a
-sender, which it downloads from your provider and keeps on your device. Nothing is uploaded to
-Allodia, and if you decline, the rest of the account still works; you simply see no contacts and
-no pictures.
+**Finding your settings**, when you ask for it, sends only your **domain**, never your full
+address: to your own and your provider's domain, to DNS, and to the Thunderbird project's public
+autoconfig database (`autoconfig.thunderbird.net`, run by MZLA/Mozilla). Everything is tried over
+HTTPS; a source reached otherwise is shown as untrusted and used only once you approve it. No
+password is involved, Allodia receives nothing, and "Set up manually" skips the lookup.
 
-**Mailboxes shared with you.** If someone has given you access to their mailbox, such as a team's,
-you can add it to the app in Settings → Accounts. The app opens it with the sign-in of the account
-it was shared with, from the same provider, and keeps its mail on your device exactly as it keeps
-your own. When you sign in with **Microsoft**, the app asks for access to mailboxes shared with you
-only while that option is ticked, and you see it on the consent screen; because Microsoft does not
-list them, you type the address of the one you want, and the app sends that address to Microsoft
-alone, to check that you can open it. Nothing about a shared mailbox is sent to Allodia, not even
-with an Allodia account, and switching one off removes its mail from your device.
+**Contacts.** An account's address book is read from its provider and kept on your device; your
+phone's own contacts are never read. The app also remembers who you sent mail to, from your Sent
+folder. A contact you add or edit is written back to its address book, and the app never deletes
+one. Where a provider asks on its sign-in screen for your contacts or your organisation's
+directory, declining leaves the rest of the account working; sender pictures come from that
+provider.
 
-**Calendars shared with you.** If someone has shared a calendar with you, or you belong to a group
-that has a calendar of its own, you can add it in Settings → Accounts in the same way, where your
-server lists them. The app opens it with the sign-in of the account it was shared with and keeps its
-events on your device exactly as it keeps your own. With **Microsoft** it works as for mailboxes: the
-app asks for access to calendars shared with you only while that option is ticked, and the address
-you type goes to Microsoft alone. Nothing about a shared calendar is sent to
-Allodia, not even with an Allodia account, and switching one off removes its events from your
-device.
+**Shared mailboxes and calendars** are opened with the sign-in of the account they were shared
+with and kept on your device like your own. With Microsoft, access is asked for only while that
+option is ticked, and an address you type goes to Microsoft alone, to check that you can open it.
+Nothing about them reaches Allodia, even with an Allodia account, and switching one off removes it
+from your device.
 
-**The name you send under.** If you set a sender name for an account in Settings, the app stores
-it on your device and, where your provider lets it, also saves it to that account's own settings,
-so your other apps send under the same name. That is the only account setting the app changes at
-your provider; it changes nothing else, and it reads no other setting.
+**Your sender name** is also saved to the account's own settings where the provider allows it: the
+only setting the app changes at your provider, and the app reads no other.
 
-**Your signatures.** A signature you write (its text, and any image you embed in it, such as a
-logo) is stored in a file on your device alongside your other settings, and nowhere else. It is
-never uploaded to Allodia. It leaves your device only where you would expect it to: inside a
-message **you** send, to the recipients **you** address it to, through your own provider. An
-embedded image travels as part of that message; it is not fetched from anywhere at the moment your
-recipient reads it, so nothing about their reading can be reported back. Signature content is never
-written to the diagnostic log.
+**What you start yourself** goes to parties you choose, never via Allodia:
 
-Privacy protections that are built in, on every platform:
+- Mail and invitations you send go through your provider. A signature leaves your device only
+  inside them, its images embedded, so nothing about the reading is reported back.
+- Remote images you load come from their servers (often the sender's), which see your IP address.
+- Links and attachments open in your browser or the app your system chooses; only `http`, `https`,
+  `mailto` and `tel` links are handed on, and attachments are never rendered inside the app.
+- A video meeting you add to an event is made where you choose. Any service but the calendar's own
+  receives only the event's title and times.
 
-- **Remote images in messages are blocked by default.** Tracking pixels are remote images; a
-  message cannot report that you opened it. You can load images per message, and the choice
-  resets on the next message (§5).
-- **Message HTML is sanitized and scripts never run.** A message cannot execute code, navigate
-  the app, phone home, or read anything on your device.
-- **The diagnostic log never contains content.** It records counts, durations, and technical
-  events, never message content, subjects, addresses, or credentials. It is capped at a few
-  megabytes, and stays on your device unless you yourself choose to send it to us (§8).
-- **New-mail notifications are generated on your device.** No notification service of ours sees
-  your mail. Whether a preview (the sender, the subject, and the message's opening line) appears
-  on your lock screen follows your OS notification settings.
-- **Credentials live in the platform keystore** (Keychain, Windows Credential Manager, Android
-  Keystore, or the Linux system keyring through Secret Service), never in the app's database. The
-  message store is protected by your device's encryption at rest.
+**How long.** On your device, as §2 says; at your provider, under its terms.
 
-**Finding your settings when you add an account.** So you don't have to type server names, the
-app can work them out from your email address when you ask it to. It looks in the standard
-places for your provider's published settings: the mail, JMAP, calendar and address-book
-autodiscovery addresses on **your own email domain and your provider's domain**, normal DNS
-lookups for your provider's mail, calendar and address-book servers, and the **Thunderbird project's public autoconfig database**
-(`autoconfig.thunderbird.net`, run by MZLA/Mozilla), a shared directory of provider settings.
-Two rules bound all of it: only your **domain** is ever sent, never your full email address;
-and everything is attempted over HTTPS, and a settings source reached any other way is shown to
-you as untrusted and is never used to connect until you approve it. No password is involved
-(this happens before you sign in), Allodia receives none of it, and "Set up manually" skips the
-lookup entirely.
+## 4. Your Allodia account (optional)
 
-No cloud service of ours sits between you and your provider. The app can hand your mail to an AI
-assistant running on your own computer, but only if you switch that on and only for the accounts
-you pick (see §7.1). Where the writing assistant is offered, it sends what you wrote to an AI
-service only when you ask it to learn your style or draft a reply (see §7.2). If we add a feature
-that changes how data is handled, we will update this policy **first**, and anything that would
-send new data will ask you before it sends.
+**Whether.** The app recommends one when you add your first mail account, because it keeps your
+accounts in step across your devices. Connecting without one is on the same screen, you are not
+asked again, and declining costs you no part of the app. You can sign in later in **Settings →
+Allodia account**.
 
-## 3. If you sign in to an Allodia account (optional)
+**What we hold.** Your email address, your display name if you have one, and the sign-in. Once you
+are signed in on a device, the list of mail accounts on it: for each, the email address, server
+names and ports, user name and connection settings. If your account includes the writing
+assistant, also that it does and, once you use our service for it, the balance of credits its
+requests draw on (§5.2). If you buy a subscription, what §7 lists. Nothing else, and the app
+makes no other request to us.
 
-**You are offered one, and you can skip it.** Everything in §2 describes the app without an
-account, and that is where you stay unless you decide otherwise. When you add your first mail
-account the app recommends creating one, because that is what keeps your accounts in step across
-your devices. Connecting your mail directly is on the same screen, nothing later asks you again,
-and declining costs you no part of the app. The sign-in also lives in
-**Settings → Allodia account**, its own place, separate from your mail accounts.
+**What we never hold.** Your mail, a mailbox, or a password or token for your provider: those stay
+in your keystore, so a new device fills in your accounts and still asks for each password. A token
+issued for the account cannot reach your provider.
 
-**What it is.** An account with us, for the parts of Allodia Mail & Calendar that need a server of
-ours to work at all. It carries no mailbox: it cannot read, send or store your mail, and a token
-issued for it cannot reach your provider. Signing in changes nothing in §2: your mail still syncs
-directly between your device and the provider you chose, and we are still not in that path.
-
-**What we hold.** Your email address, your display name if the account has one, and the sign-in
-itself. Then, once you are signed in on a device, the list of mail accounts on it: for each one the
-email address, the server names and ports, the user name, and the connection settings. If your
-account includes the writing assistant, also that it does, and, once you use our service for it,
-the balance of credits its requests draw on (§7.2). That is the whole of it.
-
-**Never a password, and never a token for your provider.** Those stay in your device's own
-keystore, are never sent to us, and are entered once on each device you use. It is why signing in
-on a new device fills your accounts in for you and then still asks you for each password.
-
-**We can read the account list we hold.** It is encrypted where it is stored on our servers, so a
+**How it is stored.** On Allodia's own servers in the EU. The account list is encrypted there, so a
 copy of our database alone does not reveal it, but with a key our servers hold: it is not
-end-to-end encrypted, and it does not lock us out. It tells us which providers you use and under
-which address; it tells us nothing about your mail, which we do not have. If that is more than you
-want to share, this is the part of the app that is optional: use it without an Allodia account and
-none of it leaves your device.
+end-to-end encrypted, and we can read it. Your device keeps the account's sign-in token in its
+keystore.
 
-**What your device holds.** The sign-in token, in your operating system's secure keystore (Keychain,
-Windows Credential Manager, Android Keystore, or the Linux system keyring), the same place your
-mail passwords already live, and never in the app's database.
+**Signing in with Apple or Google** is your choice, and nothing pushes you to it. That company then
+learns that you have an
+Allodia account and gives us the address and name it releases; signing in directly involves no
+third party.
 
-**Where.** Allodia's own servers, in the EU.
+**Legal basis.** Performance of our contract with you (GDPR Art. 6(1)(b)).
 
-**How you sign in, and what that costs you.** Directly with us, or with Apple or Google if you would
-rather. The last two are your choice and nothing pushes you towards them. Take one and that company
-learns you have an Allodia account, and hands us the address and name it releases; that is then what
-we hold, exactly as described above, and nothing more. Sign in directly and no third party is in it
-at all. Either way the account is ours, on our servers in the EU, and your mail is in none of it.
+**How long, and how to stop.** Until the account is deleted. Signing out in Settings → Allodia
+account erases the sign-in from that device; your mail accounts stay on it, and the list stays with
+your account. **Settings → Allodia account → Delete account** deletes the account and everything we
+hold in it: it opens your account page, also at **https://mailcal.allodia.eu/account** on any
+device without the app, where you sign in and confirm. Or write to **info@allodia.eu**.
 
-**Signing out, and deleting.** Signing out in Settings → Allodia account erases this device's copy of the
-sign-in. Your mail accounts stay on the device, and the list we hold stays with your Allodia account
-until that account is deleted. To delete the account itself, and everything we hold in it, that list
-included: **Settings → Allodia account → Delete account**. That opens your account page in your
-browser, where you sign in and confirm it — the app does not delete the account itself. You can open
-that page directly at **https://mailcal.allodia.eu/account**, on any device and without the app. If
-you would rather ask us, write to **info@allodia.eu**. Your rights are in §14.
+## 5. AI
 
-**What it does today.** An identity, the account list above, if you have bought one the
-subscription the account carries (§10), and, if your account includes the writing assistant, the
-requests it passes through our service (§7.2). Beyond those the app makes no further request to
-us. Any further feature that genuinely needs a server of ours will be written into this policy
-**before** it ships, and will ask you before it sends anything (§16).
+### 5.1 An assistant on your computer
 
-## 4. Data you are not required to provide
+**What.** Over the Model Context Protocol (MCP), an AI assistant on your own computer can read and
+act on the mail of the accounts you allow. It is available on macOS and Windows, and off until you
+switch it on in **Settings → Advanced**.
 
-None of it. There is no legal or contractual requirement to provide us any personal data, and
-the app is fully functional if you never send us anything and leave every optional switch off.
+**Where it goes.** Over a local channel that only your own operating-system user can reach: no
+network port, no server of ours, nothing to Allodia. We do not know whether it is on, which
+assistant you use or what you ask.
 
-## 5. Things that happen only when you act
+**What it can do.** Switching it on exposes no mailbox: each account is a separate tick, and
+unticking takes effect at once. For a ticked account it can list, search and read messages, mark
+them read, flag, archive, move to Trash, mark as spam, and open a prefilled draft for you to send;
+it can never delete permanently. Sending is a separate switch, off by default, and with it on the
+app still refuses recipients you have never emailed, unless you switch that off too.
 
-Some actions in a mail app necessarily send data somewhere, but to parties **you** choose, at
-the moment you choose, never via Allodia:
+**What to weigh.** What the assistant reads, its own provider may receive under its own policy: a
+cloud assistant takes message content off your device when you ask it to read. That is your
+dispatch, to a party you chose.
 
-- **Connecting an account** sends your credentials to that provider and syncs your mail with it.
-- **Loading remote images** in a message fetches them from the servers that host them (often the
-  sender's), which see your IP address. That is why the app blocks them by default and asks per
-  message.
-- **Tapping a link or opening an attachment** hands it to your system browser or the app your OS
-  associates with the file. Only ordinary web, mail and telephone links (`http`, `https`,
-  `mailto`, `tel`) are ever handed off; attachments are never rendered inside the app.
-- **Sending mail or invitations** delivers them to your recipients through your provider.
-- **Adding a video meeting to an event** has it made where you choose: your calendar's own
-  server, an account you connected, or a meeting server you set up. Any service other than the
-  calendar's own is sent no more than the event's title and times.
+### 5.2 Writing style and drafted replies
 
-These are your dispatches, not ours: Allodia receives nothing from any of them.
+**What.** The app can learn how you write from mail you have sent and draft a reply in that style,
+for you to read, change and send; it never sends mail itself. In the versions we publish it is
+early access, offered only while your Allodia account includes it.
 
-## 6. Optional usage statistics (off by default)
+**When.** Before learning, the app shows how many sent messages it found in the period you chose
+and where they would go, and sends nothing until you press **Learn**. A reply is drafted only when
+you press **Draft a reply**. Learning may fetch older sent mail from your own mail server, and
+removes it from your device again once read.
 
-Usage statistics reach us **only if you opt in**.
+**What a request carries.** To learn: the words you wrote in those messages, with quoted mail and
+signatures cut away on your device, never their subjects or recipients. To draft: the message you
+are answering, with its sender, date and the mail it quotes; your style's description and a few
+passages of your own earlier mail; what you wrote in up to two of your latest messages to the same
+address; any instruction you typed; and the text of your reply's signature. Never an attachment,
+and never your address book.
 
-At first start, before any account is set up, the app asks whether you want to share usage
-statistics. The switch is **off**. Nothing is stored or sent unless you switch it on and confirm.
-Declining is remembered, and we don't ask again. The consent screen has a **"see exactly what we
-send"** panel showing the literal data, byte for byte; the description below summarizes that
-panel, but the panel is authoritative.
+**Where it goes.**
 
-**What is sent if you opt in:**
+- **An AI endpoint of your own**, set in **Settings → Advanced**: any server that speaks the OpenAI
+  chat interface, on your computer or chosen by you or your organisation. While one is set, every
+  request goes there and nowhere else, Allodia is not in that path, and what happens there is up to
+  whoever runs it. Its key stays in your keystore and goes only to the server it was given for.
+- **Allodia's service**, when you have no endpoint of your own and are signed in to an Allodia
+  account that includes it. The request goes to our servers in the EU, which pass it to an AI
+  provider in the EU, run by a European company, that our service chooses. Allodia keeps nothing of
+  the request or the answer and logs no content: only the kind of request, its size, how long it
+  took and the credits it used, drawn from your account's balance.
+
+**Checked before anything is read.** Before the app reads your sent mail or the message you are
+answering, and again before each request, it checks the destination: only a service processing in
+the EU and run by a company based in the EU, or a model on your own computer, is admitted. Our
+service passes requests only to such providers; an endpoint of your own is admitted only once you
+have said so where you set it up. Otherwise nothing is read or sent.
+
+**What stays on your device.** Your styles (each one's name, learned description, your notes, and
+the passages of your mail it keeps as examples), stored nowhere else; your endpoint's address,
+model and key; and only the identifiers of the replies a draft went into, sent or saved on this
+device. A passage leaves the device only inside a request.
+
+**A mark on replies it helped write.** So that no device learns your style from the model's words,
+the app asks your provider to mark such a reply's copy in Sent and its draft in Drafts: a keyword
+named `writing-assistant` on an IMAP or JMAP server that accepts one, a label on Gmail and a
+category on Microsoft, named "Writing assistant", which you see there. Where a server keeps no
+mark, only the device that sent or saved the reply knows. Nothing about the mark is sent to Allodia.
+
+**Legal basis.** A request through our service: performance of our contract with you (GDPR Art.
+6(1)(b)). The sender's personal data in the message you answer: legitimate interest, namely your
+interest in replying to your own mail (Art. 6(1)(f)). With an endpoint of your own Allodia
+processes nothing, so no legal basis of ours applies.
+
+**How long, and how to stop.** A request is not kept; the balance of credits stays until your
+Allodia account is deleted. Forgetting a style removes it from your device, and removing your
+endpoint removes its address, model and key.
+
+## 6. Usage statistics (optional)
+
+**Whether.** At first start the app asks. The switch is **off**: nothing is stored or sent unless
+you switch it on and confirm, and a no is remembered. The consent screen shows the literal data,
+byte for byte, and is authoritative over this summary.
+
+**What is sent if you opt in.**
 
 | Data | Value | Deliberately not |
 |---|---|---|
@@ -281,275 +237,131 @@ panel, but the panel is authoritative.
 | Account shape | How many accounts (bucketed: `0`, `1`, `2`, `3–5`, `6+`) and which protocol kinds | Never which providers, hosts, or addresses |
 | Events | App opened; account setup started/completed/failed and sync completed/failed (per protocol kind); a feature was used (from a fixed list); which settings are switched on | Never anything you typed or configured as text |
 
-**What is never sent, by construction and not just by policy:** message content, subjects, senders,
+**Never sent, by construction and not only by policy:** message content, subjects, senders,
 recipients, email addresses, folder names, message counts, search queries, calendar titles or
-event details, attachment names, server hostnames, device model strings. Every field above is a
-label from a fixed list or a bucket; there is no field in the payload that *could* carry your
-content, and our server rejects anything outside that fixed list.
+event details, attachment names, server hostnames, device model strings. Every field is a label
+from a fixed list or a bucket, and our server rejects anything else.
 
-**Where it goes and how long it stays:** only to servers Allodia itself operates in the EU
-(Hetzner Online GmbH, Industriestraße 25, 91710 Gunzenhausen, Germany).
-No third-party analytics company is involved, ever. Your IP address is technically visible when
-your device connects, as with any internet connection, but it is **not stored** and not linked to
-the usage data. Usage events are kept for at most 24 months,
-after which they are deleted or reduced to aggregate statistics that no longer relate to any
-install id.
+**Where.** Only to servers Allodia operates in the EU (Hetzner Online GmbH, Industriestraße 25,
+91710 Gunzenhausen, Germany), never to a third-party analytics company. Your IP address is visible
+when your device connects, but it is not stored and not linked to the data.
 
-**What it is:** pseudonymous usage data. The install id doesn't contain your name, address, or
-anything about you, but it is stable while you stay opted in (that is what lets us see whether
-setup succeeds and whether people keep using the app), so we treat it as personal data under the
-GDPR rather than calling it anonymous.
+**Why.** Product decisions only, such as whether setup and sync succeed and which features are
+used. The install id is stable while you stay opted in, so we treat this as pseudonymous personal
+data, not as anonymous.
 
-**What it is for:** product decisions and nothing else, such as which platforms and languages
-need attention, whether account setup and sync succeed, which features are actually used, and
-whether an update made things worse.
+**Legal basis.** Your consent (GDPR Art. 6(1)(a); storing and reading on your device under the
+national implementations of ePrivacy Art. 5(3)).
 
-**Withdrawing:** Settings → Privacy, one switch, any time. The app deletes the install id and
-consent record from your device and instructs our server to erase everything held under that id
-(GDPR Art. 17). Withdrawal is exactly as easy as opting in was.
+**How long, and how to stop.** At most 24 months, then deleted or reduced to aggregates that relate
+to no install id. Withdraw in **Settings → Privacy**, one switch, as easy as opting in: the app
+deletes the install id and consent record from your device and tells our server to erase
+everything held under that id (Art. 17). If we ever want to send more, the app asks again and
+shows the new data first; a payload never grows under a consent given for less.
 
-**If we ever want to send more,** the app treats your earlier consent as not covering it and asks
-you again, showing the new data before anything changes. A payload can never grow under a consent
-that was given for less.
+## 7. Paying, and the app stores
 
-Legal basis: your consent (GDPR Art. 6(1)(a); storage and reading on your device per the national
-implementations of ePrivacy Art. 5(3)).
+**The stores** you install and update from (Apple's App Store, Google Play, the Microsoft Store)
+are independent controllers under their own policies. They give us only aggregated dashboards
+(installs, active devices, OS versions, device models, crash statistics) that do not identify you,
+fed according to your system's sharing settings. The app has no crash reporter and makes no update
+checks of its own.
 
-## 7. AI (off by default)
+**A subscription** belongs to an Allodia account (§4), which carries it to every device you sign in
+on, so buying from a store means signing in first. It adds no mail, no mailbox and no new access to
+either. Wherever you buy, we never receive your card or bank details.
 
-### 7.1 An AI assistant on your computer
+- **From us**, through **Mollie B.V.** (Amsterdam, the Netherlands) on its own hosted checkout. We
+  keep the plan, its price, when the next payment is due and whether each payment succeeded, failed
+  or was refunded, with Mollie's references for your customer record, your payment authorisation
+  and each payment. We give Mollie your name and email address, to take the payment and invoice it.
+- **From Apple or Google, in the app.** You pay that store, as an independent controller. From your
+  device we receive only the store's reference for the purchase, which store, and when; nothing
+  about your device. We ask the store whether the reference is genuine and what it entitles you to,
+  and keep the store, the reference, the plan, whether it is active, cancelled, expired or refunded,
+  what it runs until, whether it renews, and the price and currency charged. The app asks again
+  from time to time, so that cancelling or letting it lapse takes effect here too.
 
-The app can let an **AI assistant running on your own computer** read and act on your mail, over
-the Model Context Protocol (MCP). It is off unless you switch it on in **Settings → Advanced**,
-and it exists only on macOS and Windows.
+**Legal basis.** Performance of our contract with you (GDPR Art. 6(1)(b)); for invoices and payment
+records, our legal obligation to keep them (Art. 6(1)(c)).
 
-What this is, concretely:
-
-- A private channel **on your own device**. The app opens a local socket that only your own
-  operating-system user account can reach. No network port, no server of ours, and nothing to
-  configure with a password or a key.
-- **Nothing goes to Allodia.** We are not in this path at all. We do not know whether you have
-  turned it on, which assistant you connected, or what you asked it.
-- **You choose which accounts it reaches.** Turning the feature on exposes *no* mailbox. Each
-  account is a separate tick, and unticking one takes effect immediately.
-- The program you connect **can read and act on** the mail of the accounts you ticked: list and
-  search messages, read one message in full, mark read, flag, archive, move to Trash, mark as
-  spam, and open a prefilled draft in the app for you to review and send. It cannot permanently
-  delete anything.
-- **Sending is a separate switch**, off by default. With it off, an assistant can only open a
-  draft that you read and send yourself. With it on, the app additionally refuses to send to
-  anyone you have not emailed before, unless you turn *that* off too.
-
-What you should know before switching it on: whatever the assistant reads, its own provider may
-also receive, under **their** privacy policy, not ours. If it is a cloud assistant, your message
-content leaves your device the moment you ask it to read something, because you asked it to. That
-is the same shape as forwarding a message or loading a remote image: your dispatch, to a party you
-chose. It is worth being deliberate about which accounts you tick.
-
-### 7.2 Writing style and drafted replies
-
-The app can learn how you write from mail you have sent, and draft a reply to a message in that
-style. A draft goes into the reply you are writing, for you to read, change and send yourself; the
-writing assistant never sends mail. Not every copy of the app offers it: in the versions we publish
-it is early access, offered only while your Allodia account includes it.
-
-**Nothing happens until you use it.** Learning starts in **Settings → Writing style**. Before
-anything is sent, the app shows you how many of your sent messages it found in the period you
-chose and where they would go, and it sends nothing until you press **Learn**. A reply is drafted
-only when you press **Draft a reply** while writing one. To read further back than this device
-holds, learning may fetch older sent mail from your own mail server; that older mail is removed
-from the device again once it has been read.
-
-**Where a request goes.**
-
-- **An AI endpoint of your own.** In **Settings → Advanced → Own AI endpoint** you can give the
-  address of any server that speaks the OpenAI chat interface: a model on your own computer, or one
-  you or your organisation choose. While one is set up, every request goes there and nowhere else,
-  and Allodia is not in that path. What happens to a request there is up to whoever runs that
-  server. Its key, if it needs one, is kept in your device's secure keystore and is sent only to
-  the server it was given for.
-- **Allodia's service.** Without an endpoint of your own, and while you are signed in to an
-  Allodia account that includes the writing assistant, the request goes to our servers in the EU,
-  which pass it to an AI provider in the EU, run by a European company, that our service chooses.
-  Allodia keeps nothing of the request or of the answer, and logs no content: only the kind of
-  request, its size, how long it took and how many credits it used. Each request draws on a
-  balance of credits that your Allodia account holds.
-
-**What a request carries.** To learn: the words you wrote in the sent messages of the period you
-chose, without the mail you quoted or your signatures, which the app cuts away on your device;
-never their subjects or their recipients. To draft: the message you are answering, with its
-sender, its date and the earlier mail it quotes; your style's description and a few passages of
-your own earlier mail; what you wrote in up to two of your latest messages to the same address;
-the instruction you typed, if any; and the text of the signature your reply will carry. Never an
-attachment, and never your address book.
-
-**Checked before anything is read.** Before the app reads your sent mail to learn, or the message
-you are answering to draft, it checks where the request would go, and it checks again before each
-request leaves. It sends only to a service that processes in the EU and is run by a company based
-in the EU, or to a model on your own computer. Allodia's service passes requests only to providers
-that meet that bar. An endpoint of your own meets it only once you have said so where you set it
-up; one you describe as running anywhere else, or do not describe, is refused, and nothing is read
-or sent.
-
-**What stays on your device.** Your styles: each one's name, the description it learned of how
-you write, your notes, and the passages of your own mail it keeps as examples. They are stored on
-your device and nowhere else, and forgetting a style removes it. The address, model and key of an
-endpoint of your own. And a list of the replies a draft went into, sent or saved on this device,
-holding only each message's identifier, so that none of them is learned from (below). A passage
-leaves the device only inside a request, as above.
-
-**A mark on replies it helped write.** So that no device learns your style from words the model
-wrote, a reply a draft went into is marked: the app asks your mail provider to put the mark on the
-copy in your Sent folder and on the draft kept in your Drafts folder. An IMAP or JMAP server keeps
-it as a keyword named `writing-assistant`, where it accepts one; Gmail keeps it as a label and
-Microsoft as a category, named "Writing assistant", which you see there. Where a server keeps no
-such mark, only the device that sent or saved the reply knows. The mark is stored with your mail at
-your provider, and nothing about it is sent to Allodia.
-
-**Why we may process it.** A request through Allodia's service is processed to give you what you
-asked for: performance of our contract with you (GDPR Art. 6(1)(b)). The message you are answering
-carries its sender's personal data, which we process on the basis of legitimate interest: your
-interest in replying to your own mail (Art. 6(1)(f)). With an endpoint of your own, Allodia
-processes nothing of a request, so no legal basis of ours applies.
+**How long, and how to stop.** Until you delete your account, except invoices and payment records,
+kept as Dutch tax law requires (seven years). Cancel a subscription from us on your account page,
+and one from Apple or Google at that store, which also decides any refund. Cancelling stops the
+next payment; it does not erase the record of payments already made.
 
 ## 8. When you contact us
 
-If you email us (e.g. **info@allodia.eu**), we process what you send, namely your address,
-your message, and anything you attach, solely to answer you and resolve the issue. For support,
-an attachment may include the app's diagnostic log, which by design contains no message content
-(§2).
+What you send us by email (such as **info@allodia.eu**) or through the website's contact form (your
+name and email address, an optional company name, your message and anything attached, which for
+support may be the diagnostic log, holding no message content) is used only to answer you and
+resolve the issue. Legal basis: our legitimate interest in answering the people who write to us
+(Art. 6(1)(f)), or steps before a contract when you ask about buying (Art. 6(1)(b)). Our mailboxes
+are hosted by **Soverin** in the Netherlands, and correspondence is deleted 24 months after the last
+message.
 
-Our mailboxes are hosted by **Soverin (Netherlands)**, our EU email provider. Support
-correspondence is kept for 24 months after the last message,
-then deleted.
+## 9. The website
 
-Legal basis: our legitimate interest in answering the people who write to us (Art. 6(1)(f)), or
-steps prior to a contract where you're asking about purchasing (Art. 6(1)(b)).
+allodia.eu uses only the cookies and local storage it needs to work (language preference,
+security, session handling), and no analytics or marketing cookies; if that ever changes, we will
+ask first. It is hosted in the Netherlands and Germany. Its contact form is covered by §8.
 
-## 9. App stores and updates
-
-You install and update the app through Apple's App Store, Google Play, or the Microsoft Store.
-The stores process your purchase and device data as **independent controllers** under their own
-privacy policies, not on our behalf. What we receive from them are aggregated dashboards
-(installs, active devices, OS versions, device models, crash statistics) that don't identify you
-to us; whether your device contributes to those is governed by your OS-level sharing settings.
-The app itself contains no crash reporter and performs no update checks of its own. What we do
-receive when you buy a subscription inside the app, and what we keep of it, is §10.
-
-## 10. Paying for Allodia Mail & Calendar
-
-The app is sold as a subscription, and you can buy it in one of three places: from us directly,
-from Apple's App Store, or from Google Play. Which one you choose decides who handles your money,
-and it is the only thing about paying that changes what we hold. **In none of them do we ever
-receive your card or bank details.**
-
-**Buying from us.** Payment is handled by **Mollie B.V.** (Amsterdam, the Netherlands), our
-payment processor, on their own hosted checkout page. Your card or bank details are entered there
-and belong to that page: we never see, receive or store them. What we keep is the subscription
-itself — which plan, what it costs, when the next payment is due, and whether each payment
-succeeded, failed or was refunded — together with the references Mollie uses for your customer
-record, your payment authorisation and each payment. Your name and email address are already ours
-from §3; we pass them to Mollie so the payment can be taken and you can be invoiced.
-
-**Buying inside the app, from Apple or Google.** The purchase is theirs. You pay Apple or Google
-under their own privacy policies, as independent controllers, and your payment details never come
-near us. What crosses from your device to us is only the store's own reference for that purchase,
-which of the two stores it came from, and when it was made. Nothing about your device, and nothing
-else about you.
-
-We then ask that store whether the reference is genuine and what it currently entitles you to,
-which is a question about a transaction that store already holds (§12). What we keep from the
-answer is: which store, that reference, which plan was bought, whether it is active, cancelled,
-expired or refunded, what it runs until, whether it renews, and the price and currency the store
-charged. The app asks again from time to time so that cancelling or letting it lapse takes effect
-here too, and so the subscription works on every device you sign in on. That is the whole reason
-the reference reaches us at all.
-
-**A subscription belongs to an Allodia account** (§3), which is what carries it from one device to
-the next. So buying from a store means signing in first, and attaching the purchase to your
-account is what the reference above is for. Everything §3 says about that account applies
-unchanged, and a subscription adds no mail, no mailbox and no new access to either.
-
-**Why we may hold it.** To give you what you paid for, wherever you signed in, and to answer you
-if a payment goes wrong: performance of our contract with you (GDPR Art. 6(1)(b)). For invoices
-and payment records, our own legal obligation to keep them (Art. 6(1)(c)), which is the one part
-of this that outlives your account (§13).
-
-**Cancelling, and refunds.** A subscription bought from us is cancelled on your account page; one
-bought from Apple or Google is cancelled at that store, because it is that store's to end, and a
-refund for it is theirs to give. Cancelling stops the next payment. It does not erase the record
-of payments already made, which we are required to keep.
-
-## 11. The allodia.eu website
-
-Our website uses only cookies and local storage necessary for it to function (language
-preference, security, session handling), and no analytics or marketing cookies. If that ever
-changes, we will ask first. If you use the contact form, we process your name, email address,
-optional company name, and message to reply to you, as in §8. The site is hosted in the
-Netherlands and Germany.
-
-## 12. What we never do
+## 10. What we never do
 
 - We never sell or rent personal data, and never share it for advertising.
-- We never use third-party analytics, tracking, or advertising SDKs in the app.
+- We never use third-party analytics, tracking or advertising SDKs in the app.
 - We never make automated decisions about you or profile you (GDPR Art. 22).
-- We never train AI models on your mail. We have no access to your mail, except what a request to
-  our writing assistant carries while our servers pass it on, and we keep none of it (§7.2).
+- We never train AI models on your mail. We have no access to it, except what a request to our
+  writing assistant service carries while our servers pass it on, and we keep none of that (§5.2).
 - We never transfer the personal data we hold outside the EU/EEA, with one exception we would
-  rather name than bury: **checking a subscription you bought from Apple or Google** means asking
-  that store about it, and both are US companies (§10). What that question carries is the store's
-  own reference for a transaction it already holds, and it is the only way to confirm a purchase
-  the store, not we, took the money for. Buying from us instead avoids it altogether. (Where
-  **your own provider** is located is likewise your choice and a direct relationship between you
-  and them. So is choosing Apple or Google to sign in to an Allodia account, which is a route you
-  can simply not take, §3.)
+  rather name than bury: **checking a subscription bought from Apple or Google** means asking that
+  store, and both are US companies (§7). The question carries the store's own reference for a
+  transaction it already holds, and buying from us avoids it. Where your own provider is, and
+  whether you sign in to an Allodia account with Apple or Google (§4), is your choice.
 
-## 13. Retention at a glance
+## 11. Retention at a glance
 
 | Data | Kept | Where |
 |---|---|---|
-| Your mail, events, contacts, settings, signatures, writing styles, diagnostic log | On your device, under your control; delete the app's data or the app and it's gone | Your device |
-| Your Allodia account and the mail-account list it keeps in step, if you create one | Until you ask us to delete it | Allodia-operated servers, EU |
-| A request to the writing assistant through our service | Not kept | Passed through Allodia-operated servers, EU, to an AI provider in the EU |
-| The credit balance for the writing assistant, once you use our service for it | Until you delete your Allodia account | Allodia-operated servers, EU |
-| Usage statistics (opt-in) | Until you withdraw, at most 24 months | Allodia-operated servers, EU |
-| Your subscription and its payment history, if you buy from us | Until you delete your account, invoices excepted (below) | Allodia-operated servers, EU; payment handling by Mollie, NL |
-| A subscription bought from Apple or Google, and the store's reference for it | Until you delete your account | Allodia-operated servers, EU |
-| Support correspondence | 24 months after the last message | Soverin, NL |
-| Website contact-form messages | As support correspondence | Soverin, NL |
-| Invoices/records, if you buy from us | As long as Dutch tax law requires (7 years) | Allodia administration, EU |
+| Your mail, events, contacts, settings, signatures, writing styles, diagnostic log | Until you delete it, the app's data or the app | Your device |
+| Your Allodia account and its mail-account list (§4) | Until the account is deleted | Allodia-operated servers, EU |
+| A request to our writing assistant service (§5.2) | Not kept | Passed through Allodia-operated servers, EU, to an AI provider in the EU |
+| The writing assistant's balance of credits, once you use our service (§5.2) | Until your Allodia account is deleted | Allodia-operated servers, EU |
+| Usage statistics, if you opt in (§6) | Until you withdraw, at most 24 months | Allodia-operated servers, EU |
+| A subscription bought from us, and its payment history (§7) | Until your account is deleted, invoices excepted | Allodia-operated servers, EU; payments by Mollie, NL |
+| A subscription bought from Apple or Google, and the store's reference (§7) | Until your account is deleted | Allodia-operated servers, EU |
+| Invoices and payment records, if you buy from us (§7) | As Dutch tax law requires (7 years) | Allodia administration, EU |
+| Support correspondence and contact-form messages (§8) | 24 months after the last message | Soverin, NL |
 
-## 14. Your rights
+## 12. Your rights
 
-Under the GDPR you can ask us for access to, correction, deletion, or a copy (portability) of
-your personal data, ask us to restrict processing, object to processing based on legitimate
-interest, and withdraw any consent at any time (which doesn't affect what was lawful before).
+Under the GDPR you can ask us for access to, correction, deletion or a copy (portability) of your
+personal data, ask us to restrict processing, object to processing based on legitimate interest,
+and withdraw any consent at any time, without affecting what was lawful before. You are not
+required by law or contract to give us any personal data: the app works fully with every optional
+choice left off.
 
-In practice, the fastest route is usually the app itself: your mail and settings are already in
-your hands, and the usage-statistics switch (Settings → Privacy) is the withdrawal-and-erasure
-mechanism for the one dataset we hold about the app. One honest limitation: an install id doesn't
-tell us who you are, so we can't look yours up from your name or email. The in-app switch, which
-proves control of the device the id belongs to, is the reliable way to have that data erased.
+The fastest route is usually the app, where your data already is. **Settings → Privacy** withdraws
+and erases usage statistics; since an install id does not tell us who you are, we cannot find yours
+by name or email, and that switch is the reliable way to have it erased.
 
-For everything else: **info@allodia.eu**. We respond within a month (Art. 12(3)). You can also
-complain to a data protection authority. Ours is the Dutch **Autoriteit Persoonsgegevens**
-(autoriteitpersoonsgegevens.nl), but you may use the authority of your own EU/EEA country.
+For everything else, write to **info@allodia.eu**; we respond within a month (Art. 12(3)). You may
+also complain to a data protection authority: ours is the Dutch **Autoriteit Persoonsgegevens**
+(autoriteitpersoonsgegevens.nl), or you may use the one in your own EU/EEA country.
 
-## 15. Security
+## 13. Security
 
-Credentials are stored only in your device's secure keystore and are never written to the app's
-database or its logs. Connections to your provider use the encrypted protocols it offers (TLS).
-Inbound HTML is sanitized in a hardened renderer where scripts never run and remote content is
-blocked by default. The little we operate server-side runs on EU infrastructure with access
-limited to those who need it, protected by multi-factor authentication and encryption at rest.
+Connections to your provider use the encrypted protocols it offers (TLS), and §2 says how your
+device protects your data. The little we run server side is on EU infrastructure, with access
+limited to those who need it and protected by multi-factor authentication and encryption at rest.
 
-## 16. Changes to this policy
+## 14. Changes to this policy
 
-If we change what data is handled, we update this policy **before** the change ships and bump
-the version and date at the top. Where the change would widen what the app sends, the app asks
-for your consent again rather than assuming it. The current version is always at
-**https://allodia.eu/privacy/mail-calendar**.
+We update this policy, with its version and date, **before** a change to what data is handled
+ships, and anything that would send new data asks you before it sends. Where a change would widen
+what the app sends, the app asks for your consent again rather than assuming it. The current
+version is always at **https://allodia.eu/privacy/mail-calendar**.
 
-## 17. Contact
+## 15. Contact
 
 Allodia · KvK 56789823 · Kamerlingh Onnesweg 2, 3316GL Dordrecht, the Netherlands · **info@allodia.eu**
