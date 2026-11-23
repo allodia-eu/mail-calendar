@@ -24,6 +24,17 @@ import Testing
         #expect(settingsCategory(for: .tryAgain) == nil)
     }
 
+    @Test func learnStyleOpensTheLearningFlowAndNoOtherRemedyDoes() {
+        #expect(opensLearningFlow(.learnStyle))
+        #expect(settingsCategory(for: .learnStyle) == .writingStyle, "which draws the flow's host")
+        let others: [AiRemedy] = [
+            .chooseStyle, .chooseAccount, .chooseRange, .openAiEndpoint, .signInToAllodia, .tryAgain,
+        ]
+        for remedy in others {
+            #expect(!opensLearningFlow(remedy))
+        }
+    }
+
     @Test func eachSuggestionHasItsOwnWords() {
         let all: [ReplyDraftSuggestion] = [.yes, .no, .moreInformation, .holding]
         #expect(Set(all.map(ReplyDraftWords.suggestion)).count == all.count)

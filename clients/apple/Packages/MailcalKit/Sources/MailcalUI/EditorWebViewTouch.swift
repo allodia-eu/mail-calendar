@@ -28,6 +28,13 @@ final class EditorWebView: HistoryWebView {
         set { dropTarget.acceptDroppedFiles = newValue }
     }
 
+    /// Starts the composer's wait while a drop's items are copied, and answers with what ends it.
+    /// Set beside `acceptDroppedFiles`.
+    var startDropCopies: (() -> () -> Void)? {
+        get { dropTarget.startCopies }
+        set { dropTarget.startCopies = newValue }
+    }
+
     private let dropTarget = EditorDropTarget()
     private var installed: UIDropInteraction?
 
@@ -127,6 +134,7 @@ final class EditorWebView: HistoryWebView {
 @MainActor
 final class EditorDropTarget: NSObject, UIDropInteractionDelegate {
     var acceptDroppedFiles: (([URL]) -> Void)?
+    var startCopies: (() -> () -> Void)?
 
     func dropInteraction(_ interaction: UIDropInteraction, canHandle session: any UIDropSession) -> Bool {
         !session.items.isEmpty
@@ -141,6 +149,8 @@ final class EditorDropTarget: NSObject, UIDropInteractionDelegate {
 
     func dropInteraction(_ interaction: UIDropInteraction, performDrop session: any UIDropSession) {
         let providers = session.items.map(\.itemProvider)
+        // Ended after the hand-over, which starts the core's own read of what was copied.
+        let endCopies = startCopies?()
         Task { @MainActor in
             var staged: [URL] = []
             for provider in providers {
@@ -151,6 +161,7 @@ final class EditorDropTarget: NSObject, UIDropInteractionDelegate {
             if !staged.isEmpty {
                 acceptDroppedFiles?(staged)
             }
+            endCopies?()
         }
     }
 

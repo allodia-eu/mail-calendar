@@ -289,21 +289,21 @@ public sealed partial class ComposerView
         return ControlComponents.Button(AiWords.Catalog().Of(given.Remedy), given.Control, automationId, () =>
         {
             _draftFlyout?.Hide();
-            switch (ReplyDraftRemedies.PlaceOf(given.Remedy))
+            switch (AiRemedies.PlaceOf(given.Remedy))
             {
-                case ReplyDraftRemedyPlace.Retry:
+                case AiRemedyPlace.Retry:
                     OpenDraftFlyout();
                     break;
-                case ReplyDraftRemedyPlace.SignIn:
+                case AiRemedyPlace.SignIn:
                     _model?.SignInToAllodia();
                     break;
-                case ReplyDraftRemedyPlace.Endpoint:
+                case AiRemedyPlace.Endpoint:
                     App.Shell?.ShowSettings("advanced");
                     break;
-                case ReplyDraftRemedyPlace.WritingStyle:
+                case AiRemedyPlace.WritingStyle:
                     App.Shell?.ShowSettings("writing_style");
                     break;
-                case ReplyDraftRemedyPlace.Learn:
+                case AiRemedyPlace.Learn:
                     _model?.MoveLearning(new StyleLearningIntent.Open());
                     App.Shell?.ShowSettings("writing_style");
                     break;

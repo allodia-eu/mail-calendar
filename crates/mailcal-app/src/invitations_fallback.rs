@@ -311,9 +311,8 @@ impl<P: Provider> App<P> {
             .ok_or_else(|| "the message carries no invitation to answer".to_owned())?;
         let event = &scheduling.message.event;
 
-        let mut addresses = self.account_address_set(&prompt.account).await;
-        addresses.extend(scheduling.delivery_recipients.iter().cloned());
-        let attendee = crate::invitations::matched_attendee(event, &addresses)
+        let own = self.account_address_set(&prompt.account).await;
+        let attendee = crate::invitations_identity::invited_attendee(event, &own, &scheduling)
             .ok_or_else(|| "this invitation is not addressed to this account".to_owned())?;
 
         let zone = self.active_zone();

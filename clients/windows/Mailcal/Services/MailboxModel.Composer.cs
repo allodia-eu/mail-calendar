@@ -80,6 +80,17 @@ public sealed partial class MailboxModel
     internal ComposerFiles? AddComposerFiles(string composition, IReadOnlyList<ComposerFileAttachment> files) =>
         Files("add", app => app.AddComposerFiles(composition, files.ToArray()));
 
+    /// <summary>Starts adding files the person chose that are still being read: the composer's
+    /// Attach runs until <see cref="FinishAddingComposerFiles"/> ends it. Only the core's lock, so
+    /// on the UI thread.</summary>
+    internal ComposerFiles? BeginAddingComposerFiles(string composition) =>
+        Files("begin adding", app => app.BeginAddingComposerFiles(composition));
+
+    /// <summary>Ends one addition with the files that arrived, none when nothing did.</summary>
+    /// <remarks>Off the UI thread, as <see cref="AddComposerFiles"/> is.</remarks>
+    internal ComposerFiles? FinishAddingComposerFiles(string composition, IReadOnlyList<ComposerFileAttachment> files) =>
+        Files("finish adding", app => app.FinishAddingComposerFiles(composition, files.ToArray()));
+
     /// <summary>Takes the file a tile names off <paramref name="composition"/>, and answers with
     /// the list as it now stands.</summary>
     internal ComposerFiles? RemoveComposerFile(string composition, string file) =>

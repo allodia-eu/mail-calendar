@@ -108,20 +108,34 @@ is not evidence of staleness, the same distinction `conflicts_known` draws over 
 An invitation to `info@example.com` on an account whose primary identity is `alice@example.com` is
 still an invitation to **me**, and Outlook treats it as one. Matching an `ATTENDEE` against a single
 identity silently answers *"you are not invited to this"*, which hides the RSVP the user is
-waiting for. A wrong non-match is therefore much worse than a wrong match.
+waiting for. A wrong match is no better: it answers as somebody else. So each source below is
+trusted only for what it can actually tell.
 
-Three sources, in the order they are trusted:
+Four sources, asked in the order they are trusted. **The first that names an attendee decides**;
+a later source is never consulted to second-guess an earlier one:
 
 | # | Source | Available to | Configuration needed |
 |---|---|---|---|
 | 1 | The account's **primary identity** | card **and** grid | none |
 | 2 | A persisted per-account **alias list** (`account_aliases` in `preferences.toml`) | card **and** grid | the user adds them |
-| 3 | The addresses the message was **delivered to**: `Delivered-To` / `X-Original-To` / `Envelope-To`, then `To:`/`Cc:` | card only | **none** |
+| 3 | The addresses the message was **delivered to**: `Delivered-To`, `X-Original-To`, `Envelope-To` | card only | **none** |
+| 4 | The addresses it was **addressed to**: `To:`, then `Cc:`, and only when they name **exactly one** attendee | card only | **none** |
 
-Source 3 is what makes the common alias case work with no setup at all: the message reached this
-mailbox, so an `ATTENDEE` matching an address it was delivered to is the user. It is only available
-on the mail path, so **the grid depends on sources 1–2**: a grid has no message to read headers
-from. That asymmetry is the reason the alias list exists at all.
+Sources 3 and 4 are what make the common alias case work with no setup at all. Source 3 is what
+the receiving MTA recorded, so each address there *is* this mailbox. Source 4 is what the sender
+wrote, and an organiser writes to **every** attendee: Exchange puts the whole invitee list in `To:`.
+So `To:` says only that the user is one of them. When it names one attendee, that is the user (an
+invitation inside one Microsoft 365 tenant, which carries no delivery header at all). When it names
+several, nothing says which one this mailbox is, and the answer is **no match** rather than the
+first: answering as a colleague either never leaves the Outbox, because the server refuses a sender
+the login does not own, or tells the organiser a colleague's answer. An organiser in `To:` is not an
+invitee and does not count. Both are available only on the mail path, so **the grid depends on
+sources 1–2**: a grid has no message to read headers from. That asymmetry is the reason the alias
+list exists at all.
+
+The matched attendee is also what the card reads **my** answer from and what the conflict check
+treats as me: the account's own addresses plus that one attendee, never every address the message
+named, or the card would show a colleague's answer as the user's.
 
 Matching is case-insensitive and `mailto:`-scheme-insensitive, through the engine's
 `addresses_match`, **never** `==`. iCalendar cases domains freely and writes the scheme
@@ -133,7 +147,7 @@ primitive patches a *named* `ATTENDEE` line, so an alias invitation answered as 
 finds no line and fails.
 
 **Known false positive, accepted:** if a mailing-list address is an `ATTENDEE` and the list
-delivered to this mailbox, source 3 yields a card. Outlook behaves the same way.
+delivered to this mailbox, source 3 or 4 yields a card. Outlook behaves the same way.
 
 **Provider alias discovery** (an enhancement, not uniformly available): JMAP `Identity/get` is
 clean; CalDAV principals expose `calendar-user-address-set` (verified live against
@@ -416,7 +430,7 @@ a delivery to the *optional* attendee's alias while `To:` names the *required* o
 And then the opposite hazard, from the same sender: an invitation that never leaves the tenant has
 **no delivery header at all**. There was no MTA hop to write one, so `Delivered-To`, `X-Original-To`
 and `Envelope-To` are all absent and `To:` is the only header naming the recipient: the bottom of
-the fallback chain in §4 source 2, and the only capture that can fail if it breaks. This is the
+the fallback chain in §4 (source 4), and the only capture that can fail if it breaks. This is the
 *common* case, not an exotic one: colleagues in one M365 company inviting each other is most
 corporate meeting mail, and a reader that stopped at the MTA headers would disable the buttons on
 all of it. The capture also settles what Exchange does with a MAPI item it must render as MIME: the

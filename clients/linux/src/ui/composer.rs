@@ -182,8 +182,7 @@ impl ComposerPane {
         let actions = adw::WrapBox::new();
         actions.set_child_spacing(8);
         actions.set_line_spacing(8);
-        let attach = gtk::Button::with_label(l10n::action_attach());
-        actions.append(&attach);
+        // Attach leads the row; the file tiles draw it, below, from the core's state.
         // Never disabled: a draft is unfinished by definition, so there is no state a composer
         // can be in that this refuses, and pressing it on an unchanged message reaches no server
         // (`docs/drafts.md`).
@@ -211,7 +210,8 @@ impl ComposerPane {
         let store = app.map(|app| Arc::clone(app) as Arc<dyn ComposerFileStore>);
         let files = FileTiles::new(store, &request.composition);
         content.append(files.widget());
-        connect_file_picker(&attach, &files, window);
+        actions.prepend(files.attach_widget());
+        connect_file_picker(&files, window);
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
         super::composer_scheme::follow(web.widget());

@@ -261,7 +261,7 @@ internal fun ControlIconButton(
 ) {
     IconButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
         if (control.running) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp).testTag("$tag-running"))
+            CircularProgressIndicator(modifier = Modifier.size(iconSize - 2.dp).testTag("$tag-running"))
         } else {
             Icon(
                 painter = painterResource(icon),

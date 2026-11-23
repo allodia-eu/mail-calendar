@@ -1,5 +1,5 @@
 // The controls a page draws from the core's `ControlState` (docs/waiting.md): a switch row, a
-// button, a row that opens another page, a picker, a text field and a confirmation. Each is held
+// button, a menu, a row that opens another page, a picker, a text field and a confirmation. Each is held
 // while it cannot be used and shows a spinner beside it while work it started runs, so every page
 // waits the same way.
 
@@ -137,6 +137,22 @@ struct ControlCheck: View {
             Spacer(minLength: 0)
         }
         .font(.callout)
+    }
+}
+
+/// A menu whose items start the control's work, as a phone's Attach offers the photo library and
+/// Files. Its label is the caller's, so it fits the bar it is drawn in.
+struct ControlMenu<Items: View, MenuLabel: View>: View {
+    let control: ControlState
+    @ViewBuilder let items: () -> Items
+    @ViewBuilder let label: () -> MenuLabel
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Menu(content: items, label: label)
+                .disabled(!control.enabled)
+            Running(control: control)
+        }
     }
 }
 

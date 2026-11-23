@@ -56,12 +56,23 @@ internal class FakeComposerFileList(opened: List<ComposerFileTile>) : ComposerFi
     var tiles = opened
         private set
     private var next = opened.size
+    private var adding = 0
 
     override fun current() = answer()
 
     override fun add(files: List<ComposerFileAttachment>): ComposerFiles {
         tiles = tiles + files.map { ComposerFileTile("file-${next++}", it.fileName, null, FREE) }
         return answer()
+    }
+
+    override fun begin(): ComposerFiles {
+        adding += 1
+        return answer()
+    }
+
+    override fun finish(files: List<ComposerFileAttachment>): ComposerFiles {
+        adding = maxOf(0, adding - 1)
+        return add(files)
     }
 
     override fun remove(id: String): ComposerFiles {
@@ -73,6 +84,7 @@ internal class FakeComposerFileList(opened: List<ComposerFileTile>) : ComposerFi
         tiles,
         tiles.map { it.id } != openedWith,
         tiles.sumOf { it.size ?: 0uL },
+        ControlState(enabled = adding == 0, running = adding > 0),
     )
 }
 

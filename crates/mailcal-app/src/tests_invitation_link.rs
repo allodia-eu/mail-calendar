@@ -227,8 +227,9 @@ async fn one_account(
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = invitation_app(provider, &surfaces);
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::RefreshCalendar).await;
+    // Boxed for the reason `booted` boxes its refreshes.
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
     (app, rsvps, sends)
 }
 

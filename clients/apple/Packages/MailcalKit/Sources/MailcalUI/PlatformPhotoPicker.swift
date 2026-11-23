@@ -14,14 +14,16 @@ import SwiftUI
 import UIKit
 
 /// Where a file can come from on iPhone and iPad, as one menu: the photo library, then Files.
-/// Attach and a signature's Add image both draw it.
+/// Attach and a signature's Add image both draw it. `control` is the core's state for the work it
+/// starts, as Attach's while chosen files are still being copied (`docs/waiting.md`).
 struct PhotosOrFilesMenu<MenuLabel: View>: View {
+    var control: ControlState = .free()
     let photos: () -> Void
     let files: () -> Void
     @ViewBuilder let label: () -> MenuLabel
 
     var body: some View {
-        Menu {
+        ControlMenu(control: control) {
             Button(L10n.action_attach_photo_library(), systemImage: "photo.on.rectangle", action: photos)
             Button(L10n.action_attach_from_files(), systemImage: "folder", action: files)
         } label: {
@@ -35,15 +37,24 @@ struct PhotosOrFilesMenu<MenuLabel: View>: View {
 @MainActor
 final class PlatformPhotoPicker: NSObject, PHPickerViewControllerDelegate {
     private static var active: PlatformPhotoPicker?
+    private let onCopying: () -> Void
     private let onPick: (PhotoPick) -> Void
-    private init(onPick: @escaping (PhotoPick) -> Void) { self.onPick = onPick }
+    private init(onCopying: @escaping () -> Void, onPick: @escaping (PhotoPick) -> Void) {
+        self.onCopying = onCopying
+        self.onPick = onPick
+    }
 
-    /// Presents the picker. `limit` is how many may be chosen, 0 for any number.
+    /// Presents the picker. `limit` is how many may be chosen, 0 for any number. `onCopying` is
+    /// told when the picker has closed with something chosen and the copies begin, which is
+    /// before `onPick` by as long as the copies take.
     static func present(
-        filter: PHPickerFilter, limit: Int, onPick: @escaping (PhotoPick) -> Void
+        filter: PHPickerFilter,
+        limit: Int,
+        onCopying: @escaping () -> Void = {},
+        onPick: @escaping (PhotoPick) -> Void
     ) {
         guard let host = topPresentedViewController() else { return }
-        let picker = PlatformPhotoPicker(onPick: onPick)
+        let picker = PlatformPhotoPicker(onCopying: onCopying, onPick: onPick)
         active = picker
         let controller = PHPickerViewController(configuration: configuration(filter: filter, limit: limit))
         controller.delegate = picker
@@ -71,6 +82,7 @@ final class PlatformPhotoPicker: NSObject, PHPickerViewControllerDelegate {
         let onPick = onPick
         Self.active = nil
         guard !providers.isEmpty else { return }
+        onCopying()
         Task { @MainActor in
             onPick(await PhotoPick.copy(providers))
         }

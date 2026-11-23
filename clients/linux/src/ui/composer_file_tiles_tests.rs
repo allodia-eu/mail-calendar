@@ -36,6 +36,8 @@ struct Held {
     next: u64,
     /// The Remove control each tile is drawn with.
     remove: Option<ControlState>,
+    /// Additions begun and not yet finished.
+    adding: u32,
 }
 
 impl Held {
@@ -48,6 +50,10 @@ impl Held {
             tiles: self.files.clone(),
             changed: self.ids() != self.opened_with,
             total_size: self.files.iter().filter_map(|tile| tile.size).sum(),
+            attach: ControlState {
+                enabled: self.adding == 0,
+                running: self.adding > 0,
+            },
         }
     }
 }
@@ -56,7 +62,7 @@ impl FakeStore {
     /// A composition that opened holding `names`, as a forward or a stored draft does.
     pub(crate) fn opened_with(names: &[&str]) -> Arc<Self> {
         let store = Arc::new(Self::default());
-        let _ = store.add(String::new(), names.iter().map(|name| file(name)).collect());
+        store.add(names.iter().map(|name| file(name)).collect());
         let mut held = store.held();
         held.opened_with = held.ids();
         drop(held);
@@ -70,29 +76,8 @@ impl FakeStore {
         store
     }
 
-    pub(crate) fn names(&self) -> Vec<String> {
-        self.held()
-            .files
-            .iter()
-            .map(|tile| tile.file_name.clone())
-            .collect()
-    }
-
-    fn held(&self) -> MutexGuard<'_, Held> {
-        self.0.lock().expect("fake store")
-    }
-}
-
-impl ComposerFileStore for FakeStore {
-    fn files(&self, _composition: String) -> Result<ComposerFiles, MailcalError> {
-        Ok(self.held().answer())
-    }
-
-    fn add(
-        &self,
-        _composition: String,
-        files: Vec<ComposerFileAttachment>,
-    ) -> Result<ComposerFiles, MailcalError> {
+    /// Lists `files` at once, as the core does once a client has handed them over.
+    fn add(&self, files: Vec<ComposerFileAttachment>) -> ComposerFiles {
         let mut held = self.held();
         let remove = held.remove.unwrap_or(ControlState {
             enabled: true,
@@ -115,7 +100,43 @@ impl ComposerFileStore for FakeStore {
                 preview,
             });
         }
+        held.answer()
+    }
+
+    pub(crate) fn names(&self) -> Vec<String> {
+        self.held()
+            .files
+            .iter()
+            .map(|tile| tile.file_name.clone())
+            .collect()
+    }
+
+    fn held(&self) -> MutexGuard<'_, Held> {
+        self.0.lock().expect("fake store")
+    }
+}
+
+impl ComposerFileStore for FakeStore {
+    fn files(&self, _composition: String) -> Result<ComposerFiles, MailcalError> {
+        Ok(self.held().answer())
+    }
+
+    fn begin(&self, _composition: String) -> Result<ComposerFiles, MailcalError> {
+        let mut held = self.held();
+        held.adding += 1;
         Ok(held.answer())
+    }
+
+    fn finish(
+        &self,
+        _composition: String,
+        files: Vec<ComposerFileAttachment>,
+    ) -> Result<ComposerFiles, MailcalError> {
+        {
+            let mut held = self.held();
+            held.adding = held.adding.saturating_sub(1);
+        }
+        Ok(self.add(files))
     }
 
     fn remove(&self, _composition: String, file: String) -> Result<ComposerFiles, MailcalError> {
@@ -251,6 +272,43 @@ pub(crate) fn a_tile_draws_its_remove_from_the_cores_state() {
         tiles_on_screen(&coreless).is_empty(),
         "a composer with no core holds no files"
     );
+    assert!(
+        attach_button(&coreless).is_sensitive(),
+        "but still offers Attach"
+    );
+}
+
+fn attach_button(tiles: &FileTiles) -> gtk::Button {
+    descendants::<gtk::Button>(tiles.attach_widget().upcast_ref())
+        .into_iter()
+        .next()
+        .expect("Attach is drawn")
+}
+
+/// Attach is drawn from the core's state: held, with its spinner, from the moment files are handed
+/// over until the worker reading them has put them on the list, and it opens what the composer set.
+pub(crate) fn attach_runs_while_files_are_read() {
+    let store = Arc::new(FakeStore::default());
+    let tiles = FileTiles::new(Some(Arc::clone(&store) as Arc<dyn ComposerFileStore>), "c");
+    let attach = attach_button(&tiles);
+    assert!(attach.is_sensitive() && !spins(&attach));
+    let picked = Rc::new(std::cell::Cell::new(false));
+    tiles.set_pick(Rc::new({
+        let picked = Rc::clone(&picked);
+        move || picked.set(true)
+    }));
+    attach.emit_clicked();
+    assert!(picked.get(), "Attach opens the picker the composer set");
+
+    tiles.add(vec![file("film.mov")]);
+    let attach = attach_button(&tiles);
+    assert!(
+        !attach.is_sensitive() && spins(&attach),
+        "running until the file is in"
+    );
+    drawn(&tiles, 1);
+    let attach = attach_button(&tiles);
+    assert!(attach.is_sensitive() && !spins(&attach));
 }
 
 /// A tile is one line: the picture the core offers, decoded at the square's size and never at its

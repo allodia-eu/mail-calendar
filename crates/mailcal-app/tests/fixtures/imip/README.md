@@ -63,8 +63,8 @@ byte-wise, and the *only* thing it has to prove is that the RSVP gate rejects it
 - **`exchange-internal-request`**: the one capture with **no delivery header at all**. There
   was no MTA hop to write one: organiser and invitee sit in the same tenant, so `Delivered-To`,
   `X-Original-To` and `Envelope-To` are all absent (so is `Return-Path`), and `To:` is the only
-  header naming the recipient. `extract_delivery_recipients` falls through to `To:`/`Cc:` for
-  exactly this reason, and this is the only fixture that pins the bottom of that chain; the
+  header naming the recipient. The matcher falls through to `To:`/`Cc:` when they name exactly
+  one attendee for this reason, and this is the only fixture that pins the bottom of that chain; the
   other three all carry a delivery header, so none of them can fail if it breaks. It is also
   the *common* case rather than an exotic one: colleagues in one M365 company inviting each
   other is most corporate meeting mail, and reading it wrong disables the buttons on all of it.
@@ -83,7 +83,7 @@ byte-wise, and the *only* thing it has to prove is that the RSVP gate rejects it
 - **No capture names the account's own identity** (`me@test.local`). Each is recognised
   through its own recipient headers; `Delivered-To: alice@test.local`, Gmail's `+invite`
   alias, Exchange's `+optional` one, and the internal capture's bare `To:`: so these also pin
-  the zero-configuration alias path (§4 source 2) against real headers rather than a `To:`
+  the zero-configuration alias path (§4 sources 3 and 4) against real headers rather than a `To:`
   written to make it pass. The four together cover the whole fallback chain: three where a
   delivery header decides it, one where there is none to read.
 

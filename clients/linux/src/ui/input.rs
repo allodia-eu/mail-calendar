@@ -238,6 +238,14 @@ pub(crate) enum AppInput {
         file_name: String,
     },
     AttachmentSaved(bool),
+    /// Write every attachment of the named reader's message into the folder the user picked.
+    /// `done` is told when the save ends, however it ends, so the button stops spinning.
+    SaveAllAttachments {
+        source: ReadingSource,
+        directory: PathBuf,
+        done: futures::channel::oneshot::Sender<()>,
+    },
+    AttachmentsSaved(bool),
     /// Write the named reader's message out as the file the user just named.
     ExportMessage {
         source: ReadingSource,

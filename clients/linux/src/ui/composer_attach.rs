@@ -48,16 +48,13 @@ pub(super) fn picked_file(path: &Path) -> Option<ComposerFileAttachment> {
     })
 }
 
-pub(super) fn connect_file_picker(
-    button: &gtk::Button,
-    tiles: &Rc<FileTiles>,
-    window: &impl IsA<gtk::Window>,
-) {
-    let tiles = Rc::downgrade(tiles);
+/// Makes Attach, which the tiles draw, open the file dialog.
+pub(super) fn connect_file_picker(tiles: &Rc<FileTiles>, window: &impl IsA<gtk::Window>) {
+    let owner = Rc::downgrade(tiles);
     let parent: gtk::Window = window.as_ref().clone();
-    button.connect_clicked(move |_| {
+    tiles.set_pick(Rc::new(move || {
+        let tiles = owner.clone();
         let dialog = gtk::FileDialog::new();
-        let tiles = tiles.clone();
         let parent = parent.clone();
         glib::MainContext::default().spawn_local(async move {
             let Ok(selected) = dialog.open_multiple_future(Some(&parent)).await else {
@@ -72,7 +69,7 @@ pub(super) fn connect_file_picker(
                 attach_all(&paths, &tiles);
             }
         });
-    });
+    }));
 }
 
 /// How a picture reaches the editor.

@@ -43,10 +43,9 @@ extension RichComposeView {
             .disabled(sendDisabled)
             discardButton
             Divider().frame(height: 16)
-            Button {
+            // Running while files the person chose are still being read (`docs/waiting.md`).
+            ControlButton(title: L10n.action_attach(), systemImage: "paperclip", control: files.attach) {
                 chooseAttachments()
-            } label: {
-                Label(L10n.action_attach(), systemImage: "paperclip")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -79,8 +78,9 @@ extension RichComposeView {
         // while writing, and the rest in a More menu at the trailing end.
         HStack(spacing: 4) {
             // A menu, because a phone keeps its photographs where the document picker cannot
-            // reach them (PlatformPhotoPicker.swift).
-            PhotosOrFilesMenu(photos: choosePhotos, files: chooseAttachments) {
+            // reach them (PlatformPhotoPicker.swift). Running while what was chosen is still being
+            // copied, which for a film is its conversion too (`docs/waiting.md`).
+            PhotosOrFilesMenu(control: files.attach, photos: choosePhotos, files: chooseAttachments) {
                 Label(L10n.action_attach(), systemImage: "paperclip").composerBarItem()
             }
             if showsSignaturePicker {

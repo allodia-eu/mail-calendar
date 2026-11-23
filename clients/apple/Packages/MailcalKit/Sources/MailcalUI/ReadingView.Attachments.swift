@@ -22,6 +22,20 @@ extension ReadingView {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+                    if attachmentsOfferSaveAll(attachmentCount: UInt32(clamping: body.attachments.count)) {
+                        Button {
+                            saveAll()
+                        } label: {
+                            if savingAll {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Label(L10n.action_save_all(), systemImage: "square.and.arrow.down.on.square")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(savingAll)
+                    }
                 }
                 attachmentRows(body.attachments)
             }
@@ -137,6 +151,45 @@ extension ReadingView {
                 PlatformShare.present(url)
             } else {
                 attachmentError = L10n.attachment_save_failed()
+            }
+        }
+        #endif
+    }
+
+    /// Every attachment at once: into a folder the reader picks on the Mac, and through one share
+    /// sheet on iPhone and iPad, where "Save to Files" takes them all to one folder.
+    private func saveAll() {
+        guard !savingAll else { return }
+        attachmentError = nil
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = L10n.action_save_all()
+        panel.begin { response in
+            guard response == .OK, let directory = panel.url else { return }
+            Task { @MainActor in
+                savingAll = true
+                defer { savingAll = false }
+                if await model.saveAllAttachments(message.account, message.key, to: directory) == nil {
+                    attachmentError = L10n.attachments_save_failed()
+                }
+            }
+        }
+        #else
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mailcal-attachments", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        Task { @MainActor in
+            savingAll = true
+            defer { savingAll = false }
+            if let urls = await model.saveAllAttachments(message.account, message.key, to: directory) {
+                PlatformShare.present(urls)
+            } else {
+                attachmentError = L10n.attachments_save_failed()
             }
         }
         #endif

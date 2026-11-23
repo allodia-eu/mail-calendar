@@ -69,6 +69,7 @@ mod invitations_ownership_tests;
 // offer to send it ourselves when it could not. The report itself is read in the engine, which
 // is where protocol bytes belong (`ReplyDelivery`, on the write receipt).
 mod invitations_fallback;
+mod invitations_identity;
 // Answering when nothing else will tell the organiser: store the meeting, store the answer,
 // then send the iTIP REPLY as mail ourselves.
 mod invitations_imip;
@@ -101,6 +102,7 @@ mod recipients;
 mod reference;
 mod reset;
 mod row_cache;
+pub mod save_all;
 mod scope;
 mod send_settings;
 mod sender_identity;

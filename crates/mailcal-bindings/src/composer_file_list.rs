@@ -2,7 +2,9 @@
 //! rules 3, 4 and 8).
 //!
 //! A composer draws [`ComposerFiles`] and changes the list only through
-//! [`MailcalApp::add_composer_files`] and [`MailcalApp::remove_composer_file`]. Every save and the
+//! [`MailcalApp::add_composer_files`] and [`MailcalApp::remove_composer_file`], or, for files it
+//! still has to copy or read, [`MailcalApp::begin_adding_composer_files`] and
+//! [`MailcalApp::finish_adding_composer_files`], between which its Attach runs. Every save and the
 //! send read the list from here, so the file on screen and the file that goes out cannot differ.
 //! The list starts at `open_composer`, which seeds it with what the composer opens holding, and
 //! ends with the composition: a discard, a close, a save-and-close or an accepted send.
@@ -29,6 +31,10 @@ pub struct ComposerFiles {
     /// tiles states beside the count. The client words it.
     #[uniffi(default = 0)]
     pub total_size: u64,
+    /// The composer's Attach: running, and so held, from the moment files the person chose are
+    /// on their way (a picker has closed, a drop has landed) until they are on the list. A client
+    /// copies or reads a file before the core can list it, and a film can take many seconds.
+    pub attach: ControlState,
 }
 
 /// One attached file, as its tile shows it.
@@ -78,6 +84,8 @@ struct FileList {
     files: Vec<HeldFile>,
     opened_with: Vec<u64>,
     next: u64,
+    /// Additions started and not yet ended.
+    adding: u32,
 }
 
 /// A file as it is read for the list, before it has an id. Read before the lock is taken: its
@@ -161,6 +169,10 @@ impl FileList {
                 .map(|file| file.id.0)
                 .eq(self.opened_with.iter().copied()),
             total_size: self.files.iter().filter_map(|file| file.size).sum(),
+            attach: ControlState {
+                enabled: self.adding == 0,
+                running: self.adding > 0,
+            },
         }
     }
 }
@@ -213,6 +225,46 @@ impl ComposerFileLists {
         let before = since.map(|mark| list.added_since(mark));
         list.add(files);
         list.changed(since, before)
+    }
+
+    /// Starts one addition: Attach runs until [`Self::finish_adding`] ends it.
+    pub(crate) fn begin_adding(&self, composition: &CompositionId) -> ComposerFiles {
+        let mut lists = self.lock();
+        let list = lists.entry(composition.clone()).or_default();
+        list.adding += 1;
+        list.snapshot()
+    }
+
+    /// Ends one addition with the files that arrived, none when nothing did, counting as
+    /// [`Self::add`] does. An end with no addition under way ends nothing, and one for a
+    /// composition that has gone (the message was discarded or sent meanwhile) starts no list.
+    pub(crate) fn finish_adding(
+        &self,
+        composition: &CompositionId,
+        files: Vec<ComposerFileAttachment>,
+        since: Option<u64>,
+    ) -> FilesChanged {
+        let files = read_files(files);
+        let mut lists = self.lock();
+        let Some(list) = lists.get_mut(composition) else {
+            return FilesChanged {
+                files: FileList::default().snapshot(),
+                added: None,
+            };
+        };
+        let before = since.map(|mark| list.added_since(mark));
+        list.add(files);
+        list.adding = list.adding.saturating_sub(1);
+        list.changed(since, before)
+    }
+
+    /// Ends every addition under way in the list's count, for a composer that moved: the one
+    /// that started them is the one that sees them end, so the composer it moved to would
+    /// otherwise draw Attach running with nothing to stop it. Their files still land.
+    pub(crate) fn settle_adding(&self, composition: &CompositionId) {
+        if let Some(list) = self.lock().get_mut(composition) {
+            list.adding = 0;
+        }
     }
 
     /// Takes the file off the list, counting as [`Self::add`] does. An id the list does not hold
@@ -306,6 +358,43 @@ impl MailcalApp {
         let composition = composition_id(composition)?;
         let since = self.app.reply_draft_files_mark(&composition);
         let changed = self.composer_files.add(&composition, files, since);
+        Ok(self.files_changed(&composition, changed))
+    }
+
+    /// Starts adding files the person chose that are not ready yet: a picker has closed or a drop
+    /// has landed, and the client still copies or reads them. Attach runs from here until
+    /// [`MailcalApp::finish_adding_composer_files`] ends it, which a client calls exactly once for
+    /// each start, with nothing when nothing arrived. Answers with the list as it now stands.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Engine`] if `composition` is blank.
+    pub fn begin_adding_composer_files(
+        &self,
+        composition: String,
+    ) -> Result<ComposerFiles, MailcalError> {
+        Ok(self
+            .composer_files
+            .begin_adding(&composition_id(composition)?))
+    }
+
+    /// Ends one addition started with [`MailcalApp::begin_adding_composer_files`]: attaches
+    /// `files` as [`MailcalApp::add_composer_files`] does, and answers with the list as it now
+    /// stands. Off the UI thread, for the same reason as that call.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Engine`] if `composition` is blank.
+    pub fn finish_adding_composer_files(
+        &self,
+        composition: String,
+        files: Vec<ComposerFileAttachment>,
+    ) -> Result<ComposerFiles, MailcalError> {
+        let composition = composition_id(composition)?;
+        let since = self.app.reply_draft_files_mark(&composition);
+        let changed = self
+            .composer_files
+            .finish_adding(&composition, files, since);
         Ok(self.files_changed(&composition, changed))
     }
 
