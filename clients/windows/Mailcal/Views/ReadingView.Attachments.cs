@@ -21,6 +21,9 @@ public sealed partial class ReadingView
     {
         AttachmentItems.ItemsSource = body.Attachments;
         AttachmentPanel.Visibility = body.Attachments.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SaveAllAttachmentsButton.Visibility = MailboxModel.OffersSaveAll(body.Attachments.Count)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         // Clear any stale save/open error from a previous message.
         AttachmentError.Visibility = Visibility.Collapsed;
     }
@@ -100,6 +103,44 @@ public sealed partial class ReadingView
                     // best effort
                 }
                 ShowAttachmentError(L10n.AttachmentSaveFailed());
+            }
+        }
+        finally
+        {
+            endBusy();
+        }
+    }
+
+    private async void OnSaveAllAttachments(object sender, RoutedEventArgs e)
+    {
+        if (Opened is not { } opened || !TryBeginBusy(sender as Button, out var endBusy))
+        {
+            return;
+        }
+        try
+        {
+            string? directory;
+            try
+            {
+                directory = (await new FolderPicker(PickerOwner.For(this)).PickSingleFolderAsync())?.Path;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"save all folder picker failed: {ex.GetType().Name}");
+                ShowAttachmentError(L10n.AttachmentsSaveFailed());
+                return;
+            }
+            if (string.IsNullOrEmpty(directory))
+            {
+                return;
+            }
+            // The core writes into the folder itself, off the UI thread: every file is decoded
+            // first, and a failed write removes what it wrote.
+            var saved = await Task.Run(
+                () => _model?.SaveAllAttachments(opened.Account, opened.Key, directory) ?? false);
+            if (!saved)
+            {
+                ShowAttachmentError(L10n.AttachmentsSaveFailed());
             }
         }
         finally

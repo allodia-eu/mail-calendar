@@ -69,6 +69,31 @@ impl AppModel {
         });
     }
 
+    /// Writes every attachment of the reader's message into `directory`
+    /// (`../../../docs/reading-actions.md`). The core numbers a name the folder already holds
+    /// and removes what it wrote when a write fails, so nothing is cleaned up here.
+    pub(super) fn save_all_attachments(
+        &self,
+        source: &ReadingSource,
+        directory: PathBuf,
+        done: futures::channel::oneshot::Sender<()>,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let (Some(app), Some(opened)) = (&self.app, self.reader_message(source)) else {
+            return;
+        };
+        let app = Arc::clone(app);
+        let account = opened.account.clone();
+        let key = opened.key.clone();
+        std::thread::spawn(move || {
+            let saved = app
+                .save_all_attachments(account, key, directory.to_string_lossy().into_owned())
+                .is_ok();
+            let _ = done.send(());
+            sender.emit(AppInput::AttachmentsSaved(saved));
+        });
+    }
+
     /// Writes the open message out as a `.eml` at `destination`
     /// (`../../../docs/reading-actions.md`).
     ///

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.text.format.Formatter
 import android.widget.Toast
 import java.io.File
@@ -21,8 +22,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +55,11 @@ internal fun AttachmentList(
     attachments: List<AttachmentRow>,
     onSave: (AttachmentRow) -> Unit,
     onOpen: (AttachmentRow) -> Unit,
+    // The core's `attachmentsOfferSaveAll`, asked by the caller: this list is drawn in the JVM
+    // suite, which loads no cdylib.
+    offerSaveAll: Boolean = false,
+    savingAll: Boolean = false,
+    onSaveAll: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     Column(
@@ -60,11 +68,23 @@ internal fun AttachmentList(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = L10n.attachments_title(ctx),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = L10n.attachments_title(ctx),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (offerSaveAll) {
+                TextButton(onClick = onSaveAll, enabled = !savingAll) {
+                    if (savingAll) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(L10n.action_save_all(ctx))
+                    }
+                }
+            }
+        }
         // `heightIn(max=)` wraps the rows until they reach the cap and stops there, so two
         // attachments take two rows' worth rather than reserving the whole cap.
         Column(
@@ -137,6 +157,64 @@ internal fun saveAttachmentTo(
             Toast.makeText(
                 ctx,
                 if (copied) L10n.attachment_saved(ctx) else L10n.attachment_save_failed(ctx),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+}
+
+// Writes every attachment into the folder the user picked, then says whether it worked.
+//
+// The core writes them all into a staging folder of ours, named and numbered there, and each is
+// copied into a document created in the picked tree, because a tree URI is not a path the core
+// can write to. Created as `application/octet-stream` so the provider keeps the name as given
+// rather than appending an extension for a media type it reads differently; it numbers a name
+// the folder already holds itself. All or nothing, as the core's own write is: a copy that
+// fails removes the documents this save created.
+internal fun saveAllAttachmentsTo(
+    ctx: Context,
+    tree: Uri,
+    account: String,
+    key: String,
+    onSaveAllAttachments: (account: String, key: String, directoryPath: String) -> List<String>?,
+    onDone: () -> Unit,
+) {
+    thread(name = "mailcal-save-all-attachments") {
+        val staging = File(ctx.cacheDir, "saved-attachments/${UUID.randomUUID()}")
+        staging.mkdirs()
+        val created = mutableListOf<Uri>()
+        val saved = try {
+            val parent = DocumentsContract.buildDocumentUriUsingTree(
+                tree,
+                DocumentsContract.getTreeDocumentId(tree),
+            )
+            val paths = onSaveAllAttachments(account, key, staging.absolutePath)
+            paths != null && paths.all { path ->
+                val file = File(path)
+                val document = DocumentsContract.createDocument(
+                    ctx.contentResolver,
+                    parent,
+                    "application/octet-stream",
+                    file.name,
+                ) ?: return@all false
+                created += document
+                ctx.contentResolver.openOutputStream(document)?.use { output ->
+                    file.inputStream().use { input -> input.copyTo(output) }
+                } != null
+            }
+        } catch (_: Exception) {
+            false
+        } finally {
+            staging.deleteRecursively()
+        }
+        if (!saved) {
+            created.forEach { runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, it) } }
+        }
+        Handler(Looper.getMainLooper()).post {
+            onDone()
+            Toast.makeText(
+                ctx,
+                if (saved) L10n.attachments_saved(ctx) else L10n.attachments_save_failed(ctx),
                 Toast.LENGTH_SHORT,
             ).show()
         }

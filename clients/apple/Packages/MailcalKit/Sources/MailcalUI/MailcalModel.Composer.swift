@@ -54,6 +54,23 @@ extension MailboxModel {
         }.value
     }
 
+    /// Write every attachment of the message into `directory` (docs/reading-actions.md), each
+    /// under the sender's name, numbered rather than written over. Returns the files written, or
+    /// `nil` when the save failed, in which case the core has removed what it wrote. Off the
+    /// main actor, like `saveAttachment`.
+    func saveAllAttachments(_ account: String, _ key: String, to directory: URL) async -> [URL]? {
+        guard let app else { return nil }
+        return await Task.detached {
+            do {
+                return try app.saveAllAttachments(account: account, key: key, directoryPath: directory.path)
+                    .map { URL(fileURLWithPath: $0) }
+            } catch {
+                print("[Mailcal] save all attachments failed: \(type(of: error))")
+                return nil
+            }
+        }.value
+    }
+
     /// Write the open message out as a `.eml` at the destination the host chose
     /// (docs/reading-actions.md). Off the main actor, like `saveAttachment`: the raw source may
     /// not be cached yet, and fetching it must not block the UI.

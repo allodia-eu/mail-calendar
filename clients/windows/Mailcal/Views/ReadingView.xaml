@@ -201,9 +201,21 @@
 
             <StackPanel Grid.Row="2" x:Name="AttachmentPanel" Visibility="Collapsed"
                         Padding="16,0,16,8" Spacing="6">
-                <TextBlock Text="{x:Bind l10n:L10n.AttachmentsTitle(), Mode=OneTime}"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind l10n:L10n.AttachmentsTitle(), Mode=OneTime}"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <!-- Every file into a folder the user picks; shown when the core offers it. -->
+                    <Button Grid.Column="1" x:Name="SaveAllAttachmentsButton" Visibility="Collapsed"
+                            AutomationProperties.AutomationId="SaveAllAttachments"
+                            Content="{x:Bind l10n:L10n.ActionSaveAll(), Mode=OneTime}"
+                            Click="OnSaveAllAttachments" />
+                </Grid>
                 <!-- Capped and scrolling, because this panel sits in an Auto row ABOVE the body's
                      star row: an unbounded list takes what it wants and starves the message, so a
                      mail carrying twenty files left neither the body nor the last few attachments
