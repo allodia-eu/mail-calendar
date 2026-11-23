@@ -4,6 +4,7 @@
 use std::fs;
 
 use super::*;
+use crate::signatures::SignatureId;
 
 #[test]
 fn missing_file_loads_defaults() {

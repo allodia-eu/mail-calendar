@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::signatures::{AccountSignatureAssignment, SignatureId, SignatureSlot};
+use crate::signatures::AccountSignatureAssignment;
 
 // Which writing style each account drafts in, the own endpoint, the jurisdiction mode.
 mod ai;
@@ -26,6 +26,8 @@ mod folder_pane;
 mod reply_fallback;
 // The name an account sends under, its sanitiser, and its accessors.
 mod sender_name;
+// Which signature each account uses in each slot, and its accessors.
+mod signature_slots;
 mod sync;
 
 pub use ai::{AiEndpoint, AiPreferences};
@@ -387,16 +389,6 @@ impl Preferences {
         clamp_visible_hours(self.calendar_visible_hours)
     }
 
-    /// Which signature `account` uses in each slot: the empty assignment (no signature either
-    /// way) for an account nobody has configured.
-    #[must_use]
-    pub fn account_signature(&self, account: &str) -> AccountSignatureAssignment {
-        self.signature_assignments
-            .get(account)
-            .cloned()
-            .unwrap_or_default()
-    }
-
     /// The extra addresses that also belong to `account`; its aliases. Empty for an account
     /// nobody has configured. See the [`account_aliases`](Preferences::account_aliases) field
     /// for why one identity is not enough.
@@ -436,53 +428,6 @@ impl Preferences {
     /// Returns whether anything was stored for it.
     pub fn remove_account_aliases(&mut self, account: &str) -> bool {
         self.account_aliases.remove(account).is_some()
-    }
-
-    /// Assigns (or clears, with `None`) one of `account`'s signature slots. An account left with
-    /// nothing in either slot has its entry dropped rather than persisted as an empty table, so
-    /// the file does not accumulate a row per account the user merely looked at.
-    pub fn set_account_signature(
-        &mut self,
-        account: &str,
-        slot: SignatureSlot,
-        signature: Option<SignatureId>,
-    ) {
-        let entry = self
-            .signature_assignments
-            .entry(account.to_owned())
-            .or_default();
-        entry.set_slot(slot, signature);
-        if entry.is_empty() {
-            self.signature_assignments.remove(account);
-        }
-    }
-
-    /// Drops every signature assignment for an account; used when the account is removed, so a
-    /// later re-add starts with no signature rather than inheriting a pointer to one the user may
-    /// meanwhile have deleted. Returns whether anything was stored for it.
-    pub fn remove_account_signature(&mut self, account: &str) -> bool {
-        self.signature_assignments.remove(account).is_some()
-    }
-
-    /// Clears `signature` from **every** account slot that points at it, and reports whether any
-    /// did. Called when a signature is deleted from the library: an assignment naming a signature
-    /// that no longer exists would silently mean "no signature", which is the same outcome but
-    /// leaves a dangling id in the file to confuse the next reader.
-    pub fn forget_signature(&mut self, signature: &SignatureId) -> bool {
-        let mut cleared = false;
-        for assignment in self.signature_assignments.values_mut() {
-            if assignment.new_message.as_ref() == Some(signature) {
-                assignment.new_message = None;
-                cleared = true;
-            }
-            if assignment.reply_forward.as_ref() == Some(signature) {
-                assignment.reply_forward = None;
-                cleared = true;
-            }
-        }
-        self.signature_assignments
-            .retain(|_, assignment| !assignment.is_empty());
-        cleared
     }
 
     /// The sync depth **in effect** for `account_id`: its own [`AccountSyncSettings::sync_depth`]
