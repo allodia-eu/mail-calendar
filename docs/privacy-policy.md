@@ -28,8 +28,9 @@ app installs, we hold nothing about you.
 
 ## 1. Who we are
 
-Allodia, registered with the Dutch Chamber of Commerce (KvK) under no. **56789823**, Kamerlingh
-Onnesweg 2, 3316GL Dordrecht, the Netherlands. For anything in this policy: **info@allodia.eu**.
+Allodia, registered with the Dutch Chamber of Commerce (KvK) under no. **56789823**, Burg. van
+Fenemaplein 2 a1701, 2042TA Zandvoort, the Netherlands. For anything in this policy:
+**info@allodia.eu**.
 
 We are the controller only for what reaches us: an Allodia account (§4), requests to our writing
 assistant service (§5.2), usage statistics (§6), a subscription (§7), messages you send us (§8)
@@ -80,10 +81,10 @@ password is involved, Allodia receives nothing, and "Set up manually" skips the 
 
 **Contacts.** An account's address book is read from its provider and kept on your device; your
 phone's own contacts are never read. The app also remembers who you sent mail to, from your Sent
-folder. A contact you add or edit is written back to its address book, and the app never deletes
-one. Where a provider asks on its sign-in screen for your contacts or your organisation's
-directory, declining leaves the rest of the account working; sender pictures come from that
-provider.
+folder. A contact you add or edit is written back to its address book only when you save, with
+nothing you did not type, and the app never deletes one. Where a provider asks on its sign-in
+screen for your contacts or your organisation's directory, declining leaves the rest of the account
+working; sender pictures come from that provider.
 
 **Shared mailboxes and calendars** are opened with the sign-in of the account they were shared
 with and kept on your device like your own. With Microsoft, access is asked for only while that
@@ -129,10 +130,9 @@ copy of our database alone does not reveal it, but with a key our servers hold: 
 end-to-end encrypted, and we can read it. Your device keeps the account's sign-in token in its
 keystore.
 
-**Signing in with Apple or Google** is your choice, and nothing pushes you to it. That company then
-learns that you have an
-Allodia account and gives us the address and name it releases; signing in directly involves no
-third party.
+**Signing in with Apple or Google** is your choice, and nothing pushes you to it. That company
+then learns that you have an Allodia account and gives us the address and name it releases;
+signing in directly involves no third party.
 
 **Legal basis.** Performance of our contract with you (GDPR Art. 6(1)(b)).
 
@@ -364,4 +364,4 @@ version is always at **https://allodia.eu/privacy/mail-calendar**.
 
 ## 15. Contact
 
-Allodia · KvK 56789823 · Kamerlingh Onnesweg 2, 3316GL Dordrecht, the Netherlands · **info@allodia.eu**
+Allodia · KvK 56789823 · Burg. van Fenemaplein 2 a1701, 2042TA Zandvoort, the Netherlands · **info@allodia.eu**

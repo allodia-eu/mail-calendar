@@ -30,8 +30,9 @@ app zich installeert, hebben wij helemaal niets van je.
 
 ## 1. Wie we zijn
 
-Allodia, ingeschreven bij de Kamer van Koophandel (KvK) onder nr. **56789823**, Kamerlingh
-Onnesweg 2, 3316GL Dordrecht, Nederland. Voor alles wat in dit beleid staat: **info@allodia.eu**.
+Allodia, ingeschreven bij de Kamer van Koophandel (KvK) onder nr. **56789823**, Burg. van
+Fenemaplein 2 a1701, 2042TA Zandvoort, Nederland. Voor alles wat in dit beleid staat:
+**info@allodia.eu**.
 
 We zijn alleen verwerkingsverantwoordelijke voor wat ons bereikt: een Allodia-account (§4),
 verzoeken aan de dienst van onze schrijfassistent (§5.2), gebruiksstatistieken (§6), een abonnement
@@ -86,10 +87,11 @@ pas, Allodia ontvangt niets, en met "Handmatig instellen" sla je de opzoeking ov
 
 **Contacten.** Het adresboek van een account wordt bij die provider gelezen en op je apparaat
 bewaard; de contacten van je telefoon zelf worden nooit gelezen. De app onthoudt ook aan wie je
-e-mail hebt verzonden, uit je map Verzonden. Een contact dat je toevoegt of bewerkt, wordt
-teruggeschreven naar zijn adresboek, en de app verwijdert er nooit een. Vraagt een provider op zijn
-inlogscherm om je contacten of de adreslijst van je organisatie, dan blijft de rest van het account
-werken als je weigert; plaatjes bij afzenders komen van die provider.
+e-mail hebt verzonden, uit je map Verzonden. Een contact dat je toevoegt of bewerkt, wordt pas
+naar zijn adresboek teruggeschreven als je opslaat, met niets wat je niet zelf hebt getypt, en de
+app verwijdert er nooit een. Vraagt een provider op zijn inlogscherm om je contacten of de
+adreslijst van je organisatie, dan blijft de rest van het account werken als je weigert; plaatjes
+bij afzenders komen van die provider.
 
 **Gedeelde mailboxen en agenda's** worden geopend met de aanmelding van het account waarmee ze zijn
 gedeeld, en op je apparaat bewaard zoals je eigen. Bij Microsoft wordt de toegang alleen gevraagd
@@ -399,4 +401,4 @@ toestemming in plaats van die aan te nemen. De actuele versie staat altijd op
 
 ## 15. Contact
 
-Allodia · KvK 56789823 · Kamerlingh Onnesweg 2, 3316GL Dordrecht, Nederland · **info@allodia.eu**
+Allodia · KvK 56789823 · Burg. van Fenemaplein 2 a1701, 2042TA Zandvoort, Nederland · **info@allodia.eu**
