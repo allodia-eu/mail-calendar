@@ -223,10 +223,10 @@ endpoint removes its address, model and key.
 ## 6. Usage statistics (optional)
 
 **Whether.** At first start the app asks. The switch is **off**: nothing is stored or sent unless
-you switch it on and confirm, and a no is remembered. The consent screen shows the literal data,
-byte for byte, and is authoritative over this summary.
+you switch it on and confirm, and a no is remembered. The consent screen shows a batch exactly as
+it is sent.
 
-**What is sent if you opt in.**
+**What is sent if you opt in.** Each row is one kind of data.
 
 | Data | Value | Deliberately not |
 |---|---|---|
@@ -235,7 +235,10 @@ byte for byte, and is authoritative over this summary.
 | Device class | e.g. `iphone`, `mac-laptop`, `android-tablet` | Never a device model |
 | App version + language | e.g. `1.4.0`, `nl` | Language only, never a full locale/region |
 | Account shape | How many accounts (bucketed: `0`, `1`, `2`, `3–5`, `6+`) and which protocol kinds | Never which providers, hosts, or addresses |
-| Events | App opened; account setup started/completed/failed and sync completed/failed (per protocol kind); a feature was used (from a fixed list); which settings are switched on | Never anything you typed or configured as text |
+| App opened | That the app was started | Nothing else about the launch |
+| Setup and sync | Account setup started, completed or failed, and sync completed or failed, per protocol kind, with how long a sync took (bucketed) | Never why it failed, the server, or the account |
+| Features used | That a feature on a fixed list was used: search, the calendar, creating an event, writing a new message, a reply or a forward, attaching a file, a background sync | Never what you did with it |
+| Settings | How the settings on a fixed list are set: the message list threaded or flat, how a reply quotes, what each swipe direction does | Never anything you typed or configured as text |
 
 **Never sent, by construction and not only by policy:** message content, subjects, senders,
 recipients, email addresses, folder names, message counts, search queries, calendar titles or
@@ -256,8 +259,12 @@ national implementations of ePrivacy Art. 5(3)).
 **How long, and how to stop.** At most 24 months, then deleted or reduced to aggregates that relate
 to no install id. Withdraw in **Settings → Privacy**, one switch, as easy as opting in: the app
 deletes the install id and consent record from your device and tells our server to erase
-everything held under that id (Art. 17). If we ever want to send more, the app asks again and
-shows the new data first; a payload never grows under a consent given for less.
+everything held under that id (Art. 17).
+
+**What may be added.** From time to time we add labels within these kinds, such as a setting to
+the settings row, under the same rules: a label from a fixed list, about how the app is used, never
+content and never anything that identifies you. This table is updated with each one. The app asks
+for your consent again before it sends a new kind of data, a new row.
 
 ## 7. Paying, and the app stores
 
@@ -358,9 +365,9 @@ limited to those who need it and protected by multi-factor authentication and en
 ## 14. Changes to this policy
 
 We update this policy, with its version and date, **before** a change to what data is handled
-ships, and anything that would send new data asks you before it sends. Where a change would widen
-what the app sends, the app asks for your consent again rather than assuming it. The current
-version is always at **https://allodia.eu/privacy/mail-calendar**.
+ships, and anything that would send a new kind of data asks you before it sends; for usage
+statistics, that is a new row of the table in §6. The current version is always at
+**https://allodia.eu/privacy/mail-calendar**.
 
 ## 15. Contact
 

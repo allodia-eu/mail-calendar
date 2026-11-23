@@ -246,10 +246,9 @@ verwijderen haalt het adres, het model en de sleutel weg.
 
 **Of je ze deelt.** Bij de eerste start vraagt de app het. De schakelaar staat **uit**: er wordt
 niets opgeslagen of verstuurd tenzij je hem aanzet en bevestigt, en een nee wordt onthouden. Het
-toestemmingsscherm toont de letterlijke gegevens, byte voor byte, en is doorslaggevend boven deze
-samenvatting.
+toestemmingsscherm toont een batch precies zoals die wordt verstuurd.
 
-**Wat er wordt verstuurd als je ervoor kiest.**
+**Wat er wordt verstuurd als je ervoor kiest.** Elke rij is één soort gegevens.
 
 | Gegeven | Waarde | Bewust niet |
 |---|---|---|
@@ -258,7 +257,10 @@ samenvatting.
 | Apparaatklasse | bijv. `iphone`, `mac-laptop`, `android-tablet` | Nooit een apparaatmodel |
 | App-versie + taal | bijv. `1.4.0`, `nl` | Alleen de taal, nooit een volledige locale/regio |
 | Accountvorm | Hoeveel accounts (in groepen: `0`, `1`, `2`, `3–5`, `6+`) en welke soorten protocollen | Nooit welke providers, hosts of adressen |
-| Gebeurtenissen | App geopend; accountinstelling gestart/voltooid/mislukt en synchronisatie voltooid/mislukt (per protocolsoort); een functie is gebruikt (uit een vaste lijst); welke instellingen aanstaan | Nooit iets wat je als tekst hebt getypt of ingesteld |
+| App geopend | Dat de app is gestart | Verder niets over de start |
+| Instellen en synchroniseren | Accountinstelling gestart, voltooid of mislukt, en synchronisatie voltooid of mislukt, per protocolsoort, met hoe lang een synchronisatie duurde (in groepen) | Nooit waarom het mislukte, de server of het account |
+| Gebruikte functies | Dat een functie op een vaste lijst is gebruikt: zoeken, de agenda, een afspraak maken, een nieuw bericht, een antwoord of een doorgestuurd bericht schrijven, een bestand bijvoegen, een synchronisatie op de achtergrond | Nooit wat je ermee deed |
+| Instellingen | Hoe de instellingen op een vaste lijst staan: de berichtenlijst in gesprekken of plat, hoe een antwoord citeert, wat elke veegrichting doet | Nooit iets wat je als tekst hebt getypt of ingesteld |
 
 **Nooit verstuurd, door de bouw en niet alleen op papier:** de inhoud van berichten, onderwerpen,
 afzenders, ontvangers, e-mailadressen, mapnamen, aantallen berichten, zoekopdrachten, agendatitels
@@ -281,9 +283,13 @@ volgens de nationale implementaties van artikel 5(3) van de ePrivacyrichtlijn).
 geaggregeerde cijfers die bij geen installatie-id meer horen. Intrekken doe je bij **Instellingen →
 Privacy**, één schakelaar, even eenvoudig als toestemming geven: de app verwijdert het
 installatie-id en de vastlegging van je toestemming van je apparaat en draagt onze server op alles
-te wissen wat onder dat id is opgeslagen (art. 17). Willen we ooit meer versturen, dan vraagt de app
-het opnieuw en laat hij eerst de nieuwe gegevens zien; een payload groeit nooit onder een
-toestemming die voor minder is gegeven.
+te wissen wat onder dat id is opgeslagen (art. 17).
+
+**Wat er kan bijkomen.** Van tijd tot tijd voegen we labels toe binnen deze soorten, zoals een
+instelling in de rij Instellingen, onder dezelfde regels: een label uit een vaste lijst, over hoe de
+app wordt gebruikt, nooit inhoud en nooit iets wat jou identificeert. Deze tabel wordt bij elk label
+bijgewerkt. De app vraagt je opnieuw om toestemming voordat hij een nieuwe soort gegevens verstuurt,
+een nieuwe rij.
 
 ## 7. Betalen, en de appstores
 
@@ -394,10 +400,9 @@ meerfactorauthenticatie en versleuteling.
 ## 14. Wijzigingen in dit beleid
 
 We werken dit beleid, met versienummer en datum, bij **vóórdat** een verandering in welke gegevens
-worden verwerkt uitkomt, en alles wat nieuwe gegevens zou versturen, vraagt het je voordat het
-verstuurt. Waar een verandering zou verbreden wat de app verstuurt, vraagt de app je opnieuw om
-toestemming in plaats van die aan te nemen. De actuele versie staat altijd op
-**https://allodia.eu/privacy/mail-calendar**.
+worden verwerkt uitkomt, en alles wat een nieuwe soort gegevens zou versturen, vraagt het je
+voordat het verstuurt; bij gebruiksstatistieken is dat een nieuwe rij van de tabel in §6. De
+actuele versie staat altijd op **https://allodia.eu/privacy/mail-calendar**.
 
 ## 15. Contact
 
