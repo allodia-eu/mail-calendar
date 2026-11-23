@@ -62,6 +62,7 @@ struct ComposeHost: View {
     /// Draft a reply's core verbs. A remedy the composer cannot take in place opens Settings at
     /// its page with the composer kept: over the composer on a phone or a tablet, whose composer
     /// is itself a sheet, and in the window's own Settings on a Mac, where it sits in the window.
+    /// Learn style opens the learning flow there.
     private var replyDrafts: ComposerReplyDrafts {
         ComposerReplyDrafts(
             read: { model.composerReplyDraft($0, from: $1) },
@@ -72,6 +73,7 @@ struct ComposeHost: View {
                     if remedy == .signInToAllodia { model.signInToAllodia() }
                     return
                 }
+                if opensLearningFlow(remedy) { model.learnStyle(.open) }
                 #if os(iOS)
                 remedySettings = category
                 #else
