@@ -21,6 +21,7 @@ use crate::{App, EventIntent, Intent, Surface, preferences_file::PreferencesFile
 mod event;
 mod payload;
 
+pub(crate) use event::EventKind;
 pub use event::{DurationBucket, Event, Feature, Protocol};
 use payload::AccountMix;
 pub use payload::{
@@ -330,24 +331,25 @@ impl<P: Provider> App<P> {
     /// which consent was given is counted rather than being invisible until the next launch.
     pub fn report_app_opened(&self) {
         self.track(Event::AppOpened);
-        // Read the persisted settings straight from the preferences file: these are exactly the
-        // values whose drift from the defaults we want to learn about, and reading them here
-        // needs no accessor on each settings state.
-        let prefs = self.prefs.load();
-        self.track(Event::SettingsSnapshot {
-            grouping: prefs.message_grouping,
-            quote_style: prefs.quote_style,
-            swipe_left: prefs.swipe_left,
-            swipe_right: prefs.swipe_right,
-        });
+        self.track(self.settings_snapshot());
     }
 
-    /// The exact JSON we would send right now, for the consent screen's "see exactly what we
-    /// send" panel and the Settings screen. Built from the **same** [`Batch`] type the sink
-    /// serializes, so the preview cannot drift from what actually goes on the wire.
+    /// The settings as a launch reports them. Read straight from the preferences file: these are
+    /// exactly the values whose drift from the defaults we want to learn about, and reading them
+    /// here needs no accessor on each settings state.
+    fn settings_snapshot(&self) -> Event {
+        Event::settings_snapshot(&self.prefs.load())
+    }
+
+    /// The JSON for the consent screen's "see exactly what we send" panel and the Settings
+    /// screen: one batch with this device's context and **every kind of event** the app can send,
+    /// each label of a feature or a protocol on an event of its own, the settings as they stand.
+    /// The app sends each event in a batch of its own, under the same context.
     ///
-    /// Rendered with a placeholder id before consent; there is no real one yet, because we do
-    /// not mint one until asked.
+    /// Built from the **same** [`Batch`] type the sink serialises, and the events from the label
+    /// enums' `ALL`, so a kind or a label added to the code is on this screen without another
+    /// change. Rendered with a placeholder id before consent; there is no real one yet, because
+    /// we do not mint one until asked.
     #[must_use]
     pub fn analytics_payload_preview(&self) -> String {
         let install_id = self
@@ -365,7 +367,12 @@ impl<P: Provider> App<P> {
             locale: "en".to_owned(),
         });
         let context = Context::build(&device, self.account_mix());
-        let batch = Batch::new(install_id, context, &[Event::AppOpened]);
+        let settings = self.settings_snapshot();
+        let events: Vec<Event> = EventKind::ALL
+            .iter()
+            .flat_map(|kind| kind.previewed(&settings))
+            .collect();
+        let batch = Batch::new(install_id, context, &events);
         serde_json::to_string_pretty(&batch).unwrap_or_else(|_| "{}".to_owned())
     }
 

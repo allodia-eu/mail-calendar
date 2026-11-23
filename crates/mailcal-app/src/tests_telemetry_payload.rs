@@ -8,13 +8,17 @@
 //!
 //! The consent-gate half, and the shared fixtures, live in `tests_telemetry.rs`.
 
+use std::collections::BTreeSet;
+
 use engine_api::Engine;
+use mailcal_account::{MessageGrouping, SwipeAction, save_preferences};
 
 use super::{
     App, SilentObserver, Telemetry, TimeZoneInit, app_with_analytics, device, one_account,
 };
 use crate::{
-    EventIntent, FolderRef, Intent, PROPERTY_KEYS, Protocol, preferences_file::ScratchPreferences,
+    EventIntent, Feature, FolderRef, Intent, PROPERTY_KEYS, Protocol,
+    preferences_file::ScratchPreferences, telemetry::EventKind,
 };
 
 /// The load-bearing privacy test. Drive a consented app through the intents that *do* carry
@@ -160,12 +164,22 @@ async fn the_core_coarsens_the_hosts_raw_device_facts() {
 }
 
 /// The consent screen's "see exactly what we send" panel must show the truth. It is built from
-/// the same `Batch` type the sink serializes, so the preview cannot drift from the wire; this
-/// pins that.
+/// the same `Batch` type the sink serialises, so the preview cannot drift from the wire; this
+/// pins that every batch actually sent carries the preview's envelope and context, and that each
+/// of its events is in the preview byte for byte, this device's own settings included.
 #[tokio::test]
 async fn the_payload_preview_matches_what_actually_goes_on_the_wire() {
     let scratch = ScratchPreferences::empty();
     let path = scratch.path();
+    save_preferences(
+        &path,
+        &mailcal_account::Preferences {
+            message_grouping: MessageGrouping::Flat,
+            swipe_left: SwipeAction::Archive,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_accounts([("acct-1".to_owned(), Protocol::Graph)].into());
 
@@ -178,19 +192,99 @@ async fn the_payload_preview_matches_what_actually_goes_on_the_wire() {
 
     let preview: serde_json::Value =
         serde_json::from_str(&app.analytics_payload_preview()).unwrap();
-    let sent = serde_json::to_value(
-        sink.batches
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|batch| batch.events.iter().any(|event| event.name == "app_opened"))
-            .expect("consent emits an app_opened"),
-    )
-    .unwrap();
+    let previewed = preview["events"].as_array().unwrap();
+    let sent = sink.batches.lock().unwrap();
+    assert!(
+        sent.iter()
+            .any(|batch| batch.events.iter().any(|e| e.name == "settings_snapshot")),
+        "consent emits the launch's settings snapshot"
+    );
+    for batch in sent.iter() {
+        let batch = serde_json::to_value(batch).unwrap();
+        for field in ["schema", "install_id", "context"] {
+            assert_eq!(
+                preview[field], batch[field],
+                "the preview's {field} is what we send"
+            );
+        }
+        for event in batch["events"].as_array().unwrap() {
+            assert!(
+                previewed.contains(event),
+                "{event} was sent but is not in the preview shown to the user"
+            );
+        }
+    }
+}
 
+/// The preview is what a person consents to, so it shows every kind of event the app can send
+/// and every label one can carry: each feature, each protocol on every event that names one, and
+/// every key on the relay's whitelist (each setting and each account flag among them). Read off
+/// `EventKind::ALL`, the label enums' `ALL` and `PROPERTY_KEYS`, so a kind or label added to the
+/// code and not shown here fails.
+#[tokio::test]
+async fn the_payload_preview_shows_every_kind_and_every_label() {
+    let scratch = ScratchPreferences::empty();
+    let (app, _sink) = app_with_analytics(one_account(), scratch.path());
+
+    let preview: serde_json::Value =
+        serde_json::from_str(&app.analytics_payload_preview()).unwrap();
+    let events = preview["events"].as_array().unwrap();
+    let of_kind = |kind: EventKind| -> Vec<&serde_json::Value> {
+        events
+            .iter()
+            .filter(|event| event["name"] == kind.as_str())
+            .collect()
+    };
+
+    for &kind in EventKind::ALL {
+        let shown = of_kind(kind);
+        assert!(!shown.is_empty(), "no {} in the preview", kind.as_str());
+        if shown
+            .iter()
+            .any(|event| !event["properties"]["protocol"].is_null())
+        {
+            for protocol in Protocol::ALL {
+                assert!(
+                    shown
+                        .iter()
+                        .any(|event| event["properties"]["protocol"] == protocol.as_str()),
+                    "no {} for {} in the preview",
+                    kind.as_str(),
+                    protocol.as_str()
+                );
+            }
+        }
+    }
+    let features = of_kind(EventKind::FeatureUsed);
+    for feature in Feature::ALL {
+        assert!(
+            features
+                .iter()
+                .any(|event| event["properties"]["feature"] == feature.as_str()),
+            "feature {} is not in the preview",
+            feature.as_str()
+        );
+    }
+
+    let mut keys: BTreeSet<&str> = preview["context"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    for event in events {
+        keys.extend(
+            event["properties"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str),
+        );
+    }
     assert_eq!(
-        preview, sent,
-        "the preview shown to the user must be the bytes we actually send"
+        keys,
+        PROPERTY_KEYS.iter().copied().collect::<BTreeSet<_>>(),
+        "the preview shows exactly the keys the relay accepts"
     );
 }
 

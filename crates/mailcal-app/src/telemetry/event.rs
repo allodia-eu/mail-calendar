@@ -20,96 +20,100 @@
 
 use std::collections::BTreeMap;
 
-use mailcal_account::{MessageGrouping, QuoteStyle, SwipeAction};
+use mailcal_account::{MessageGrouping, Preferences, QuoteStyle, SwipeAction};
 
-/// An account's provider family. Mirrors the binding layer's `ConnectedAccount::account_type`,
-/// which already exists precisely because it names only the protocol; never an endpoint, a host,
-/// or an identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Protocol {
-    /// IMAP/SMTP (+ CalDAV).
-    Imap,
-    /// JMAP (RFC 8620/8621).
-    Jmap,
-    /// Microsoft Graph.
-    Graph,
-    /// Google (Gmail + Google Calendar) native APIs.
-    Google,
+/// Declares a closed label enum: its variants, each variant's wire label, and `ALL`. `ALL` is
+/// written out from the same list as the variants, so a variant cannot exist without being in it,
+/// which is what lets the payload preview show every label by iterating `ALL`.
+macro_rules! labels {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $( $(#[$vmeta:meta])* $variant:ident => $label:literal, )+
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        $vis enum $name {
+            $( $(#[$vmeta])* $variant, )+
+        }
+
+        impl $name {
+            /// Every variant, in declaration order.
+            $vis const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// The wire label.
+            #[must_use]
+            $vis const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $label,)+
+                }
+            }
+        }
+    };
 }
 
-impl Protocol {
-    /// The wire label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Imap => "imap",
-            Self::Jmap => "jmap",
-            Self::Graph => "graph",
-            Self::Google => "google",
-        }
+labels! {
+    /// An account's provider family. Mirrors the binding layer's `ConnectedAccount::account_type`,
+    /// which already exists precisely because it names only the protocol; never an endpoint, a
+    /// host, or an identity.
+    pub enum Protocol {
+        /// IMAP/SMTP (+ CalDAV).
+        Imap => "imap",
+        /// JMAP (RFC 8620/8621).
+        Jmap => "jmap",
+        /// Microsoft Graph.
+        Graph => "graph",
+        /// Google (Gmail + Google Calendar) native APIs.
+        Google => "google",
     }
 }
 
-/// A product surface whose adoption we count. A closed enum, so "which features are used" can
-/// never turn into "what did the user search for".
-///
-/// Every variant is something the **core** can observe from an inbound `Intent`. Two surfaces we
-/// would like to count are deliberately absent because only the client knows they happened: a
-/// swipe arrives at the core as a plain Delete/Archive/Flag, and opening a received attachment
-/// never reaches the core at all. Rather than widen the FFI so clients can report them, we take
-/// the proxy we already have (the settings snapshot says which swipe actions were *configured*)
-/// and log the gap; `docs/analytics.md` → Known gaps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Feature {
-    /// The search field was used. The **query is never sent**; we look only at whether it is
-    /// blank.
-    Search,
-    /// The calendar was viewed.
-    Calendar,
-    /// A calendar event was created.
-    EventCreate,
-    /// A new message was composed.
-    ComposerNew,
-    /// A reply was composed.
-    ComposerReply,
-    /// A forward was composed.
-    ComposerForward,
-    /// A file was attached in the composer. We look only at whether the attachment list is
-    /// non-empty; never at a filename, a size, or a type.
-    AttachmentAdd,
-    /// A background sync pass ran.
-    BackgroundSync,
-}
-
-impl Feature {
-    /// The wire label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Search => "search",
-            Self::Calendar => "calendar",
-            Self::EventCreate => "event_create",
-            Self::ComposerNew => "composer_new",
-            Self::ComposerReply => "composer_reply",
-            Self::ComposerForward => "composer_forward",
-            Self::AttachmentAdd => "attachment_add",
-            Self::BackgroundSync => "background_sync",
-        }
+labels! {
+    /// A product surface whose adoption we count. A closed enum, so "which features are used" can
+    /// never turn into "what did the user search for".
+    ///
+    /// Every variant is something the **core** can observe from an inbound `Intent`. Two surfaces
+    /// we would like to count are deliberately absent because only the client knows they
+    /// happened: a swipe arrives at the core as a plain Delete/Archive/Flag, and opening a
+    /// received attachment never reaches the core at all. Rather than widen the FFI so clients
+    /// can report them, we take the proxy we already have (the settings snapshot says which swipe
+    /// actions were *configured*) and log the gap; `docs/analytics.md` → Known gaps.
+    pub enum Feature {
+        /// The search field was used. The **query is never sent**; we look only at whether it is
+        /// blank.
+        Search => "search",
+        /// The calendar was viewed.
+        Calendar => "calendar",
+        /// A calendar event was created.
+        EventCreate => "event_create",
+        /// A new message was composed.
+        ComposerNew => "composer_new",
+        /// A reply was composed.
+        ComposerReply => "composer_reply",
+        /// A forward was composed.
+        ComposerForward => "composer_forward",
+        /// A file was attached in the composer. We look only at whether the attachment list is
+        /// non-empty; never at a filename, a size, or a type.
+        AttachmentAdd => "attachment_add",
+        /// A background sync pass ran.
+        BackgroundSync => "background_sync",
     }
 }
 
-/// How long an operation took, as a bucket. A raw millisecond count is a surprisingly good
-/// fingerprint across many events; a bucket answers "is sync slow?" just as well.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DurationBucket {
-    /// Under one second.
-    Fast,
-    /// One to five seconds.
-    Normal,
-    /// Five to thirty seconds.
-    Slow,
-    /// Over thirty seconds.
-    VerySlow,
+labels! {
+    /// How long an operation took, as a bucket. A raw millisecond count is a surprisingly good
+    /// fingerprint across many events; a bucket answers "is sync slow?" just as well.
+    pub enum DurationBucket {
+        /// Under one second.
+        Fast => "lt_1s",
+        /// One to five seconds.
+        Normal => "1_5s",
+        /// Five to thirty seconds.
+        Slow => "5_30s",
+        /// Over thirty seconds.
+        VerySlow => "gt_30s",
+    }
 }
 
 impl DurationBucket {
@@ -124,15 +128,57 @@ impl DurationBucket {
             _ => Self::VerySlow,
         }
     }
+}
 
-    /// The wire label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
+labels! {
+    /// The kind of an [`Event`], whose label is the event's wire name.
+    pub(crate) enum EventKind {
+        /// [`Event::AppOpened`].
+        AppOpened => "app_opened",
+        /// [`Event::SetupStarted`].
+        SetupStarted => "setup_started",
+        /// [`Event::SetupCompleted`].
+        SetupCompleted => "setup_completed",
+        /// [`Event::SetupFailed`].
+        SetupFailed => "setup_failed",
+        /// [`Event::FeatureUsed`].
+        FeatureUsed => "feature_used",
+        /// [`Event::SettingsSnapshot`].
+        SettingsSnapshot => "settings_snapshot",
+        /// [`Event::SyncCompleted`].
+        SyncCompleted => "sync_completed",
+        /// [`Event::SyncFailed`].
+        SyncFailed => "sync_failed",
+    }
+}
+
+impl EventKind {
+    /// The events of this kind the payload preview shows. An event whose field names what was
+    /// used (a protocol, a feature) appears once per label, so every label the app can send is on
+    /// the screen; a bucket shows one value, and the settings are this device's own (`settings`).
+    pub(crate) fn previewed(self, settings: &Event) -> Vec<Event> {
+        let per_protocol =
+            |event: fn(Protocol) -> Event| Protocol::ALL.iter().map(move |&each| event(each));
         match self {
-            Self::Fast => "lt_1s",
-            Self::Normal => "1_5s",
-            Self::Slow => "5_30s",
-            Self::VerySlow => "gt_30s",
+            Self::AppOpened => vec![Event::AppOpened],
+            Self::SetupStarted => {
+                per_protocol(|protocol| Event::SetupStarted { protocol }).collect()
+            }
+            Self::SetupCompleted => {
+                per_protocol(|protocol| Event::SetupCompleted { protocol }).collect()
+            }
+            Self::SetupFailed => per_protocol(|protocol| Event::SetupFailed { protocol }).collect(),
+            Self::FeatureUsed => Feature::ALL
+                .iter()
+                .map(|&feature| Event::FeatureUsed { feature })
+                .collect(),
+            Self::SettingsSnapshot => vec![settings.clone()],
+            Self::SyncCompleted => per_protocol(|protocol| Event::SyncCompleted {
+                protocol,
+                duration: DurationBucket::Fast,
+            })
+            .collect(),
+            Self::SyncFailed => per_protocol(|protocol| Event::SyncFailed { protocol }).collect(),
         }
     }
 }
@@ -207,19 +253,35 @@ pub enum Event {
 }
 
 impl Event {
+    /// The settings snapshot the stored preferences make: the one a launch reports and the
+    /// payload preview shows.
+    pub(crate) fn settings_snapshot(prefs: &Preferences) -> Self {
+        Self::SettingsSnapshot {
+            grouping: prefs.message_grouping,
+            quote_style: prefs.quote_style,
+            swipe_left: prefs.swipe_left,
+            swipe_right: prefs.swipe_right,
+        }
+    }
+
+    /// The event's kind.
+    pub(crate) const fn kind(&self) -> EventKind {
+        match self {
+            Self::AppOpened => EventKind::AppOpened,
+            Self::SetupStarted { .. } => EventKind::SetupStarted,
+            Self::SetupCompleted { .. } => EventKind::SetupCompleted,
+            Self::SetupFailed { .. } => EventKind::SetupFailed,
+            Self::FeatureUsed { .. } => EventKind::FeatureUsed,
+            Self::SettingsSnapshot { .. } => EventKind::SettingsSnapshot,
+            Self::SyncCompleted { .. } => EventKind::SyncCompleted,
+            Self::SyncFailed { .. } => EventKind::SyncFailed,
+        }
+    }
+
     /// The event's wire name.
     #[must_use]
     pub const fn name(&self) -> &'static str {
-        match self {
-            Self::AppOpened => "app_opened",
-            Self::SetupStarted { .. } => "setup_started",
-            Self::SetupCompleted { .. } => "setup_completed",
-            Self::SetupFailed { .. } => "setup_failed",
-            Self::FeatureUsed { .. } => "feature_used",
-            Self::SettingsSnapshot { .. } => "settings_snapshot",
-            Self::SyncCompleted { .. } => "sync_completed",
-            Self::SyncFailed { .. } => "sync_failed",
-        }
+        self.kind().as_str()
     }
 
     /// The event's own properties. Every value is an enum label; see the module docs.
