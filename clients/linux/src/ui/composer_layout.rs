@@ -54,6 +54,13 @@ impl ComposerColumn {
         scroller.set_child(Some(&viewport));
         // The editor is exactly as tall as the visible part; it takes no share of spare room.
         editor.set_vexpand(false);
+        // Never without a height, not even before the column has measured: WebKitGTK's
+        // accelerated renderer never paints a view whose page was laid out while the view had no
+        // height, and giving it one afterwards does not recover it (WebKit bug 332660). A page
+        // can load before the first layout, so the box starts at its minimum.
+        // Whole logical pixels, so it fits an i32.
+        #[allow(clippy::cast_possible_truncation)]
+        editor.set_height_request(MINIMUM_EDITOR_HEIGHT as i32);
         // The framed page draws no background, and neither does the view, so the toolbar sits on
         // the window's colour (rule 5).
         editor.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
@@ -266,3 +273,7 @@ pub(crate) fn step(dy: f64, wheel: bool, visible: f64) -> f64 {
         dy
     }
 }
+
+#[cfg(test)]
+#[path = "composer_layout_tests.rs"]
+pub(crate) mod tests;
