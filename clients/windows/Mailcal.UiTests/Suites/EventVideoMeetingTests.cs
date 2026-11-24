@@ -83,7 +83,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         var item = app.OpenList(box).FirstOrDefault(e => e.Name == label)
             ?? throw new InvalidOperationException($"the Video meeting row offers no '{label}'");
         Input.Click(app.Steady(item));
-        App.Eventually(() => app.Agent.Find(new Filter { Type = "Window", Under = box }) is null, TimeSpan.FromSeconds(3));
+        App.Eventually(() => app.Drawn(box).Count == 0, TimeSpan.FromSeconds(3));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
     }
 
