@@ -83,7 +83,7 @@ class WaitForLogMarker(unittest.TestCase):
             """
         )
         return subprocess.run(
-            [*bash_argv(), "-c", body],
+            bash_argv("-c", body),
             capture_output=True,
             text=True,
             timeout=120,

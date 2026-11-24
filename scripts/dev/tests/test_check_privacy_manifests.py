@@ -23,9 +23,7 @@ APPLE = SCRIPT.parents[1]
 # An absolute path to Git Bash on Windows: a bare "bash" resolves through CreateProcess, which
 # searches System32 (WSL's launcher) before PATH. See bashtools.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bashtools import bash_problem, find_bash  # noqa: E402
-
-BASH = find_bash()
+from bashtools import bash_argv, bash_problem  # noqa: E402
 
 TIMESTAMP = "NSPrivacyAccessedAPICategoryFileTimestamp"
 DISK = "NSPrivacyAccessedAPICategoryDiskSpace"
@@ -59,7 +57,7 @@ class PrivacyManifestTests(unittest.TestCase):
         self.app = self.root / "AllodiaMail.app"
 
     def run_check(self):
-        return subprocess.run([BASH, SCRIPT.as_posix(), self.app.as_posix()], capture_output=True, text=True)
+        return subprocess.run(bash_argv(SCRIPT.as_posix(), self.app.as_posix()), capture_output=True, text=True)
 
     def test_a_manifest_covering_every_import_passes(self):
         write_bundle(self.app, ["_fstat", "_statfs", "_OBJC_CLASS_$_NSUserDefaults"],

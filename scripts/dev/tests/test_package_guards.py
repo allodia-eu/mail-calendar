@@ -38,10 +38,9 @@ from shlex import quote as shell_quote
 # An absolute path to Git Bash on Windows: a bare "bash" resolves through CreateProcess, which
 # searches System32 -- WSL's launcher -- before PATH. See bashtools.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bashtools import bash_problem, find_bash  # noqa: E402
+from bashtools import bash_argv, bash_problem  # noqa: E402
 
 PACKAGE_SH = Path(__file__).resolve().parents[3] / "clients" / "apple" / "Scripts" / "package.sh"
-BASH = find_bash()
 
 # The marker the harness prints after the call. Reaching it is the whole assertion for the passing
 # case: the function returning and the script continuing are the same event here.
@@ -85,7 +84,7 @@ class EntitlementsGuard(unittest.TestCase):
             ]
         )
         return subprocess.run(
-            [BASH, "-c", script], capture_output=True, text=True, check=False
+            bash_argv("-c", script), capture_output=True, text=True, check=False
         )
 
     def setUp(self):
@@ -183,7 +182,7 @@ class SymbolsKept(unittest.TestCase):
                 'echo "{}"'.format(CONTINUED),
             ]
         )
-        return subprocess.run([BASH, "-c", script], capture_output=True, text=True, check=False)
+        return subprocess.run(bash_argv("-c", script), capture_output=True, text=True, check=False)
 
     def assert_answered(self, done, shape):
         """The guard must say something either way; a silent exit is the defect."""

@@ -33,9 +33,7 @@ PACKAGE_SH = Path(__file__).resolve().parents[3] / "clients" / "apple" / "Script
 # An absolute path to Git Bash on Windows: a bare "bash" resolves through CreateProcess,
 # which searches System32 -- WSL's launcher -- before PATH. See bashtools.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bashtools import bash_argv, bash_problem, find_bash  # noqa: E402
-
-BASH = find_bash()
+from bashtools import bash_argv, bash_problem  # noqa: E402
 
 # A top-level function definition, from `name() {` in column 1 to the `}` in column 1 that closes it.
 # The file's style puts every function at column 1 and closes it the same way, so this needs no
@@ -73,7 +71,7 @@ class UploadHintTests(unittest.TestCase):
             ]
         )
         done = subprocess.run(
-            [BASH, "-c", script], capture_output=True, text=True, check=True
+            bash_argv("-c", script), capture_output=True, text=True, check=True
         )
         return done.stdout
 

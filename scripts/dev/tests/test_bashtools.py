@@ -106,9 +106,28 @@ class BashArgv(unittest.TestCase):
         if bashtools.find_bash() is None:
             self.skipTest(bashtools.bash_problem())
         argv = bashtools.bash_argv("-c", "printf ok")
-        self.assertEqual(argv[1:], ["-c", "printf ok"])
         probe = subprocess.run(argv, capture_output=True, text=True, timeout=30)
         self.assertEqual(probe.stdout.strip(), "ok")
+
+    def test_every_argument_arrives_as_it_was_given(self) -> None:
+        """On Windows Git Bash parses an unquoted argument again: `it's` would take every one after it."""
+        if bashtools.find_bash() is None:
+            self.skipTest(bashtools.bash_problem())
+        given = [
+            "it's", "'quoted'", 'a"b', '"', "say \"#hi\"", "*", "{a,b}", "~", "$HOME", "a\\b", "a\\",
+            'a\\"b', "C:\\Users\\x", "", "two  spaces", "tab\there", "new\nline", "--x=it's", "ünï",
+        ]
+        with tempfile.TemporaryDirectory() as cwd:
+            # A file for `*` to expand to, were it expanded.
+            Path(cwd, "glob-target").touch()
+            probe = subprocess.run(
+                bashtools.bash_argv("-c", 'printf "%s\\0" "$@"', "_", *given),
+                capture_output=True,
+                cwd=cwd,
+                timeout=30,
+            )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(probe.stdout.decode("utf-8").split("\0")[:-1], given)
 
 
 class BashPath(unittest.TestCase):

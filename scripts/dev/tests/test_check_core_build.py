@@ -24,9 +24,7 @@ DEVELOPMENT = b"mailcal-core-build:development"
 
 # An absolute path to Git Bash on Windows, never System32's WSL launcher (see bashtools).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bashtools import bash_problem, find_bash  # noqa: E402
-
-BASH = find_bash()
+from bashtools import bash_argv, bash_problem  # noqa: E402
 
 
 @unittest.skipIf(bash_problem() != "", bash_problem())
@@ -44,7 +42,7 @@ class CoreBuildTests(unittest.TestCase):
 
     def check(self, *targets: Path):
         return subprocess.run(
-            [BASH, SCRIPT.as_posix(), *(target.as_posix() for target in targets)],
+            bash_argv(SCRIPT.as_posix(), *(target.as_posix() for target in targets)),
             capture_output=True,
             text=True,
         )
