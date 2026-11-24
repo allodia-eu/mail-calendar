@@ -81,7 +81,7 @@ pub(super) fn server_group(
     // so what an empty address book server means is said with the rest of the section's advice.
     if servers.contacts_fall_back_to_calendar {
         said.push(' ');
-        said.push_str(&l10n::settings_account_carddav_empty_hint());
+        said.push_str(l10n::settings_account_carddav_empty_hint());
     }
     let section = group(l10n::settings_account_servers_heading(), &said);
     let form = &servers.form;
