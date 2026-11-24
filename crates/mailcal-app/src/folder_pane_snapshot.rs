@@ -7,7 +7,7 @@
 
 use engine_api::{AccountId, Provider};
 use mailcal_viewmodel::{
-    AccountFolderRow, AccountRow, MailboxListSnapshot, QueuedRow, queued_rows,
+    AccountFolderRow, AccountRow, FolderRow, MailboxListSnapshot, QueuedRow, queued_rows,
     stamp_folder_actions, with_folder_changes,
 };
 
@@ -112,4 +112,37 @@ impl<P: Provider> App<P> {
         }
         out
     }
+
+    /// Republishes the snapshot when `account`'s stored folder tree is not the one the pane
+    /// draws: called once a pass has read the folder list, so a new account's folders are on
+    /// screen while its mail is still downloading.
+    ///
+    /// A sync's mid-pass republishes carry the pane over from the last full rebuild, so without
+    /// this the folders the pass has just stored wait for the pass to end. Only the tree is
+    /// compared: an unread count that moved is the end-of-pass rebuild's to draw, and every
+    /// background pass would otherwise rebuild twice.
+    pub(crate) async fn redraw_if_folders_moved(&self, account: &AccountId) {
+        let stored = self.account_folders(account).await;
+        let same = self.mailbox_list.read(|shown| {
+            shown
+                .account_folders
+                .iter()
+                .find(|row| row.account_id == stored.account_id)
+                .is_some_and(|row| tree(&row.folders).eq(tree(&stored.folders)))
+        });
+        if !same {
+            self.rebuild_snapshot().await;
+        }
+    }
 }
+
+/// What a folder tree is, apart from what changes inside a folder: each row's key, name and
+/// parent, in order.
+fn tree(rows: &[FolderRow]) -> impl Iterator<Item = (&str, &str, Option<&str>)> {
+    rows.iter()
+        .map(|row| (row.key.as_str(), row.name.as_str(), row.parent.as_deref()))
+}
+
+#[cfg(test)]
+#[path = "tests_folder_pane_live.rs"]
+mod tests;

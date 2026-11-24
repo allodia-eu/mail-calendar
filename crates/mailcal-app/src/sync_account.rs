@@ -7,12 +7,16 @@
 //! layer can give: whether the account reached its server ([`Reach`], for the outage badge) and
 //! whether its sign-in was refused. It also writes the pass to the diagnostic log.
 
-use std::time::Duration;
+use std::{sync::Mutex, time::Duration};
 
-use engine_api::{Engine, MailSyncReport, Provider, StreamTuning, SyncObserver};
+use engine_api::{
+    AccountId, Engine, MailSyncReport, Provider, StreamTuning, SyncCommit, SyncObserver, SyncScope,
+};
+use engine_core::ids::MailboxId;
+use futures::channel::oneshot;
 
 use crate::{
-    Account, MailboxConnector,
+    Account, App, MailboxConnector,
     connectivity::throttled_for,
     sync_unbound::{still_listed, sync_unbound_folders},
 };
@@ -138,6 +142,84 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             && folder_reaches
                 .iter()
                 .all(|reach| matches!(reach, Reach::Reached | Reach::Gone)),
+    }
+}
+
+impl<P: Provider> App<P> {
+    /// [`sync_account_providers`] for one of this app's accounts, drawing the account's folders
+    /// as soon as the pass has read the folder list ([`App::redraw_if_folders_moved`]) rather
+    /// than when every folder's mail is in.
+    ///
+    /// The engine says when the list step is over from inside the pass, where nothing can be
+    /// awaited, so the redraw runs beside the pass and waits for that word. It comes whether the
+    /// list was read, failed or held by another pass; the tree comparison is what keeps a pass
+    /// that stored nothing new from drawing again.
+    pub(crate) async fn sync_account_pass<K: SyncObserver>(
+        &self,
+        account: &Account<P>,
+        tuning: StreamTuning,
+        observer: &K,
+        acct: usize,
+    ) -> SyncAccountOutcome {
+        let (listed, folders_known) = oneshot::channel();
+        let watch = ListedWatch {
+            inner: observer,
+            listed: Mutex::new(Some(listed)),
+        };
+        let pass = async move {
+            let outcome = sync_account_providers(
+                &self.engine,
+                account,
+                self.connector.as_deref(),
+                tuning,
+                &watch,
+                acct,
+            )
+            .await;
+            // Ends the redraw's wait when the pass never reported a folder list.
+            drop(watch);
+            outcome
+        };
+        // Boxed: a full rebuild's future is large, and inline it would grow every sync's future
+        // by its size.
+        let draw = Box::pin(async {
+            if folders_known.await.is_ok() {
+                self.redraw_if_folders_moved(&account.id).await;
+            }
+        });
+        futures::join!(pass, draw).0
+    }
+}
+
+/// Passes every event on to `inner`, and says once, on `listed`, that the pass is past its
+/// folder-list step.
+struct ListedWatch<'a, K> {
+    inner: &'a K,
+    listed: Mutex<Option<oneshot::Sender<()>>>,
+}
+
+impl<K: SyncObserver> SyncObserver for ListedWatch<'_, K> {
+    fn committed(&self, commit: &SyncCommit<'_>) {
+        self.inner.committed(commit);
+    }
+
+    /// The engine reports the start after the folder-list step, with the stored folders it is
+    /// about to stream. The paths that stop before streaming report none, and say nothing.
+    fn account_sync_started(&self, account: &AccountId, folders: usize, inbox: Option<&MailboxId>) {
+        self.inner.account_sync_started(account, folders, inbox);
+        if folders > 0
+            && let Some(listed) = self.listed.lock().expect("listed mutex poisoned").take()
+        {
+            let _ = listed.send(());
+        }
+    }
+
+    fn folder_sync_finished(&self, account: &AccountId, scope: &SyncScope, synced: bool) {
+        self.inner.folder_sync_finished(account, scope, synced);
+    }
+
+    fn account_sync_finished(&self, account: &AccountId) {
+        self.inner.account_sync_finished(account);
     }
 }
 
