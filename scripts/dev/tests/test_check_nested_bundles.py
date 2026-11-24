@@ -32,9 +32,7 @@ SCRIPT = Path(__file__).resolve().parents[3] / "clients" / "apple" / "Scripts" /
 # An absolute path to Git Bash on Windows: a bare "bash" resolves through CreateProcess,
 # which searches System32 -- WSL's launcher -- before PATH. See bashtools.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bashtools import bash_argv, bash_problem, find_bash  # noqa: E402
-
-BASH = find_bash()
+from bashtools import bash_argv, bash_problem  # noqa: E402
 
 
 def write_bundle(path, executable="helper", layout="macos", plist=True, binary=True):
@@ -65,7 +63,7 @@ class NestedBundleTests(unittest.TestCase):
         # POSIX-style paths: bash on Windows is MSYS, which reads `C:/…` but treats the
         # backslashes of a native path as escapes.
         return subprocess.run(
-            [BASH, SCRIPT.as_posix(), (app or self.app).as_posix(), *args],
+            bash_argv(SCRIPT.as_posix(), (app or self.app).as_posix(), *args),
             capture_output=True,
             text=True,
         )

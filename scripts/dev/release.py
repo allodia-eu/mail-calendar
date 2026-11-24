@@ -455,7 +455,7 @@ def main(argv=None):
 
     failed = 0
     for step in steps:
-        print("\n==> {}".format(" ".join(step)))
+        print("\n==> {}".format(step if isinstance(step, str) else " ".join(step)))
         failed |= subprocess.call(step, cwd=str(REPO_ROOT))
 
     if args.skip_docs or not docs_release:

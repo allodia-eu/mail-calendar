@@ -140,12 +140,41 @@ def bash_problem() -> str:
     )
 
 
-def bash_argv(*args: str) -> list[str]:
-    """`[bash, *args]` for `subprocess`, using the interpreter this module chose."""
+def bash_argv(*args: str) -> list[str] | str:
+    """
+    `[bash, *args]` for `subprocess`, using the interpreter this module chose. Hand it to
+    `subprocess` as it is: on Windows it is the command line itself, every argument quoted.
+
+    Git Bash does not take its arguments from the list `subprocess` was given. Its runtime parses
+    the Windows command line again, and in an argument Python left unquoted, which is any without
+    whitespace, it reads `'` and `"` as quotes and expands `*`, `{a,b}` and `~`: `it's -- cmd`
+    arrives as the single argument `its -- cmd`, and `*` as the files in the working directory.
+    Inside double quotes it reads only the backslash rules Python itself writes, so quoting every
+    argument hands each one over as it was.
+    """
     chosen = find_bash()
     if chosen is None:
         raise RuntimeError(bash_problem())
-    return [chosen, *args]
+    if sys.platform != "win32":
+        return [chosen, *args]
+    return " ".join(_quoted(arg) for arg in (chosen, *args))
+
+
+def _quoted(arg: str) -> str:
+    """`arg` in double quotes, with the backslashes before a quote doubled as the MSVC rules ask."""
+    out: list[str] = []
+    backslashes = 0
+    for char in arg:
+        if char == "\\":
+            backslashes += 1
+            continue
+        if char == '"':
+            out.append("\\" * (backslashes * 2 + 1) + '"')
+        else:
+            out.append("\\" * backslashes + char)
+        backslashes = 0
+    out.append("\\" * (backslashes * 2))
+    return '"' + "".join(out) + '"'
 
 
 def bash_path(path: str | Path) -> str:
