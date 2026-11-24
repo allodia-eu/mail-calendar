@@ -205,7 +205,8 @@ case "$cmd" in
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       live_suite live_older_sent
-    MAILCAL_EXTRA_CA="$HARNESS_CA" \
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       live_suite live_account_servers
     MAILCAL_EXTRA_CA="$HARNESS_CA" \

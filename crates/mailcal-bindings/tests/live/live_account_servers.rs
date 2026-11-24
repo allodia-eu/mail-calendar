@@ -1,13 +1,15 @@
 //! Gated live check of an account's servers on its page, against the harness: a save the servers
 //! refuse keeps the edit as it was typed, and servers saved by any other path (accepting a server
 //! change does it) are what the form is drawn from after that, never the edit refused before.
-//! A server typed as an IPv6 literal goes through the harness's `[::1]` listener on the same port.
+//! A server typed as an IPv6 literal goes through the harness's `[::1]` listener on the same port,
+//! and a calendar server typed on a mailbox's page switches its calendar on.
 //!
-//! Skips unless `MAILCAL_HARNESS_IMAP` and `MAILCAL_EXTRA_CA` are set; `scripts/dev/harness.sh
-//! test` sets both. By hand:
+//! Skips unless `MAILCAL_HARNESS_IMAP` and `MAILCAL_EXTRA_CA` are set, and the calendar case
+//! unless `STALWART_HTTP_ADDR` is too; `scripts/dev/harness.sh test` sets all three. By hand:
 //! ```sh
 //! scripts/dev/harness.sh up
-//! MAILCAL_HARNESS_IMAP=localhost:12993 MAILCAL_EXTRA_CA=docker/stalwart/tls/harness-ca.pem \
+//! STALWART_HTTP_ADDR=127.0.0.1:28080 MAILCAL_HARNESS_IMAP=localhost:12993 \
+//!   MAILCAL_EXTRA_CA=docker/stalwart/tls/harness-ca.pem \
 //!   cargo test -p mailcal-bindings --test live -- live_account_servers:: --nocapture
 //! ```
 
@@ -16,8 +18,9 @@
 use std::time::{Duration, Instant};
 
 use mailcal_bindings::{
-    AccountChangeNotice, AccountEndpointsGap, AccountPage, AccountPageIntent, AccountSetup, Intent,
-    MailcalApp, MailcalError, account_config_toml, server_address,
+    AccountCapability, AccountChangeNotice, AccountEndpointsGap, AccountPage, AccountPageIntent,
+    AccountSetup, CapabilityState::On, Intent, MailcalApp, MailcalError, account_config_toml,
+    server_address,
 };
 
 use crate::live_oauth::{RecordingStore, app};
@@ -152,4 +155,67 @@ fn an_ipv6_server_is_dialled_in_brackets_and_read_back_so() {
         .expect("the servers are tried again over IPv6, and saved");
     let form = settled(&app, &id).servers.expect("editable").form;
     assert_eq!(form.imap_host.as_deref(), Some(address.as_str()));
+}
+
+/// A mailbox with no calendar server gets one on its page: the form offers the field empty, a
+/// server typed there that does not connect is refused and changes nothing, and the harness's
+/// own switches the calendar on (`docs/accounts.md` rule 14). Signed in as bob: the harness limits
+/// how many sign-ins one account has at once, and the other cases here sign in as alice.
+#[test]
+fn a_calendar_server_typed_on_a_mailbox_s_page_switches_its_calendar_on() {
+    let (Ok(_), Ok(imap), Ok(http)) = (
+        std::env::var("MAILCAL_EXTRA_CA"),
+        std::env::var("MAILCAL_HARNESS_IMAP"),
+        std::env::var("STALWART_HTTP_ADDR"),
+    ) else {
+        eprintln!("skipping the new calendar server live test: the harness variables are unset");
+        return;
+    };
+    let (host, port) = imap.rsplit_once(':').expect("host:port");
+    let (_dir, app) = app("account-servers-new-calendar", RecordingStore::default());
+    let config = format!(
+        "[imap]\naddr = \"127.0.0.1:{port}\"\nserver_name = \"{host}\"\n\
+         username = \"bob@test.local\"\npassword = \"harness-bob-pw\"\n"
+    );
+    let id = app.add_account(config).expect("bob connects").id;
+    let calendar_on = |app: &MailcalApp| {
+        app.accounts_snapshot()
+            .accounts
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .expect("listed")
+            .uses
+            .iter()
+            .any(|used| used.capability == AccountCapability::Calendar && used.state == On)
+    };
+    assert!(!calendar_on(&app));
+    let form = settled(&app, &id).servers.expect("editable").form;
+    assert_eq!(form.caldav_url.as_deref(), Some(""), "offered, and empty");
+
+    let mut nowhere = form.clone();
+    nowhere.caldav_url = Some("http://127.0.0.1:1".to_owned());
+    assert!(
+        matches!(
+            app.update_account_endpoints(id.clone(), nowhere),
+            Err(MailcalError::UseNotConnected {
+                capability: AccountCapability::Calendar,
+                ..
+            })
+        ),
+        "a calendar that does not connect is not switched on"
+    );
+    assert!(!calendar_on(&app));
+    let form = settled(&app, &id).servers.expect("editable").form;
+    assert_eq!(form.caldav_url.as_deref(), Some(""), "nothing was stored");
+
+    let mut harness = form;
+    harness.caldav_url = Some(format!("http://{http}"));
+    app.update_account_endpoints(id.clone(), harness)
+        .expect("the harness's calendar server takes his login");
+    assert!(
+        calendar_on(&app),
+        "typed for it, the calendar is switched on"
+    );
+    let form = settled(&app, &id).servers.expect("editable").form;
+    assert_eq!(form.caldav_url, Some(format!("http://{http}")));
 }

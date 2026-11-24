@@ -20,8 +20,9 @@ impl AccountRegistry {
         }
     }
 
-    /// `id`'s config with `edit` applied, serialized for a dial and the host's store, and the uses
-    /// whose server moved to another host. Nothing in the registry changes.
+    /// `id`'s config with `edit` applied, serialized for a dial and the host's store, the uses
+    /// whose server moved to another host, and the uses the edit switched on. Nothing in the
+    /// registry changes.
     ///
     /// # Errors
     ///
@@ -32,7 +33,7 @@ impl AccountRegistry {
         &self,
         id: &str,
         edit: &EndpointEdit,
-    ) -> Result<(String, Capabilities), MailcalError> {
+    ) -> Result<(String, Capabilities, Capabilities), MailcalError> {
         let refused = |reason: String| MailcalError::Config(reason);
         let entries = self
             .entries
@@ -64,6 +65,6 @@ impl AccountRegistry {
             .config
             .to_toml()
             .map_err(|err| refused(err.to_string()))?;
-        Ok((config_toml, edited.moved))
+        Ok((config_toml, edited.moved, edited.added))
     }
 }
