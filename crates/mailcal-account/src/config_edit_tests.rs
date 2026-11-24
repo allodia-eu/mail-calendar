@@ -366,3 +366,120 @@ fn the_form_says_an_empty_address_book_server_falls_back_only_beside_a_calendar_
         "with no calendar server, the address book's is the only one the contacts have"
     );
 }
+
+const MAILBOX: &str = r#"
+[imap]
+addr = "imap.example.org:993"
+server_name = "imap.example.org"
+username = "alice@example.org"
+password = "old"
+
+[smtp]
+addr = "smtp.example.org:465"
+server_name = "smtp.example.org"
+"#;
+
+#[test]
+fn a_mailbox_alone_is_offered_an_empty_calendar_and_address_book_server() {
+    let config = load_str(MAILBOX).unwrap();
+    let form = config.endpoint_form();
+    assert_eq!(
+        (form.caldav_url.as_deref(), form.carddav_url.as_deref()),
+        (Some(""), Some(""))
+    );
+    assert!(
+        !form.contacts_fall_back_to_calendar(),
+        "no calendar server for the contacts to fall back to"
+    );
+    assert_eq!(form.gap(&config), None, "both may be left empty");
+
+    let kept = config.with_endpoints(&form).unwrap();
+    assert!(
+        kept.added.iter().next().is_none(),
+        "left empty, nothing is added"
+    );
+    assert!(kept.config.caldav.is_none() && kept.config.carddav.is_none());
+    assert_eq!(kept.config.shape.capabilities, Some(config.capabilities()));
+}
+
+#[test]
+fn a_calendar_server_typed_where_there_was_none_switches_the_calendar_on() {
+    let config = load_str(MAILBOX).unwrap();
+    let mut typed = config.endpoint_form();
+    typed.caldav_url = Some("dav.example.org".to_owned());
+    let edited = config.with_endpoints(&typed).unwrap();
+
+    assert_eq!(
+        edited.added.iter().collect::<Vec<_>>(),
+        [Capability::Calendar]
+    );
+    assert!(
+        edited.moved.iter().next().is_none(),
+        "nothing was there to move"
+    );
+    let uses = edited.config.shape.capabilities.as_ref().unwrap();
+    assert!(uses.contains(Capability::Mail) && uses.contains(Capability::Calendar));
+    assert!(
+        !uses.contains(Capability::Contacts),
+        "only the use whose server was typed"
+    );
+    let caldav = edited.config.caldav.as_ref().unwrap();
+    assert_eq!(caldav.base_url, "https://dav.example.org");
+    assert_eq!(caldav.username, "alice@example.org");
+    assert_eq!(caldav.password.as_ref().unwrap().expose(), "old");
+    assert_eq!(
+        edited
+            .config
+            .shape
+            .id
+            .as_ref()
+            .map(engine_core::ids::AccountId::as_str),
+        Some("alice@example.org@imap.example.org"),
+        "still the same account"
+    );
+}
+
+#[test]
+fn an_address_book_server_typed_where_there_was_none_switches_the_contacts_on() {
+    let config = load_str(MAILBOX).unwrap();
+    let mut typed = config.endpoint_form();
+    typed.carddav_url = Some("https://carddav.example.net/".to_owned());
+    let edited = config.with_endpoints(&typed).unwrap();
+
+    assert_eq!(
+        edited.added.iter().collect::<Vec<_>>(),
+        [Capability::Contacts]
+    );
+    let carddav = edited.config.carddav.as_ref().unwrap();
+    assert_eq!(carddav.username, "alice@example.org");
+    assert_eq!(carddav.password.as_ref().unwrap().expose(), "old");
+    assert!(edited.config.caldav.is_none());
+}
+
+#[test]
+fn a_use_a_link_fills_is_offered_no_server() {
+    let config = load_str(&format!(
+        "{MAILBOX}\n[links]\ncalendar = \"alice@dav:cloud.example\"\n\
+         contacts = \"alice@dav:cloud.example\"\n"
+    ))
+    .unwrap();
+    let form = config.endpoint_form();
+    assert_eq!((form.caldav_url, form.carddav_url), (None, None));
+}
+
+#[test]
+fn a_server_for_a_use_the_account_already_has_adds_nothing() {
+    let config = load_str(STANDARDS).unwrap();
+    let mut typed = config.endpoint_form();
+    typed.carddav_url = Some("carddav.example.net".to_owned());
+    assert!(
+        config
+            .with_endpoints(&typed)
+            .unwrap()
+            .added
+            .iter()
+            .next()
+            .is_none(),
+        "the contacts were on, served by the calendar server: they move, they are not added"
+    );
+}

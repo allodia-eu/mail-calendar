@@ -20,10 +20,11 @@ pub struct EndpointEdit {
     pub smtp_host: Option<String>,
     /// How the SMTP connection is secured.
     pub smtp_security: ConnectionSecurity,
-    /// The CalDAV base URL; `https://` is assumed when it names no scheme.
+    /// The CalDAV base URL; `https://` is assumed when it names no scheme. Empty on a form for an
+    /// account that has none ([`AccountConfig::endpoint_form`]).
     pub caldav_url: Option<String>,
     /// The CardDAV base URL, when it is not the calendar's. Empty on a form while the calendar
-    /// server serves the contacts ([`AccountConfig::endpoint_form`]).
+    /// server serves the contacts, or the account has neither.
     pub carddav_url: Option<String>,
     /// The login every server takes.
     pub username: String,
@@ -121,20 +122,29 @@ pub struct EditedAccount {
     /// old server and is synced again from the new one; a new port, security, login or password
     /// moves nothing.
     pub moved: Capabilities,
+    /// The uses the edit switched on: a calendar or address book server typed where the account
+    /// had none. Each has to connect before the edit is stored.
+    pub added: Capabilities,
 }
 
 impl AccountConfig {
     /// The account's servers and login as Settings draws them: [`endpoints`](Self::endpoints),
-    /// with an empty address-book server while the calendar server serves the contacts. A
-    /// provider can keep its contacts on a server of their own, so the field is there to type it
-    /// into; left empty, the calendar server goes on serving them ([`EndpointEdit::gap`]).
+    /// with an empty field for a calendar or address book server the account has none of, so one
+    /// can be typed in. Typed, it switches its use on ([`with_endpoints`](Self::with_endpoints));
+    /// a use a link fills is offered none. While the calendar server serves the contacts the
+    /// address book field is offered too, since a provider can keep its contacts on a server of
+    /// their own; left empty, the calendar server goes on serving them ([`EndpointEdit::gap`]).
     #[must_use]
     pub fn endpoint_form(&self) -> EndpointEdit {
         let mut form = self.endpoints();
-        if form.carddav_url.is_none()
-            && self.caldav.is_some()
-            && self.capabilities().contains(Capability::Contacts)
-        {
+        let links = &self.shape.links;
+        if self.caldav.is_none() && links.calendar.is_none() {
+            form.caldav_url = Some(String::new());
+        }
+        let contacts_ride_on_calendar =
+            self.caldav.is_some() && self.capabilities().contains(Capability::Contacts);
+        let no_contacts_server = self.caldav.is_none() && links.contacts.is_none();
+        if self.carddav.is_none() && (contacts_ride_on_calendar || no_contacts_server) {
             form.carddav_url = Some(String::new());
         }
         form
@@ -174,7 +184,9 @@ impl AccountConfig {
     }
 
     /// This account with `edit`'s servers and login, keeping its id, its uses, its links, its
-    /// accepted certificates and its sign-in.
+    /// accepted certificates and its sign-in. A calendar or address book server given where the
+    /// account had none switches its use on ([`EditedAccount::added`]), with the account's login
+    /// and password.
     ///
     /// # Errors
     ///
@@ -250,7 +262,26 @@ impl AccountConfig {
             password: password.clone(),
         });
 
-        let uses = self.capabilities();
+        let had = self.capabilities();
+        // A server typed where the account had none is typed to be used.
+        let added: Capabilities = [
+            (
+                Capability::Calendar,
+                self.caldav.is_none() && edited.caldav.is_some(),
+            ),
+            (
+                Capability::Contacts,
+                self.carddav_endpoint().is_none() && edited.carddav.is_some(),
+            ),
+        ]
+        .into_iter()
+        .filter(|&(capability, new)| new && !had.contains(capability))
+        .map(|(capability, _)| capability)
+        .collect();
+        let mut uses = had.clone();
+        for capability in added.iter() {
+            uses.insert(capability);
+        }
         let served = [
             (Capability::Mail, edited.imap.is_some()),
             (Capability::Calendar, edited.caldav.is_some()),
@@ -268,7 +299,7 @@ impl AccountConfig {
             ));
         }
         edited.shape.id = self.shape.id.clone().or(self.account_id().ok());
-        edited.shape.capabilities = Some(uses.clone());
+        edited.shape.capabilities = Some(uses);
 
         let host = |config: &AccountConfig, capability| match capability {
             Capability::Mail => config
@@ -281,7 +312,7 @@ impl AccountConfig {
         let moved = [Capability::Mail, Capability::Calendar, Capability::Contacts]
             .into_iter()
             .filter(|&capability| {
-                uses.contains(capability) && host(self, capability) != host(&edited, capability)
+                had.contains(capability) && host(self, capability) != host(&edited, capability)
             })
             .collect();
         // A shared store's handle names a store on the server that found it: the mail server for
@@ -295,6 +326,7 @@ impl AccountConfig {
         Ok(EditedAccount {
             config: edited,
             moved,
+            added,
         })
     }
 

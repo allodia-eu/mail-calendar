@@ -31,7 +31,9 @@ impl MailcalApp {
     ///
     /// The account keeps its id, its uses, its links, its settings and its signatures. A use
     /// whose server moved to another host has what the device holds of it deleted and synced
-    /// again from the new one; a new port, security, login or password keeps it. Start from the
+    /// again from the new one; a new port, security, login or password keeps it. A calendar or
+    /// address book server given where the account had none switches its use on, and is refused
+    /// with [`MailcalError::UseNotConnected`] unless it connects. Start from the
     /// page's [`AccountServers::form`](crate::AccountServers::form) and leave `password` `None` to
     /// keep the stored one.
     ///
@@ -63,9 +65,11 @@ impl MailcalApp {
         endpoints: AccountEndpoints,
         must_connect: &[mailcal_account::Capability],
     ) -> Result<(), MailcalError> {
-        let (config_toml, moved) = self
+        let (config_toml, moved, added) = self
             .registry
             .edited_endpoints(&account_id, &endpoints.into())?;
+        // A use switched on by the server just typed for it has nothing to fall back to.
+        let must_connect: Vec<_> = must_connect.iter().copied().chain(added.iter()).collect();
         let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
@@ -82,7 +86,7 @@ impl MailcalApp {
             "edited servers",
             &forget,
             None,
-            must_connect,
+            &must_connect,
         )?;
         // A server on another host leaves no shared store the old one opened.
         let shared_after = self.registry.shared_children(&account_id);

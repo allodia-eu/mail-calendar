@@ -320,6 +320,22 @@ class SettingsAccountsTest {
     }
 
     @Test
+    fun a_calendar_server_the_account_has_none_of_is_drawn_empty_and_takes_one_typed() {
+        val entry = mailboxOnly()
+        state.page = entry.id
+        val form = imapEndpoints().copy(caldavUrl = "", carddavUrl = "")
+        show(entry, page = pageOf(entry, servers = AccountServers(form, FREE)))
+
+        compose.onNodeWithText("Calendar server (CalDAV)").performScrollTo()
+            .performTextInput("dav.example.org")
+        compose.onNodeWithTag("account-servers-save").performScrollTo().performClick()
+
+        val endpoints = changes.filterIsInstance<AccountPageIntent.SaveServers>().single().endpoints
+        assertEquals("dav.example.org", endpoints.caldavUrl)
+        assertEquals("", endpoints.carddavUrl)
+    }
+
+    @Test
     fun saving_servers_sends_what_was_typed_and_keeps_the_stored_password() {
         val entry = mailboxOnly()
         state.page = entry.id

@@ -96,6 +96,11 @@ impl Capabilities {
         self.known.contains(&capability)
     }
 
+    /// Adds `capability`, keeping every name already listed.
+    pub fn insert(&mut self, capability: Capability) {
+        self.known.insert(capability);
+    }
+
     /// The capabilities this build knows, in a fixed order.
     pub fn iter(&self) -> impl Iterator<Item = Capability> + '_ {
         self.known.iter().copied()

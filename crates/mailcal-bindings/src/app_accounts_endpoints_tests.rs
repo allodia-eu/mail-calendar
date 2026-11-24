@@ -211,3 +211,44 @@ fn the_page_says_what_an_edit_leaves_out_and_a_save_through_it_says_why_it_faile
         "the form is drawn as it was typed, so one field is corrected rather than all retyped"
     );
 }
+
+#[test]
+fn a_mailbox_s_page_offers_the_calendar_and_address_book_servers_it_has_none_of() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("endpoints-new-servers", &store);
+    let bob = "bob@example.org@localhost";
+    let page = app.account_page(bob.to_owned()).expect("listed");
+    let calendar = page
+        .uses
+        .iter()
+        .find(|use_| use_.capability == crate::AccountCapability::Calendar)
+        .expect("a mailbox can be used for its calendar");
+    assert_eq!(
+        calendar.blocked,
+        Some(crate::AccountUseBlock::NeedsServer),
+        "the switch says a server is needed, and the form below takes it"
+    );
+    let servers = page
+        .servers
+        .expect("a password account's servers are on its page");
+    assert!(!servers.contacts_fall_back_to_calendar);
+    let form = servers.form;
+    assert_eq!(
+        (form.caldav_url.as_deref(), form.carddav_url.as_deref()),
+        (Some(""), Some("")),
+        "drawn, and empty"
+    );
+    assert_eq!(
+        app.account_endpoints_gap(bob.to_owned(), form.clone()),
+        None
+    );
+
+    let mut typed = form;
+    typed.caldav_url = Some("http://127.0.0.1:1/dav".to_owned());
+    assert!(
+        app.update_account_endpoints(bob.to_owned(), typed).is_err(),
+        "nothing listens there"
+    );
+    assert!(store.persisted.lock().unwrap().is_empty(), "nothing stored");
+    assert_eq!(app.registry.endpoints(bob).unwrap().caldav_url, None);
+}
