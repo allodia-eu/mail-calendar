@@ -28,6 +28,7 @@ public sealed partial class ComposerView
     private ComposerReplyDraft? _replyDraft;
     private ulong _draftScriptRun;
     private bool _askingArrived;
+    private bool _draftWaiting;
     private Flyout? _draftFlyout;
     private ControlState? _drawnControl;
     // What the open flyout shows: its line, whether it shows a hold instead, and Draft's state.
@@ -171,9 +172,27 @@ public sealed partial class ComposerView
         L10n.ComposerDraftChipYes(), L10n.ComposerDraftChipNo(), L10n.ComposerDraftChipMoreInfo(), L10n.ComposerDraftChipLater(),
         L10n.ComposerTaskFillIn);
 
-    // Draft, asking first while what is above the signature and the quote is the person's own.
+    // Draft, asking first while what is above the signature and the quote is the person's own. Only
+    // the wait for a closing dialog takes one press at a time, since two presses in it would ask
+    // twice; a press during the close of the question an earlier press asked waits like any other.
     private async Task DraftAsync(string instruction)
     {
+        if (_draftWaiting)
+        {
+            return;
+        }
+        _draftWaiting = true;
+        try
+        {
+            if (!await QuestionMayOpenAsync())
+            {
+                return;
+            }
+        }
+        finally
+        {
+            _draftWaiting = false;
+        }
         if (_model is null || _replyDraft is not { Draft.Enabled: true } record)
         {
             return;
@@ -204,6 +223,10 @@ public sealed partial class ComposerView
         _askingArrived = true;
         try
         {
+            if (!await QuestionMayOpenAsync() || _replyDraft is not { ReplaceArrived: true })
+            {
+                return;
+            }
             var replace = await AskReplaceAsync();
             _model.ChangeReplyDraft(new ReplyDraftIntent.AnswerArrived(_composition, replace));
         }
@@ -211,6 +234,16 @@ public sealed partial class ComposerView
         {
             _askingArrived = false;
         }
+    }
+
+    // A question waits for a dialog that is open or still closing rather than being dropped: a
+    // dropped show answers None, which reads as Cancel, so Draft would do nothing and an arrived
+    // draft or the Send question would be answered without being asked. False when the composer
+    // finished meanwhile.
+    private async Task<bool> QuestionMayOpenAsync()
+    {
+        await DialogHelper.WhenIdleAsync();
+        return _model is not null && !_finished;
     }
 
     private async Task<bool> AskReplaceAsync()
@@ -259,6 +292,10 @@ public sealed partial class ComposerView
     // the question is not the client's alone. Either answer is sent before anything is submitted.
     private async Task<bool> SendQuestionAllowsAsync()
     {
+        if (!await QuestionMayOpenAsync())
+        {
+            return false;
+        }
         if (_model?.ComposerReplyDraft(_composition, SendingFrom()) is not { SendQuestion: { } question })
         {
             return true;
