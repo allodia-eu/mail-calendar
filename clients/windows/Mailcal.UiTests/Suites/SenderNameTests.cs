@@ -68,27 +68,13 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
 
     /// <summary>
     /// Opens the download picker and clicks the first entry of its open list that
-    /// <paramref name="wanted"/> accepts, as a person picks one; answers the entry clicked. The
-    /// combo also lists its entries under itself, which name the options and are not the ones drawn.
+    /// <paramref name="wanted"/> accepts, as a person picks one; answers the entry clicked.
     /// </summary>
     private static string PickDepth(App app, Element dialog, Func<string, bool> wanted)
     {
-        var picker = DepthPicker(app, dialog);
-        app.Agent.Expand(picker);
-        Element? item = null;
-        if (!App.Eventually(() =>
-            {
-                // Read once open: a closed combo may list nothing under itself.
-                var listed = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).ToList();
-                var options = listed.Select(e => e.Name).ToHashSet();
-                var under = listed.Select(e => e.Handle).ToHashSet();
-                return (item = app.Agent.FindAll(new Filter { Type = "ListItem" })
-                    .FirstOrDefault(e => !under.Contains(e.Handle) && options.Contains(e.Name) && wanted(e.Name) && e.Rendered)) is not null;
-            }, TimeSpan.FromSeconds(3)))
-        {
-            throw new InvalidOperationException($"clicking the '{Depth}' picker opened no list to pick from");
-        }
-        var label = item!.Name;
+        var item = app.OpenList(DepthPicker(app, dialog)).FirstOrDefault(e => wanted(e.Name))
+            ?? throw new InvalidOperationException($"the '{Depth}' picker's open list offers nothing to pick");
+        var label = item.Name;
         Input.Click(app.Steady(item));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
         return label;

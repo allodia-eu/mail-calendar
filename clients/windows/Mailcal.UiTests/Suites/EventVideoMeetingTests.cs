@@ -80,19 +80,10 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
     /// <summary>Clicks <paramref name="label"/> in the open list of <paramref name="box"/>.</summary>
     private static void Pick(App app, Element box, string label)
     {
-        app.Agent.Expand(box);
-        var named = Filter.Named(label, "ListItem");
-        Element? item = null;
-        if (!App.Eventually(() =>
-            {
-                var closed = app.Agent.FindAll(named with { Under = box }).Select(e => e.Handle).ToHashSet();
-                return (item = app.Agent.FindAll(named).FirstOrDefault(e => !closed.Contains(e.Handle))) is not null;
-            }, TimeSpan.FromSeconds(3)))
-        {
-            throw new InvalidOperationException($"the Video meeting row offers no '{label}'");
-        }
-        Input.Click(app.Steady(item!));
-        App.Eventually(() => app.Agent.FindAll(named).Count <= app.Agent.FindAll(named with { Under = box }).Count, TimeSpan.FromSeconds(3));
+        var item = app.OpenList(box).FirstOrDefault(e => e.Name == label)
+            ?? throw new InvalidOperationException($"the Video meeting row offers no '{label}'");
+        Input.Click(app.Steady(item));
+        App.Eventually(() => app.Agent.Find(new Filter { Type = "Window", Under = box }) is null, TimeSpan.FromSeconds(3));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
     }
 
