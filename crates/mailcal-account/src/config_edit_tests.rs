@@ -335,3 +335,34 @@ fn a_stored_address_book_server_is_the_one_the_form_shows() {
         Some("https://carddav.example.org/")
     );
 }
+
+#[test]
+fn the_form_says_an_empty_address_book_server_falls_back_only_beside_a_calendar_server() {
+    let empty = load_str(STANDARDS).unwrap().endpoint_form();
+    assert!(empty.contacts_fall_back_to_calendar());
+
+    let stored = load_str(&format!(
+        "{STANDARDS}\n[carddav]\nbase_url = \"https://carddav.example.org/\"\n\
+         username = \"alice@example.org\"\npassword = \"old\"\n"
+    ))
+    .unwrap()
+    .endpoint_form();
+    assert!(
+        stored.contacts_fall_back_to_calendar(),
+        "a stored one may be cleared too"
+    );
+
+    let no_field = load_str(&format!(
+        "capabilities = [\"mail\", \"calendar\"]\n{STANDARDS}"
+    ))
+    .unwrap()
+    .endpoint_form();
+    assert!(!no_field.contacts_fall_back_to_calendar());
+
+    let mut no_calendar = stored;
+    no_calendar.caldav_url = None;
+    assert!(
+        !no_calendar.contacts_fall_back_to_calendar(),
+        "with no calendar server, the address book's is the only one the contacts have"
+    );
+}

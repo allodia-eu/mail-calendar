@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "Les modifications sont essayées avant d’être enregistrées. Laissez le mot de passe vide pour conserver l’actuel.",
 	"settings_account_field_imap": "Serveur entrant (IMAP)",
 	"settings_account_field_carddav": "Serveur de carnet d’adresses (CardDAV)",
+	"settings_account_carddav_empty_hint": "Laissez vide pour utiliser le serveur de calendrier pour les contacts.",
 	"settings_account_field_login": "Identifiant",
 	"settings_account_field_new_password": "Nouveau mot de passe",
 	"settings_account_servers_failed": "Impossible d’enregistrer ces réglages",

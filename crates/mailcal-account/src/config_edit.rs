@@ -68,6 +68,17 @@ pub enum EndpointGap {
 }
 
 impl EndpointEdit {
+    /// Whether the address-book server may be left empty, the calendar server then serving the
+    /// contacts: this form draws one beside a calendar server. Settings says so under the field.
+    #[must_use]
+    pub fn contacts_fall_back_to_calendar(&self) -> bool {
+        self.carddav_url.is_some()
+            && self
+                .caldav_url
+                .as_deref()
+                .is_some_and(|url| !url.trim().is_empty())
+    }
+
     /// What this edit of `account` leaves out, the first of them in the order Settings draws the
     /// fields, or `None` when it can be tried. A server the account has keeps an address; the
     /// CardDAV one may be cleared while the account has a calendar server, which then serves its

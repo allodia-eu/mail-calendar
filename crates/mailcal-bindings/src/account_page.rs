@@ -118,10 +118,14 @@ pub(crate) fn page(
                 PageWork::Servers(edit) => Some(edit.as_ref().clone()),
                 _ => None,
             });
+            let contacts_fall_back_to_calendar =
+                mailcal_account::EndpointEdit::from(stored.clone())
+                    .contacts_fall_back_to_calendar();
             AccountServers {
                 sign_in_refused: false,
                 save: control(saving.is_some(), true),
                 form: saving.or(refused_servers).unwrap_or(stored),
+                contacts_fall_back_to_calendar,
             }
         }),
         shared: None,

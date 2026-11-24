@@ -73,13 +73,17 @@ pub(super) fn server_group(
     entry: &AccountEntry,
     servers: &AccountServers,
 ) -> adw::PreferencesGroup {
-    let section = group(
-        l10n::settings_account_servers_heading(),
-        &description(
-            &super::account_names::entry_name(entry),
-            servers.sign_in_refused,
-        ),
+    let mut said = description(
+        &super::account_names::entry_name(entry),
+        servers.sign_in_refused,
     );
+    // An entry row has no subtitle, and a widget added to the group lands under the whole list,
+    // so what an empty address book server means is said with the rest of the section's advice.
+    if servers.contacts_fall_back_to_calendar {
+        said.push(' ');
+        said.push_str(&l10n::settings_account_carddav_empty_hint());
+    }
+    let section = group(l10n::settings_account_servers_heading(), &said);
     let form = &servers.form;
     let imap = form.imap_host.as_deref().map(|address| {
         server_rows(

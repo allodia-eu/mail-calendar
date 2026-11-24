@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "Änderungen werden erst ausprobiert und dann gesichert. Lassen Sie das Passwort leer, um das aktuelle zu behalten.",
 	"settings_account_field_imap": "Posteingangsserver (IMAP)",
 	"settings_account_field_carddav": "Adressbuchserver (CardDAV)",
+	"settings_account_carddav_empty_hint": "Lassen Sie das Feld leer, um den Kalenderserver für Kontakte zu verwenden.",
 	"settings_account_field_login": "Benutzername",
 	"settings_account_field_new_password": "Neues Passwort",
 	"settings_account_servers_failed": "Diese Einstellungen konnten nicht gesichert werden",

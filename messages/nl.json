@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "Wijzigingen worden eerst geprobeerd en dan pas bewaard. Laat het wachtwoord leeg om het huidige te houden.",
 	"settings_account_field_imap": "Inkomende server (IMAP)",
 	"settings_account_field_carddav": "Adresboekserver (CardDAV)",
+	"settings_account_carddav_empty_hint": "Laat leeg om de agendaserver voor contacten te gebruiken.",
 	"settings_account_field_login": "Gebruikersnaam",
 	"settings_account_field_new_password": "Nieuw wachtwoord",
 	"settings_account_servers_failed": "Kon deze instellingen niet opslaan",

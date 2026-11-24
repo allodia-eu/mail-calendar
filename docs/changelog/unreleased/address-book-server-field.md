@@ -6,7 +6,7 @@ Bump: patch
 > An account whose contacts are served by its calendar server now shows an empty address book
 > server on its page (`AccountConfig::endpoint_form`), so a provider's own CardDAV server can be
 > entered without setting the account up again. Left empty, the calendar server goes on serving
-> the contacts.
+> the contacts, and the page says so.
 
 **English**
 

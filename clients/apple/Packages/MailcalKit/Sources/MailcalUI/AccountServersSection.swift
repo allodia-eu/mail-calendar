@@ -59,6 +59,11 @@ struct AccountServersSection: View {
                             labelled(L10n.settings_account_field_carddav()) {
                                 TextField(L10n.setup_hint_carddav(), text: url(\.carddav))
                                     .setupField(.host)
+                                if servers.contactsFallBackToCalendar {
+                                    Text(L10n.settings_account_carddav_empty_hint())
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         labelled(L10n.settings_account_field_login()) {

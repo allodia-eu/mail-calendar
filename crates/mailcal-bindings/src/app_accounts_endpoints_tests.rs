@@ -77,12 +77,16 @@ fn settings_reads_the_servers_back_without_the_password() {
 fn the_page_offers_an_address_book_server_while_the_calendar_serves_the_contacts() {
     let store = Arc::new(RecordingCredentialStore::default());
     let app = app("endpoints-contacts-field", &store);
-    let form = app
+    let servers = app
         .account_page(ALICE_ID.to_owned())
         .expect("listed")
         .servers
-        .expect("a password account's servers are on its page")
-        .form;
+        .expect("a password account's servers are on its page");
+    assert!(
+        servers.contacts_fall_back_to_calendar,
+        "the field says the calendar server serves the contacts while it is empty"
+    );
+    let form = servers.form;
     assert_eq!(form.carddav_url.as_deref(), Some(""), "drawn, and empty");
     assert_eq!(
         endpoints(&app).carddav_url,

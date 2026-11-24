@@ -37,6 +37,10 @@ public sealed partial class SettingsDialog
         var carddav = form.CarddavUrl is { } carddavUrl
             ? Field(stack, L10n.SettingsAccountFieldCarddav(), carddavUrl)
             : null;
+        if (carddav is not null && servers.ContactsFallBackToCalendar)
+        {
+            carddav.Description = L10n.SettingsAccountCarddavEmptyHint();
+        }
         var login = Field(stack, L10n.SettingsAccountFieldLogin(), form.Username);
         var password = new PasswordBox
         {
