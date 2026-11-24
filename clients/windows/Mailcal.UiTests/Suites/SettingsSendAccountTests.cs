@@ -21,36 +21,10 @@ public sealed class SettingsSendAccountTests(ShowcaseApp showcase)
 
     private static string? Chosen(App app, SetupFlow settings) => app.Agent.Read(Picker(app, settings)).Selection;
 
-    /// <summary>The open list's items. An open picker lists its items under itself as well, and
-    /// the ones drawn are the items elsewhere that carry those names and are drawn over the picker
-    /// itself. The window holds other lists: the Settings navigation, and behind the dialog the
-    /// folder pane, whose account rows carry the same addresses. A picker still opening lists
-    /// nothing under itself, so both are read once it is open.</summary>
-    private static List<Element> OpenItems(App app, Element picker)
-    {
-        app.Agent.Expand(picker);
-        List<Element> items = [];
-        Assert.True(App.Eventually(() =>
-        {
-            var listed = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).ToList();
-            var options = listed.Select(e => e.Name).ToHashSet();
-            var under = listed.Select(e => e.Handle).ToHashSet();
-            items = app.Agent.FindAll(new Filter { Type = "ListItem" })
-                .Where(e => !under.Contains(e.Handle) && options.Contains(e.Name) && e.Rendered && Over(picker, e))
-                .ToList();
-            return listed.Count > 0 && items.Count >= listed.Count;
-        }, TimeSpan.FromSeconds(5)), "the picker opens a list");
-        return items;
-    }
-
-    /// <summary>Whether <paramref name="item"/> is drawn in the picker's column, as its open list is.</summary>
-    private static bool Over(Element picker, Element item) =>
-        item.X < picker.X + picker.Width && picker.X < item.X + item.Width;
-
     /// <summary>The addresses the picker offers, in its order.</summary>
     private static List<string> Offered(App app, Element picker)
     {
-        var offered = OpenItems(app, picker).Select(e => e.Name).ToList();
+        var offered = app.OpenList(picker).Select(e => e.Name).ToList();
         app.Agent.Collapse(picker);
         return offered;
     }
@@ -59,7 +33,7 @@ public sealed class SettingsSendAccountTests(ShowcaseApp showcase)
     /// its items take no selection through their peers.</summary>
     private static void Choose(App app, Element picker, string address)
     {
-        var item = OpenItems(app, picker).FirstOrDefault(i => i.Name == address)
+        var item = app.OpenList(picker).FirstOrDefault(i => i.Name == address)
             ?? throw new InvalidOperationException($"the open picker offers no {address}");
         Input.Click(app.Steady(item));
     }

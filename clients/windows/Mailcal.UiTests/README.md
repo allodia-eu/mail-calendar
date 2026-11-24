@@ -81,6 +81,12 @@ an obvious reimplementation finds nothing:
   exists.
 - **A closed picker names its selection by the bound object.** Its items have no containers until
   it opens, so read a ComboBox's selection with it open, where the label is the one drawn.
+- **An open picker lists its items twice, and its handles do not hold.** The open list is a popup
+  whose parent is the ComboBox, walked as a popup of its own, so a lookup under the ComboBox does
+  not reach it; the ComboBox also lists the items directly, by the same names and in the same
+  place. UI Automation makes the ComboBox's peers anew between two lookups, so it and its own items
+  return under new handles. Read the open list with `App.OpenList`, which finds the popup by its
+  parent.
 - **A text box's placeholder is a text under it.** The agent sees the box's template, so an empty
   box with a placeholder holds one Text element and one with a header holds another; count against
   a box known to have the one being asked about.

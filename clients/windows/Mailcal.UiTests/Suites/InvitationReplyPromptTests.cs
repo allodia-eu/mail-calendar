@@ -103,18 +103,12 @@ public sealed class InvitationReplyPromptTests(FakeReplyHarnessApp harness)
         var dialog = new SetupFlow(app).OpenAccount(Harness.Alice);
         var picker = app.Agent.Wait(new Filter { Id = "AccountReplyFallback", Type = "ComboBox", Under = dialog }, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("the account's page offers no reply setting (#AccountReplyFallback)");
-        app.Agent.Expand(picker);
-        // The combo also lists its items under itself; the open list's own are the ones drawn, and
-        // neither takes a selection through its peer, so the choice is a click, as a person makes it.
+        // Neither the combo's items nor its open list's take a selection through their peers, so the
+        // choice is a click, as a person makes it.
         var never = Catalog.Everywhere("settings_reply_fallback_never");
-        Element? item = null;
-        Assert.True(App.Eventually(() =>
-        {
-            var closed = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).Select(e => e.Handle).ToHashSet();
-            return (item = app.Agent.FindAll(new Filter { Type = "ListItem" })
-                .FirstOrDefault(i => !closed.Contains(i.Handle) && never.Contains(i.Name))) is not null;
-        }, TimeSpan.FromSeconds(5)), "the reply setting offers Don't email them");
-        Input.Click(app.Steady(item!));
+        var item = app.OpenList(picker).FirstOrDefault(i => never.Contains(i.Name));
+        Assert.True(item is not null, "the reply setting offers Don't email them");
+        Input.Click(app.Steady(item));
         Assert.True(App.Eventually(ReplyPromptFlow.Remembered, TimeSpan.FromSeconds(10)), "the choice is stored as the account's standing answer");
         app.CloseDialogs();
 

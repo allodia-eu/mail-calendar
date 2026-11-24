@@ -147,11 +147,10 @@ public sealed class ImapSignInTests(HarnessApp harness)
     private static void SelectSecurity(App app, string label)
     {
         var picker = app.Agent.Find(Filter.ById("ImapSecurityPicker", "ComboBox")) ?? throw new InvalidOperationException("the manual form has no IMAP security picker");
-        // The combo also lists its items under itself; the open list's own are the ones drawn, and
-        // neither takes a selection through its peer, so the choice is a click, as a person makes it.
-        // A combo's list closes when its window loses the foreground, and its items are exposed a
-        // moment after it opens, so it is opened again whenever it is found closed.
-        var named = Filter.Named(label, "ListItem");
+        // Neither the combo's items nor its open list's take a selection through their peers, so the
+        // choice is a click, as a person makes it. A combo's list closes when its window loses the
+        // foreground, and its items are exposed a moment after it opens, so it is opened again
+        // whenever it is found closed.
         Element? item = null;
         if (!App.Eventually(() =>
             {
@@ -160,14 +159,13 @@ public sealed class ImapSignInTests(HarnessApp harness)
                     Input.BringToFront(picker.Window);
                     app.Agent.Expand(picker);
                 }
-                var closed = app.Agent.FindAll(named with { Under = picker }).Select(e => e.Handle).ToHashSet();
-                return (item = app.Agent.FindAll(named).FirstOrDefault(e => !closed.Contains(e.Handle))) is not null;
+                return (item = app.Drawn(picker).FirstOrDefault(e => e.Name == label)) is not null;
             }, App.Patience))
         {
             throw new InvalidOperationException($"the IMAP security picker offers no '{label}'");
         }
         Input.Click(app.Steady(item!));
-        App.Eventually(() => app.Agent.FindAll(named).Count <= app.Agent.FindAll(named with { Under = picker }).Count, TimeSpan.FromSeconds(3));
+        App.Eventually(() => app.Drawn(picker).Count == 0, TimeSpan.FromSeconds(3));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
     }
 
