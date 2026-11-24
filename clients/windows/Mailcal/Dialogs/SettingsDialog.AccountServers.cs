@@ -39,7 +39,12 @@ public sealed partial class SettingsDialog
             : null;
         if (carddav is not null && servers.ContactsFallBackToCalendar)
         {
-            carddav.Description = L10n.SettingsAccountCarddavEmptyHint();
+            // A string is drawn on one line and clipped at the form's edge in the longer locales.
+            carddav.Description = new TextBlock
+            {
+                Text = L10n.SettingsAccountCarddavEmptyHint(),
+                TextWrapping = TextWrapping.Wrap,
+            };
         }
         var login = Field(stack, L10n.SettingsAccountFieldLogin(), form.Username);
         var password = new PasswordBox
