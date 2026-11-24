@@ -262,7 +262,9 @@ pub struct AccountEndpoints {
     pub smtp_security: ConnectionSecurity,
     /// The CalDAV base URL; `https://` is assumed when it names no scheme.
     pub caldav_url: Option<String>,
-    /// The CardDAV base URL, when it is not the calendar's.
+    /// The CardDAV base URL, when it is not the calendar's. Empty on the page's form while the
+    /// calendar server serves the contacts, so a server of their own can be typed; left empty, it
+    /// goes on serving them.
     pub carddav_url: Option<String>,
     /// The login every server takes.
     pub username: String,

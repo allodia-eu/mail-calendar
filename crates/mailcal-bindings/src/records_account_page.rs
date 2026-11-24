@@ -228,6 +228,10 @@ pub struct AccountServers {
     /// its form.
     #[uniffi(default = false)]
     pub sign_in_refused: bool,
+    /// The address book server may be left empty, the calendar server then serving the contacts,
+    /// so the field says so (`settings_account_carddav_empty_hint`).
+    #[uniffi(default = false)]
+    pub contacts_fall_back_to_calendar: bool,
 }
 
 /// What an edit of an account's servers leaves out, which its save refuses and the page says

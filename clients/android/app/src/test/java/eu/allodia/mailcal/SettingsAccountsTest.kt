@@ -300,6 +300,26 @@ class SettingsAccountsTest {
     }
 
     @Test
+    fun an_empty_address_book_server_says_the_calendar_server_is_used_and_takes_one_typed() {
+        val entry = mailboxOnly()
+        state.page = entry.id
+        val form = imapEndpoints().copy(caldavUrl = "https://dav.example.org/", carddavUrl = "")
+        show(
+            entry,
+            page = pageOf(entry, servers = AccountServers(form, FREE, contactsFallBackToCalendar = true)),
+        )
+
+        compose.onNodeWithText("Leave empty to use the calendar server for contacts.")
+            .performScrollTo().assertExists()
+        compose.onNodeWithText("Address book server (CardDAV)").performScrollTo()
+            .performTextInput("carddav.example.org")
+        compose.onNodeWithTag("account-servers-save").performScrollTo().performClick()
+
+        val endpoints = changes.filterIsInstance<AccountPageIntent.SaveServers>().single().endpoints
+        assertEquals("carddav.example.org", endpoints.carddavUrl)
+    }
+
+    @Test
     fun saving_servers_sends_what_was_typed_and_keeps_the_stored_password() {
         val entry = mailboxOnly()
         state.page = entry.id

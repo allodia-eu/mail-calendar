@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "Changes are tried before they are saved. Leave the password empty to keep the current one.",
 	"settings_account_field_imap": "Incoming server (IMAP)",
 	"settings_account_field_carddav": "Address book server (CardDAV)",
+	"settings_account_carddav_empty_hint": "Leave empty to use the calendar server for contacts.",
 	"settings_account_field_login": "Login",
 	"settings_account_field_new_password": "New password",
 	"settings_account_servers_failed": "Couldn’t save these settings",

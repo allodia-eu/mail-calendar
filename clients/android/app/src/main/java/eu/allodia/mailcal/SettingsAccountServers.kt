@@ -150,6 +150,8 @@ internal fun ServersGroup(
                         L10n.settings_account_field_carddav(ctx),
                         keyboardType = KeyboardType.Uri,
                         enabled = enabled,
+                        supporting = L10n.settings_account_carddav_empty_hint(ctx)
+                            .takeIf { servers.contactsFallBackToCalendar },
                     )
                 }
                 SetupField(login, { login = it }, L10n.settings_account_field_login(ctx), enabled = enabled)

@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "Los cambios se prueban antes de guardarse. Deja la contraseña vacía para mantener la actual.",
 	"settings_account_field_imap": "Servidor de entrada (IMAP)",
 	"settings_account_field_carddav": "Servidor de libreta de direcciones (CardDAV)",
+	"settings_account_carddav_empty_hint": "Déjalo vacío para usar el servidor de calendario para los contactos.",
 	"settings_account_field_login": "Usuario",
 	"settings_account_field_new_password": "Nueva contraseña",
 	"settings_account_servers_failed": "No se han podido guardar estos ajustes",

@@ -284,3 +284,85 @@ fn an_ipv6_literal_is_a_host_bracketed_before_its_port_and_bare_without_one() {
     edit.imap_host = Some(":993".to_owned());
     assert_eq!(edit.gap(&config), Some(EndpointGap::Imap));
 }
+
+#[test]
+fn the_form_offers_an_address_book_server_while_the_calendar_serves_the_contacts() {
+    let config = load_str(STANDARDS).unwrap();
+    assert!(config.capabilities().contains(Capability::Contacts));
+    assert_eq!(config.endpoints().carddav_url, None, "nothing is stored");
+    let form = config.endpoint_form();
+    assert_eq!(form.carddav_url.as_deref(), Some(""));
+
+    let kept = config.with_endpoints(&form).unwrap();
+    assert!(
+        kept.moved.iter().next().is_none(),
+        "left empty, nothing moves"
+    );
+    assert!(kept.config.carddav.is_none());
+
+    let mut typed = form;
+    typed.carddav_url = Some("carddav.example.net".to_owned());
+    let edited = config.with_endpoints(&typed).unwrap();
+    assert_eq!(
+        edited.moved.iter().collect::<Vec<_>>(),
+        [Capability::Contacts],
+        "the contacts move to their own server and the calendar stays"
+    );
+    let carddav = edited.config.carddav.as_ref().unwrap();
+    assert_eq!(carddav.base_url, "https://carddav.example.net");
+    assert_eq!(carddav.username, "alice@example.org");
+    assert_eq!(carddav.password.as_ref().unwrap().expose(), "old");
+}
+
+#[test]
+fn an_account_not_used_for_contacts_is_offered_no_address_book_server() {
+    let config = load_str(&format!(
+        "capabilities = [\"mail\", \"calendar\"]\n{STANDARDS}"
+    ))
+    .unwrap();
+    assert_eq!(config.endpoint_form().carddav_url, None);
+}
+
+#[test]
+fn a_stored_address_book_server_is_the_one_the_form_shows() {
+    let config = load_str(&format!(
+        "{STANDARDS}\n[carddav]\nbase_url = \"https://carddav.example.org/\"\n\
+         username = \"alice@example.org\"\npassword = \"old\"\n"
+    ))
+    .unwrap();
+    assert_eq!(
+        config.endpoint_form().carddav_url.as_deref(),
+        Some("https://carddav.example.org/")
+    );
+}
+
+#[test]
+fn the_form_says_an_empty_address_book_server_falls_back_only_beside_a_calendar_server() {
+    let empty = load_str(STANDARDS).unwrap().endpoint_form();
+    assert!(empty.contacts_fall_back_to_calendar());
+
+    let stored = load_str(&format!(
+        "{STANDARDS}\n[carddav]\nbase_url = \"https://carddav.example.org/\"\n\
+         username = \"alice@example.org\"\npassword = \"old\"\n"
+    ))
+    .unwrap()
+    .endpoint_form();
+    assert!(
+        stored.contacts_fall_back_to_calendar(),
+        "a stored one may be cleared too"
+    );
+
+    let no_field = load_str(&format!(
+        "capabilities = [\"mail\", \"calendar\"]\n{STANDARDS}"
+    ))
+    .unwrap()
+    .endpoint_form();
+    assert!(!no_field.contacts_fall_back_to_calendar());
+
+    let mut no_calendar = stored;
+    no_calendar.caldav_url = None;
+    assert!(
+        !no_calendar.contacts_fall_back_to_calendar(),
+        "with no calendar server, the address book's is the only one the contacts have"
+    );
+}

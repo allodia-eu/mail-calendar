@@ -1174,6 +1174,7 @@
 	"settings_account_servers_description": "As alterações são experimentadas antes de serem guardadas. Deixe a palavra-passe vazia para manter a atual.",
 	"settings_account_field_imap": "Servidor de receção (IMAP)",
 	"settings_account_field_carddav": "Servidor de livro de endereços (CardDAV)",
+	"settings_account_carddav_empty_hint": "Deixe vazio para usar o servidor de calendário para os contactos.",
 	"settings_account_field_login": "Nome de utilizador",
 	"settings_account_field_new_password": "Nova palavra-passe",
 	"settings_account_servers_failed": "Não foi possível guardar estas definições",

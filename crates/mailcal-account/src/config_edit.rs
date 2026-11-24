@@ -22,7 +22,8 @@ pub struct EndpointEdit {
     pub smtp_security: ConnectionSecurity,
     /// The CalDAV base URL; `https://` is assumed when it names no scheme.
     pub caldav_url: Option<String>,
-    /// The CardDAV base URL, when it is not the calendar's.
+    /// The CardDAV base URL, when it is not the calendar's. Empty on a form while the calendar
+    /// server serves the contacts ([`AccountConfig::endpoint_form`]).
     pub carddav_url: Option<String>,
     /// The login every server takes.
     pub username: String,
@@ -67,6 +68,17 @@ pub enum EndpointGap {
 }
 
 impl EndpointEdit {
+    /// Whether the address-book server may be left empty, the calendar server then serving the
+    /// contacts: this form draws one beside a calendar server. Settings says so under the field.
+    #[must_use]
+    pub fn contacts_fall_back_to_calendar(&self) -> bool {
+        self.carddav_url.is_some()
+            && self
+                .caldav_url
+                .as_deref()
+                .is_some_and(|url| !url.trim().is_empty())
+    }
+
     /// What this edit of `account` leaves out, the first of them in the order Settings draws the
     /// fields, or `None` when it can be tried. A server the account has keeps an address; the
     /// CardDAV one may be cleared while the account has a calendar server, which then serves its
@@ -112,7 +124,24 @@ pub struct EditedAccount {
 }
 
 impl AccountConfig {
-    /// The account's servers and login as Settings shows them, with no password.
+    /// The account's servers and login as Settings draws them: [`endpoints`](Self::endpoints),
+    /// with an empty address-book server while the calendar server serves the contacts. A
+    /// provider can keep its contacts on a server of their own, so the field is there to type it
+    /// into; left empty, the calendar server goes on serving them ([`EndpointEdit::gap`]).
+    #[must_use]
+    pub fn endpoint_form(&self) -> EndpointEdit {
+        let mut form = self.endpoints();
+        if form.carddav_url.is_none()
+            && self.caldav.is_some()
+            && self.capabilities().contains(Capability::Contacts)
+        {
+            form.carddav_url = Some(String::new());
+        }
+        form
+    }
+
+    /// The account's servers and login as stored, with no password. A server that is `None` is
+    /// one the account does not store, which is what looking its servers up again compares.
     #[must_use]
     pub fn endpoints(&self) -> EndpointEdit {
         EndpointEdit {
