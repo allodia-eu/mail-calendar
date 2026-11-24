@@ -74,6 +74,25 @@ fn settings_reads_the_servers_back_without_the_password() {
 }
 
 #[test]
+fn the_page_offers_an_address_book_server_while_the_calendar_serves_the_contacts() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("endpoints-contacts-field", &store);
+    let form = app
+        .account_page(ALICE_ID.to_owned())
+        .expect("listed")
+        .servers
+        .expect("a password account's servers are on its page")
+        .form;
+    assert_eq!(form.carddav_url.as_deref(), Some(""), "drawn, and empty");
+    assert_eq!(
+        endpoints(&app).carddav_url,
+        None,
+        "what is stored, which looking the servers up again compares, names no server"
+    );
+    assert_eq!(app.account_endpoints_gap(ALICE_ID.to_owned(), form), None);
+}
+
+#[test]
 fn servers_that_do_not_connect_leave_the_account_as_it_was() {
     let store = Arc::new(RecordingCredentialStore::default());
     let app = app("endpoints-unreachable", &store);

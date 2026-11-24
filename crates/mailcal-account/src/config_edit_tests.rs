@@ -284,3 +284,54 @@ fn an_ipv6_literal_is_a_host_bracketed_before_its_port_and_bare_without_one() {
     edit.imap_host = Some(":993".to_owned());
     assert_eq!(edit.gap(&config), Some(EndpointGap::Imap));
 }
+
+#[test]
+fn the_form_offers_an_address_book_server_while_the_calendar_serves_the_contacts() {
+    let config = load_str(STANDARDS).unwrap();
+    assert!(config.capabilities().contains(Capability::Contacts));
+    assert_eq!(config.endpoints().carddav_url, None, "nothing is stored");
+    let form = config.endpoint_form();
+    assert_eq!(form.carddav_url.as_deref(), Some(""));
+
+    let kept = config.with_endpoints(&form).unwrap();
+    assert!(
+        kept.moved.iter().next().is_none(),
+        "left empty, nothing moves"
+    );
+    assert!(kept.config.carddav.is_none());
+
+    let mut typed = form;
+    typed.carddav_url = Some("carddav.example.net".to_owned());
+    let edited = config.with_endpoints(&typed).unwrap();
+    assert_eq!(
+        edited.moved.iter().collect::<Vec<_>>(),
+        [Capability::Contacts],
+        "the contacts move to their own server and the calendar stays"
+    );
+    let carddav = edited.config.carddav.as_ref().unwrap();
+    assert_eq!(carddav.base_url, "https://carddav.example.net");
+    assert_eq!(carddav.username, "alice@example.org");
+    assert_eq!(carddav.password.as_ref().unwrap().expose(), "old");
+}
+
+#[test]
+fn an_account_not_used_for_contacts_is_offered_no_address_book_server() {
+    let config = load_str(&format!(
+        "capabilities = [\"mail\", \"calendar\"]\n{STANDARDS}"
+    ))
+    .unwrap();
+    assert_eq!(config.endpoint_form().carddav_url, None);
+}
+
+#[test]
+fn a_stored_address_book_server_is_the_one_the_form_shows() {
+    let config = load_str(&format!(
+        "{STANDARDS}\n[carddav]\nbase_url = \"https://carddav.example.org/\"\n\
+         username = \"alice@example.org\"\npassword = \"old\"\n"
+    ))
+    .unwrap();
+    assert_eq!(
+        config.endpoint_form().carddav_url.as_deref(),
+        Some("https://carddav.example.org/")
+    );
+}

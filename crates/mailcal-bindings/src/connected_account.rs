@@ -216,13 +216,13 @@ impl ConnectedAccount {
         }
     }
 
-    /// Its servers and login, when Settings can edit them: an account that signs in with a
+    /// Its config, when Settings can edit its servers and login: an account that signs in with a
     /// password to servers of its own. A Nextcloud-issued password works under the login it was
     /// issued for and no other.
-    pub(crate) fn editable_endpoints(&self) -> Option<mailcal_account::EndpointEdit> {
+    pub(crate) fn editable_servers(&self) -> Option<&mailcal_account::AccountConfig> {
         match self {
             Self::Imap { config, .. } if !config.is_oauth() && config.nextcloud.is_none() => {
-                Some(config.endpoints())
+                Some(config)
             }
             _ => None,
         }

@@ -44,7 +44,7 @@ impl MailcalApp {
             .map_or(ReplyFallbackChoice::Ask, |id| {
                 self.app.reply_fallback(&id).into()
             });
-        let stored_servers = self.registry.endpoints(&account_id);
+        let stored_servers = self.registry.server_form(&account_id);
         let edits_servers = stored_servers.is_some();
         let mut page = account_page::page(
             &entry,

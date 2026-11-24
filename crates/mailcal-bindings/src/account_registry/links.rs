@@ -31,15 +31,30 @@ impl AccountRegistry {
             .map(|entry| entry.facts(id))
     }
 
-    /// `id`'s servers and login, for an account Settings can edit them on: one that signs in with
-    /// a password to servers of its own. `None` for any other, or one not registered.
+    /// `id`'s servers and login as stored, for an account Settings can edit them on: one that
+    /// signs in with a password to servers of its own. `None` for any other, or one not
+    /// registered.
     pub(crate) fn endpoints(&self, id: &str) -> Option<crate::AccountEndpoints> {
+        self.read_servers(id, mailcal_account::AccountConfig::endpoints)
+    }
+
+    /// [`endpoints`](Self::endpoints) as the account's page draws them
+    /// ([`mailcal_account::AccountConfig::endpoint_form`]).
+    pub(crate) fn server_form(&self, id: &str) -> Option<crate::AccountEndpoints> {
+        self.read_servers(id, mailcal_account::AccountConfig::endpoint_form)
+    }
+
+    fn read_servers(
+        &self,
+        id: &str,
+        read: fn(&mailcal_account::AccountConfig) -> mailcal_account::EndpointEdit,
+    ) -> Option<crate::AccountEndpoints> {
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .and_then(crate::connected_account::ConnectedAccount::editable_endpoints)
-            .map(Into::into)
+            .and_then(crate::connected_account::ConnectedAccount::editable_servers)
+            .map(|config| read(config).into())
     }
 
     /// `id`'s address, as Settings lists it; `None` for one not registered.
