@@ -150,9 +150,10 @@ impl<P: Provider> App<P> {
     /// as soon as the pass has read the folder list ([`App::redraw_if_folders_moved`]) rather
     /// than when every folder's mail is in.
     ///
-    /// The engine says when the list is stored from inside the pass, where nothing can be
-    /// awaited, so the redraw runs beside the pass and waits for that word; a pass that ends
-    /// without giving it (the list failed, or another pass held it) draws nothing extra.
+    /// The engine says when the list step is over from inside the pass, where nothing can be
+    /// awaited, so the redraw runs beside the pass and waits for that word. It comes whether the
+    /// list was read, failed or held by another pass; the tree comparison is what keeps a pass
+    /// that stored nothing new from drawing again.
     pub(crate) async fn sync_account_pass<K: SyncObserver>(
         &self,
         account: &Account<P>,
@@ -190,8 +191,8 @@ impl<P: Provider> App<P> {
     }
 }
 
-/// Passes every event on to `inner`, and says once, on `listed`, that the pass has stored the
-/// account's folder list.
+/// Passes every event on to `inner`, and says once, on `listed`, that the pass is past its
+/// folder-list step.
 struct ListedWatch<'a, K> {
     inner: &'a K,
     listed: Mutex<Option<oneshot::Sender<()>>>,
@@ -202,8 +203,8 @@ impl<K: SyncObserver> SyncObserver for ListedWatch<'_, K> {
         self.inner.committed(commit);
     }
 
-    /// The engine reports the start only once the folder list has synced. The paths that stop
-    /// before it report no folders, and say nothing about a list.
+    /// The engine reports the start after the folder-list step, with the stored folders it is
+    /// about to stream. The paths that stop before streaming report none, and say nothing.
     fn account_sync_started(&self, account: &AccountId, folders: usize, inbox: Option<&MailboxId>) {
         self.inner.account_sync_started(account, folders, inbox);
         if folders > 0
