@@ -262,6 +262,16 @@ that same file.
   one desktop says nothing about the other. Anything two-part in a body carries its own separator
   ([`notifications.rs`](../clients/linux/src/ui/notifications.rs)), and both halves are flattened
   the way the list row flattens them so the same message cannot be quoted two ways.
+- **On Linux, a WebKitGTK view whose page is laid out while the view has no height never paints.**
+  On the hardware-accelerated (DMA-BUF) renderer the compositor starts a frame, finds an empty
+  viewport and never finishes it, so nothing is drawn after either, and giving the view a height or
+  resizing the window does not recover it (WebKit bug 332660). The page is in the DOM, laid out and
+  scriptable, so every query of the page passes; only the screen is empty, showing what is behind
+  the view. Whether it happens depends on whether the page commits before the view's first height
+  arrives, so it looks intermittent, or depends on what ran before. A view with `vexpand(false)` and
+  no height request is the shape that meets it: give it a height request before it loads. Prove it
+  with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, which draws through another path and makes it go away;
+  `test-linux-ui.sh` sets that variable, so the UI suite cannot see it.
 - **Linux libadwaita rows parse titles _and subtitles_ as Pango markup by default.**
   `adw::ActionRow` / `PreferencesRow` text may hold localised ampersands or untrusted subjects, so
   set `use_markup(false)` unless the string was deliberately produced as escaped markup. A row that
