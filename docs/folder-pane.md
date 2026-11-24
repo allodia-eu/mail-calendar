@@ -37,6 +37,7 @@ go away.
 | 20 | **An empty mail list says why it is empty**, from `MailboxListSnapshot::empty_reason`, and offers the sync-depth setting on `OutsideSyncDepth` and only there. `None` (the list has rows, or it is a search, which states its own horizon) draws nothing. | Rule 5 is what makes this necessary: the badge is the server's count over all time and the list holds only the synced window, so a folder whose mail predates the depth badges its unread above no rows at all. Unqualified, that empty list claims the folder is empty, which contradicts the number beside it and is the one reading the user cannot act on. On `NoMail` there is nothing to offer: the device already holds the whole folder, and a button there would promise mail that widening cannot find. |
 | 21 | **The destinations are pinned under the tree.** Mail, Calendar, Contacts and Settings sit below the accounts in that order and do not scroll with them, the current destination highlighted; the tree takes the height that is left over. Which of them a pane carries is the platform's own answer (a phone reaches mail, the calendar and contacts from its tab bar), Settings is on every one. The calendar pane pins the same bar ([`calendar-pane.md`](calendar-pane.md), rule 10). | An account with a few dozen folders fills the pane, and a destination at the end of that list is reached by scrolling past every folder the user has, then scrolling back to where they were. Pinning costs the tree nothing: the bar's height is reserved first and the accounts take the rest, which is the room the scroll was going to need anyway. |
 | 22 | **An account appears here only if it is used for mail.** One used for its calendar or contacts alone has no row, no tree and no unread count, and is absent from the account switcher and the From picker too (`Account::uses_mail`, [`accounts.md`](accounts.md)). Its calendars and contacts appear where every account's do. | A row for an account with no mailbox would open onto nothing, and a From address that cannot send is a message that fails after it was written. |
+| 33 | **An account's folders are on screen once a sync has read its folder list**, not once every folder's mail is in. The engine reports the list stored before it streams the folders, and the core redraws the pane then if the account's tree is not the one it shows; a tree that has not changed costs nothing extra, and a changed unread count waits for the end of the pass. | A large folder takes minutes to download, and the pane is what tells the person the account is there: a newly opened mailbox drawn as All Mail alone for that long reads as an account with no folders. |
 
 ## Changing the tree
 
@@ -145,6 +146,14 @@ flags and draw the queued changes over the stored tree, which is the engine's ou
 client's to draw, from one catalog: `folder_action_*`, `folder_*_title`, `folder_name_*`,
 `folder_delete_*`; a refused change is the `FolderChangeRefused` notice's words. The end-to-end cases, offline and on, are
 `tests_folder_ops.rs` (`mailcal-app`).
+
+Rule 33 is core-side: `App::sync_account_pass`
+([`sync_account.rs`](../crates/mailcal-app/src/sync_account.rs)) runs the pass beside a redraw that
+waits for the engine's `account_sync_started`, and `App::redraw_if_folders_moved`
+([`folder_pane_snapshot.rs`](../crates/mailcal-app/src/folder_pane_snapshot.rs)) compares each row's
+key, name and parent with what the pane shows. A sync's mid-pass republishes carry the pane over
+from the last full rebuild, which is why the redraw is needed. The cases are
+`tests_folder_pane_live.rs` (`mailcal-app`).
 
 ## Per-platform
 

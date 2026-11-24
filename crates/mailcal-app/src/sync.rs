@@ -12,10 +12,7 @@ use engine_api::{AccountId, CalendarDate, Provider, StreamTuning, SyncWindow};
 use futures::future::join_all;
 use mailcal_account::SyncDepth;
 
-use crate::{
-    App,
-    sync_account::{SyncAccountOutcome, sync_account_providers},
-};
+use crate::{App, sync_account::SyncAccountOutcome};
 
 /// Objects a streamed pass asks the provider for per network round trip.
 const STREAM_FETCH_BATCH: usize = 200;
@@ -92,15 +89,7 @@ impl<P: Provider> App<P> {
                 let progress = &progress;
                 async move {
                     let started = Instant::now();
-                    let outcome = sync_account_providers(
-                        &self.engine,
-                        account,
-                        self.connector.as_deref(),
-                        tuning,
-                        progress,
-                        i,
-                    )
-                    .await;
+                    let outcome = self.sync_account_pass(account, tuning, progress, i).await;
                     (
                         outcome,
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -157,15 +146,9 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(true, true, account.providers.len(), "account-add");
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(
-            &self.engine,
-            &account,
-            self.connector.as_deref(),
-            tuning,
-            &progress,
-            acct,
-        )
-        .await;
+        let outcome = self
+            .sync_account_pass(&account, tuning, &progress, acct)
+            .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
@@ -364,15 +347,9 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(false, announce, account.providers.len(), label);
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(
-            &self.engine,
-            &account,
-            self.connector.as_deref(),
-            tuning,
-            &progress,
-            acct,
-        )
-        .await;
+        let outcome = self
+            .sync_account_pass(&account, tuning, &progress, acct)
+            .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
