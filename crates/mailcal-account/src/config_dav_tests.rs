@@ -94,3 +94,18 @@ fn a_config_that_names_no_server_is_refused() {
     let err = load_str("capabilities = [\"mail\"]\n").unwrap_err();
     assert!(matches!(err, ConfigError::NoEndpoint), "{err}");
 }
+
+#[test]
+fn a_dav_login_is_held_only_with_the_password_given() {
+    let held = load_str(DAV_ONLY).unwrap();
+    let typed = |username: &str, password: &str| held.with_dav_login(username, password);
+    assert!(held.holds_dav_login(&typed("alice", "app-password")));
+    assert!(held.holds_dav_login(&typed(" Alice ", "app-password")));
+    assert!(!held.holds_dav_login(&typed("alice", "typed")));
+    assert!(!held.holds_dav_login(&typed("bob", "app-password")));
+
+    // An address book of its own is held as its own login.
+    let both = load_str(&format!("{DAV_ONLY}{CARDDAV}")).unwrap();
+    assert!(!held.holds_dav_login(&both), "no address book of its own");
+    assert!(both.holds_dav_login(&both));
+}
