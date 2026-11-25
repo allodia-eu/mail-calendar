@@ -148,12 +148,12 @@ fn a_sign_in_that_ends_without_an_account_goes_back_to_the_form_saying_why() {
     let mut state = SetupState::closed();
     state.open(false);
     state.show_form(SetupForm::Manual(manual_dav(CLOUD)));
-    state.nextcloud_signing_in();
+    state.nextcloud_signing_in(false);
     assert_eq!(state.phase, Phase::NextcloudSigningIn);
     state.nextcloud_ended(Some(l10n::account_signin_timeout().to_owned()));
     assert_eq!(state.phase, Phase::Form);
     assert_eq!(state.error.as_deref(), Some(l10n::account_signin_timeout()));
-    state.nextcloud_signing_in();
+    state.nextcloud_signing_in(false);
     state.nextcloud_ended(None);
     assert_eq!(state.error, None, "a cancel says nothing");
 }
@@ -298,4 +298,177 @@ pub(crate) fn the_card_beside_a_jmap_account_says_what_it_adds(window: &adw::App
             .iter()
             .any(|text| text == l10n::setup_detect_app_password_hint())
     );
+}
+
+fn manual_nextcloud(address: &str) -> ManualForm {
+    ManualForm {
+        kind: AccountKind::Nextcloud,
+        email: "alice@example.test".to_owned(),
+        nextcloud_server: address.to_owned(),
+        ..ManualForm::default()
+    }
+}
+
+#[test]
+fn the_manual_form_offers_nextcloud_beside_calendar_and_contacts() {
+    let offered = AccountKind::offered();
+    let at = |kind| offered.iter().position(|offered| *offered == kind);
+    assert_eq!(
+        at(AccountKind::Nextcloud).map(|at| at + 1),
+        at(AccountKind::Dav),
+        "{offered:?}"
+    );
+    assert_eq!(
+        AccountKind::from_position(AccountKind::Nextcloud.position()),
+        AccountKind::Nextcloud
+    );
+}
+
+#[test]
+fn the_nextcloud_pane_keeps_the_address_through_a_sign_in_that_did_not_start() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(SetupForm::Manual(manual_nextcloud("")));
+    assert_eq!(
+        state
+            .adopt_manual_nextcloud(manual_nextcloud("cloud.example.test"))
+            .as_deref(),
+        Some("cloud.example.test")
+    );
+    state.nextcloud_signing_in(true);
+    assert_eq!(
+        state.adopt_manual_nextcloud(manual_nextcloud("elsewhere.example.test")),
+        None,
+        "nothing starts while a sign-in is waiting"
+    );
+    let not_found = l10n::setup_nextcloud_not_found("cloud.example.test");
+    state.nextcloud_ended(Some(not_found.clone()));
+    assert_eq!(state.phase, Phase::Form);
+    assert_eq!(state.error.as_deref(), Some(not_found.as_str()));
+    assert!(matches!(
+        &state.form,
+        Some(SetupForm::Manual(form)) if form.nextcloud_server == "cloud.example.test"
+    ));
+}
+
+/// The manual form's Nextcloud pane asks for the server's address and nothing else, and its
+/// sign-in waits for one; the press hands the core what was typed, and what the core said about
+/// the last one is drawn under the field.
+pub(crate) fn the_nextcloud_pane_asks_only_for_the_address(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(SetupForm::Manual(manual_nextcloud("")));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the Nextcloud pane");
+    let fields = visible_entries(&child);
+    assert_eq!(fields.len(), 1, "the address alone");
+    let sign_in = descendant_button(&child, l10n::nextcloud_sign_in_button());
+    assert!(sign_in.has_css_class("suggested-action"));
+    assert!(!sign_in.is_sensitive(), "nothing to sign in at yet");
+
+    fields[0].set_text(" cloud.example.test/nextcloud ");
+    assert!(sign_in.is_sensitive());
+    sign_in.emit_clicked();
+    assert_eq!(
+        started_at(&receiver),
+        ("cloud.example.test/nextcloud".to_owned(), false)
+    );
+
+    let not_found = l10n::setup_nextcloud_not_found("cloud.example.test");
+    state.adopt_manual_nextcloud(manual_nextcloud("cloud.example.test"));
+    state.nextcloud_signing_in(true);
+    state.nextcloud_ended(Some(not_found.clone()));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the Nextcloud pane again");
+    assert!(rendered_labels(&child).contains(&not_found));
+    assert_eq!(visible_entries(&child)[0].text(), "cloud.example.test");
+}
+
+/// What the pane's press hands the core: the address typed, and whether it is to sign in anyway.
+fn started_at(receiver: &relm4::Receiver<AppInput>) -> (String, bool) {
+    match receiver.recv_sync() {
+        Some(AppInput::SetupNextcloud(SetupNextcloudInput::StartAt { typed, anyway })) => {
+            assert_eq!(typed.kind, AccountKind::Nextcloud);
+            (typed.nextcloud_server, anyway)
+        }
+        other => panic!("not a start: {other:?}"),
+    }
+}
+
+#[test]
+fn the_wait_says_the_server_is_asked_until_the_browser_opens() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(SetupForm::Manual(manual_nextcloud("cloud.example.test")));
+    state.nextcloud_signing_in(true);
+    assert!(state.nextcloud.asking);
+    let asked = state.form_generation;
+    state.nextcloud_browser_opened();
+    assert!(!state.nextcloud.asking);
+    assert_ne!(state.form_generation, asked, "the wait is drawn again");
+    state.nextcloud_signing_in(true);
+    assert!(state.nextcloud.asking, "a new sign-in asks again");
+    state.nextcloud_signing_in(false);
+    assert!(
+        !state.nextcloud.asking,
+        "a server already known as Nextcloud is not said to be asked"
+    );
+}
+
+/// When the core could not tell whether the address is Nextcloud, the pane says so and offers the
+/// sign-in anyway, for as long as it holds that address.
+pub(crate) fn the_nextcloud_pane_offers_the_sign_in_anyway_when_unsure(
+    window: &adw::ApplicationWindow,
+) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(SetupForm::Manual(manual_nextcloud("")));
+    state.adopt_manual_nextcloud(manual_nextcloud("cloud.example.test"));
+    state.nextcloud_signing_in(true);
+    state.nextcloud_unsure("cloud.example.test", "cloud.example.test".to_owned());
+    assert_eq!(state.phase, Phase::Form);
+    assert_eq!(state.error, None, "unsure is no failure");
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the Nextcloud pane");
+    let note = l10n::setup_nextcloud_unsure("cloud.example.test");
+    assert!(rendered_labels(&child).contains(&note));
+    let anyway = descendant_button(&child, l10n::setup_nextcloud_try_anyway());
+    assert!(anyway.is_visible());
+    anyway.emit_clicked();
+    assert_eq!(
+        started_at(&receiver),
+        ("cloud.example.test".to_owned(), true)
+    );
+
+    let field = &visible_entries(&child)[0];
+    field.set_text("elsewhere.example.test");
+    assert!(
+        !anyway.is_visible(),
+        "another address has not been asked about"
+    );
+    field.set_text("cloud.example.test");
+    assert!(anyway.is_visible());
+
+    // Tried anyway and refused: the offer has been answered.
+    state.nextcloud_signing_in(false);
+    state.nextcloud_ended(Some(l10n::setup_nextcloud_not_found("cloud.example.test")));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the Nextcloud pane after trying");
+    assert!(!rendered_labels(&child).contains(&note));
 }

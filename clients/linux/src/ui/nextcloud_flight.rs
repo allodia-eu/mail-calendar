@@ -48,6 +48,11 @@ pub(crate) enum FlightEnd {
     Expired,
     /// What to say about why the sign-in did not start, or ended without a grant.
     Failed(String),
+    /// Nothing at `host` showed whether it is Nextcloud, so no sign-in started; the surface offers
+    /// one anyway.
+    Unsure {
+        host: String,
+    },
     /// The attempt was retired. A grant that arrived after that has been withdrawn.
     Cancelled,
 }
@@ -57,7 +62,7 @@ impl FlightEnd {
     /// nothing.
     pub(super) fn said(&self) -> Option<String> {
         match self {
-            Self::Granted(_) | Self::Cancelled => None,
+            Self::Granted(_) | Self::Cancelled | Self::Unsure { .. } => None,
             Self::Expired => Some(l10n::account_signin_timeout().to_owned()),
             Self::Failed(said) => Some(said.clone()),
         }
@@ -105,13 +110,14 @@ pub(super) fn open_browser(login_url: &str, on_error: impl FnOnce() + 'static) {
     super::oauth_loopback::launch_browser(login_url, on_error);
 }
 
-/// Flies one sign-in on a worker: `begin` is the surface's own start, and `report` hears the
-/// flight's events from the worker, in order. The worker stops at the next poll once `cancel`
-/// is raised. Called on the main thread, which is where the wake is registered.
+/// Flies one sign-in on a worker: `begin` is the surface's own start, which ends the flight when
+/// it did not start one, and `report` hears the flight's events from the worker, in order. The
+/// worker stops at the next poll once `cancel` is raised. Called on the main thread, which is where
+/// the wake is registered.
 pub(super) fn fly(
     app: Arc<MailcalApp>,
     cancel: Arc<AtomicBool>,
-    begin: impl FnOnce(&MailcalApp) -> Result<NextcloudSignInStart, MailcalError> + Send + 'static,
+    begin: impl FnOnce(&MailcalApp) -> Result<NextcloudSignInStart, FlightEnd> + Send + 'static,
     report: impl Fn(Flight) + Send + 'static,
 ) {
     let (wake, woken) = mpsc::channel();
@@ -125,7 +131,7 @@ pub(super) fn fly(
                     app.poll_nextcloud_sign_in(pending.to_owned())
                 })
             }
-            Err(error) => FlightEnd::Failed(said(&error)),
+            Err(end) => end,
         };
         if let (FlightEnd::Granted(grant), true) = (&end, cancel.load(Ordering::Acquire)) {
             app.abandon_nextcloud_sign_in(grant.0.clone());

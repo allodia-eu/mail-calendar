@@ -146,3 +146,19 @@ fn a_nextcloud_server_found_alone_offers_its_own_sign_in() {
     assert!(setup.calendar_and_contacts);
     assert!(setup.nextcloud_sign_in);
 }
+
+#[test]
+fn the_manual_form_offers_nextcloud_in_every_build_and_a_provider_only_with_its_registration() {
+    use super::{ManualSetupKind as Kind, manual_setup_kinds};
+    let routes = crate::oauth_routes();
+    let mut expected = vec![Kind::Password, Kind::Jmap];
+    if routes.microsoft {
+        expected.push(Kind::Microsoft);
+    }
+    if routes.google {
+        expected.push(Kind::Google);
+    }
+    expected.extend([Kind::Nextcloud, Kind::Dav]);
+    assert_eq!(manual_setup_kinds(), expected);
+    assert_eq!(Kind::default(), Kind::Password);
+}

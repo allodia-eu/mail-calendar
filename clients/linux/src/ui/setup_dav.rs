@@ -132,11 +132,15 @@ fn nextcloud_start(chosen: ChosenUses) -> Option<SetupNextcloudInput> {
     Some(SetupNextcloudInput::Start { server, uses })
 }
 
-/// The screen shown while the browser holds a sign-in with Nextcloud, with the one action left:
-/// cancel.
-pub(super) fn nextcloud_signing_in(sender: &relm4::Sender<AppInput>) -> gtk::Box {
+/// The screen shown while a sign-in with Nextcloud runs, with the one action left: cancel. While
+/// `asking`, the server is being asked whether it is Nextcloud.
+pub(super) fn nextcloud_signing_in(asking: bool, sender: &relm4::Sender<AppInput>) -> gtk::Box {
     super::setup_widgets::waiting(
-        l10n::nextcloud_sign_in_waiting(),
+        if asking {
+            l10n::setup_nextcloud_checking()
+        } else {
+            l10n::nextcloud_sign_in_waiting()
+        },
         || AppInput::SetupNextcloud(SetupNextcloudInput::Cancel),
         sender,
     )

@@ -126,7 +126,9 @@ impl SetupWindow {
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
-            Phase::NextcloudSigningIn => super::setup_dav::nextcloud_signing_in(sender),
+            Phase::NextcloudSigningIn => {
+                super::setup_dav::nextcloud_signing_in(state.nextcloud.asking, sender)
+            }
             Phase::Uses => match &state.uses {
                 Some(step) => setup_signed_in::step(&window, step, sender),
                 None => progress(l10n::setup_signed_in_uses_saving()),

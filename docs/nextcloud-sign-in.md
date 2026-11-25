@@ -44,8 +44,31 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    exception ([`certificate-exceptions.md`](certificate-exceptions.md)): the browser half would
    meet the same certificate.
 
-2. **Four surfaces offer it, and nobody picks a provider.** Each is a surface that already exists;
-   none is a "Nextcloud" choice in a menu ([`onboarding.md`](onboarding.md)).
+   **An address typed as a Nextcloud server's is looked at in more places, and doubt does not
+   block.** The manual form's Nextcloud account type (rule 2) looks for the same sign in more
+   places (`mailcal_nextcloud::named_nextcloud_root`): the `.well-known/caldav` and then
+   `.well-known/carddav` of the directory the address names, when it names one, and then of its
+   host. A redirect to a PHP path is the sign even where that path then refuses, as
+   `/remote.php/dav/` does on a server with calendars and contacts switched off, and an `http`
+   redirect on an HTTPS server is followed as the `https` one, for the reason rule 4 gives.
+   `status.php` is asked once per root a sign named, and a server that does not answer at all is
+   asked nothing more. Four answers follow: **Nextcloud**, and the sign-in starts; a Nextcloud
+   server **in maintenance**, said as that; **another product**, when a status names one or a
+   `.well-known` address lands on a DAV endpoint that is no PHP script, which is another DAV
+   server, such as Stalwart; and **unsure**, when no sign was found or no status could be read.
+   Unsure is said beside the field with an offer to **Try anyway**, which starts the sign-in at
+   the address as typed, and at its host when that address has a path, without asking further
+   (`begin_nextcloud_sign_in_anyway`): a URL copied from the browser names a page rather than the
+   installation. Those requests are PHP paths the person chose to send, and the only `.php`
+   requests made without the sign; a server that showed itself as another DAV server is never
+   offered them.
+
+2. **Five surfaces offer it.** Four are surfaces that exist for any server and offer the sign-in
+   when the server answers as Nextcloud, so nobody there picks a provider
+   ([`onboarding.md`](onboarding.md)). The fifth is the manual form's **Nextcloud** account type,
+   for a person whose email address leads detection nowhere near their Nextcloud server: the
+   manual form is where a person who knows their server's kind says so, and the core lists its
+   account types (`manual_setup_kinds`), so every client offers the same ones in the same order.
 
    | Surface | When it is asked | What is drawn |
    |---|---|---|
@@ -53,6 +76,7 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    | The manual calendar and contacts form | Off the UI thread once a CalDAV or CardDAV URL is entered (`offers_nextcloud_sign_in`) | The line and the button above the fields; fields already drawn stay ([`mail-oauth.md`](mail-oauth.md) rule 8) |
    | A mailbox's separate-server step, and its twin on the account's page | By the core, as the step or the page is drawn (`AccountSeparateServer::sign_in`) | Above the password field, where rule 13's sign-in sits |
    | A calendar and contacts account's page, and its "sign in again" prompt | As the page opens, by the core: its Sign-in section (`AccountPage::sign_in`) offers the route; `AccountEntry.nextcloud` for an account a Nextcloud sign-in made | **Sign in with Nextcloud** again, or **instead** of a typed password |
+   | The manual form's **Nextcloud** account type | On the press, off the UI thread, before any browser opens (`begin_nextcloud_sign_in_at`), the wait saying the server is being asked until the browser opens | The line that explains it, one field for the server's address (a host name or any URL on it) and **Sign in with Nextcloud**, held until the field holds something. Unsure (`NextcloudAddressStart::Unsure`) is said under the field, naming the host, with **Try anyway** for as long as the field holds that address; a server in maintenance (`Maintenance`), another product, or a sign-in tried anyway that did not start (`NotNextcloud`), is said there too. What was typed is kept. The account is used for calendar and contacts both |
 
    An IMAP route's found card is unchanged: its calendar reuses the mailbox's password, and a
    server that refuses it leads to the separate-server step, which asks.
@@ -133,6 +157,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Found card: sign-in first, password behind | ✅ | 🚧 | 🚧 | ✅ | ✅ |
 | The link step's card for servers found beside a JMAP server | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Manual form's Nextcloud type, from the address alone | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Manual form's account types read from the core (`manual_setup_kinds`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Browser opened, polled, and polled again on return or close | ✅ an account's page and prompt | ✅ | ✅ | ✅ | ✅ |
@@ -146,7 +172,13 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   and the `.well-known` hop with no `.php` request to a server that shows none, the status
   document against Nextcloud, ownCloud, Infinite Scale, maintenance and a refusal, a flow naming
   another host refused and an `http` one upgraded, the poll's waiting, grant, outage and expiry,
-  the User-Agent sent, and the OCS and wipe calls with the credential they present.
+  the User-Agent sent, and the OCS and wipe calls with the credential they present. An address
+  typed as a Nextcloud server's: found through its address book's `.well-known`, through a
+  redirect to a PHP path that then refuses, and in its own directory first, a `.well-known` in a
+  directory asked there; unsure, with no `.php` request, where nothing leads to PHP; another DAV
+  server whose endpoints are no script, and another product asked once per root, not Nextcloud;
+  a server in maintenance said as that; a status that cannot be read, or a server that does not
+  answer, unsure; and an `http` redirect on an HTTPS server followed as `https`.
 - **Detection** (`mailcal-autodetect`): a calendar-only domain on Nextcloud flagged, an
   installation in a directory asked there, a server whose endpoints are no PHP script never asked,
   and any doubt (an untrusted hop, a redirect elsewhere, two servers) not.
@@ -157,12 +189,19 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   second sign-in as the same user refused, another person's grant refused and withdrawn, removal
   withdrawing, a refusal at launch answered by a wipe, by no wipe, and not asked about for a
   typed password, and no `status.php` request from the manual form or an account's page to a
-  server that shows no PHP.
+  server that shows no PHP. From an address alone: a Nextcloud server signed in at, one that
+  shows nothing either way answered as unsure with its host and asked to start nothing until it is
+  tried anyway, a page's URL tried anyway at its host once the page starts nothing, a server in
+  maintenance said as that, another product answered as not Nextcloud, a server tried anyway
+  that starts no sign-in answered as not Nextcloud, and what no server can be at refused before
+  anything is asked. The manual form's account types and their order.
 - **Live**, gated on `NEXTCLOUD_HTTP_ADDR`, against the engine's Nextcloud fixture:
   `mailcal-bindings/tests/live/live_nextcloud_sign_in.rs` signs in through the server's own pages,
   connects CalDAV and CardDAV with the app password, signs in again and removes the account,
-  asserting each withdrawal at the server. It is not in CI: this repository's harness is
-  Stalwart, and the fixture is the engine's. Two of its behaviours read as an app fault. It keeps
+  asserting each withdrawal at the server; and does the same from the server's address alone. The
+  tests take turns, because the server refuses a second login as the same user while one is under
+  way in its pages. It is not in CI: this repository's harness is Stalwart, and the fixture is
+  the engine's. Two of its behaviours read as an app fault. It keeps
   `/var/www/html` on an anonymous volume that Compose reuses when the container is recreated,
   while its PostgreSQL starts empty, so an old `config.php` can meet a new database and
   `status.php` answers 500 (`password authentication failed for user "oc_admin"`): bring it down
@@ -175,9 +214,16 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   gateway=$(docker network inspect nextcloud-harness_default -f '{{(index .IPAM.Config 0).Gateway}}')
   docker exec -u www-data pim-nextcloud-harness php occ security:bruteforce:reset "$gateway"
   ```
-- **Clients**: each client's PR adds the assertions its platform can make about the four
-  surfaces. Linux asserts the poll and its wake (`nextcloud_flight_tests.rs`), the found card,
-  the manual pane and the separate-server step drawn, the account page's section, and the banner's
+- **Clients**: each client's PR adds the assertions its platform can make about the five
+  surfaces. Linux asserts the Nextcloud account type in the picker beside calendar and contacts;
+  its pane drawing one field and a sign-in held until it holds something; the press handing the
+  core what was typed; a refusal drawn under the field with the address kept; the wait saying the
+  server is asked until the browser opens; and an unsure answer drawn as a note with **Try
+  anyway**, shown only while the field holds that address and gone once it is tried. Against the
+  engine's fixtures it was driven through the pane: the SabreDAV server was unsure, and tried
+  anyway answered "No Nextcloud server answered at 127.0.0.1"; Nextcloud opened the wait, and
+  Cancel went back to the pane with the address kept. Linux also asserts the poll and its wake
+  (`nextcloud_flight_tests.rs`), the found card, the manual pane and the separate-server step drawn, the account page's section, and the banner's
   route; against the engine's fixture it was driven through the manual pane, signing in again and
   removal. The found card and the separate-server step need a domain and a mailbox the fixture
   cannot stand in for, so they are runtime unverified there. Android asserts the same in its JVM

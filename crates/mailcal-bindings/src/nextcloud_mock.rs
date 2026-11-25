@@ -51,7 +51,7 @@ impl MockNextcloud {
 /// Serves `routes` until the test ends: the first whose `METHOD /path` prefix matches a request
 /// answers it with its status and body, and anything else is `404`. A request line listed more
 /// than once is answered by each in turn, the last for good. A route's body may name the server's
-/// own base as `{base}`.
+/// own base as `{base}`; a redirect's body is its `Location`.
 pub(crate) fn mock_nextcloud(routes: Vec<(&'static str, u16, &'static str)>) -> MockNextcloud {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -67,13 +67,15 @@ pub(crate) fn mock_nextcloud(routes: Vec<(&'static str, u16, &'static str)>) -> 
             let matched = routes
                 .iter()
                 .position(|(start, ..)| request.starts_with(start));
-            let (status, body) = matched.map_or((404, String::new()), |at| {
+            let (status, mut body) = matched.map_or((404, String::new()), |at| {
                 let (start, status, body) = routes[at];
                 if routes[at + 1..].iter().any(|(later, ..)| *later == start) {
                     routes.remove(at);
                 }
                 (status, body.replace("{base}", &own))
             });
+            let location = (300..400).contains(&status) && !body.is_empty();
+            let location = location.then(|| std::mem::take(&mut body));
             let mut head = format!(
                 "HTTP/1.1 {status} {}\r\nContent-Length: {}\r\nConnection: close\r\n",
                 reason(status),
@@ -81,6 +83,9 @@ pub(crate) fn mock_nextcloud(routes: Vec<(&'static str, u16, &'static str)>) -> 
             );
             if status == 401 {
                 head.push_str("WWW-Authenticate: Basic realm=\"Nextcloud\", charset=\"UTF-8\"\r\n");
+            }
+            if let Some(location) = location {
+                head.push_str(&format!("Location: {location}\r\n"));
             }
             let _ = stream.write_all(format!("{head}\r\n{body}").as_bytes());
         }
@@ -92,6 +97,7 @@ fn reason(status: u16) -> &'static str {
     match status {
         200 => "OK",
         207 => "Multi-Status",
+        301 => "Moved Permanently",
         401 => "Unauthorized",
         _ => "Not Found",
     }

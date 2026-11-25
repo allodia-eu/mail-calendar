@@ -3,8 +3,8 @@
 
 use mailcal_bindings::{
     AccountCapability, AccountSetup, ConnectionSecurity, DetectedServerRow, DetectedSetup,
-    JmapSetup, MissReason, RejectedCertificate, SetupRecommendation, account_config_toml,
-    jmap_account_config_toml,
+    JmapSetup, ManualSetupKind, MissReason, RejectedCertificate, SetupRecommendation,
+    account_config_toml, jmap_account_config_toml,
 };
 
 use super::{
@@ -15,6 +15,10 @@ use crate::l10n;
 
 /// What the setup window is showing: a recommendation the user is confirming, or the manual
 /// form they reached by choice or because detection found nothing.
+///
+/// The manual form is the wider variant, holding every account type's fields at once. Boxing it
+/// would buy nothing: setup holds one form at a time.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub(super) enum SetupForm {
     Detected(DetectedForm),
@@ -48,8 +52,8 @@ pub(super) enum DetectedForm {
     Dav(DavForm),
 }
 
-/// The account types the manual form can offer, in picker order. Which of them this build
-/// actually shows is [`AccountKind::offered`].
+/// The account types the manual form can offer. Which of them this build shows, and in which
+/// order, is the core's ([`AccountKind::offered`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum AccountKind {
     #[default]
@@ -57,33 +61,31 @@ pub(crate) enum AccountKind {
     Jmap,
     Microsoft,
     Google,
+    /// A Nextcloud server's calendar and contacts, signed in to from its address alone.
+    Nextcloud,
     /// A calendar and address-book server without mail (CalDAV/CardDAV).
     Dav,
 }
 
-impl AccountKind {
-    /// Every kind, in picker order.
-    const ALL: [Self; 5] = [
-        Self::Imap,
-        Self::Jmap,
-        Self::Microsoft,
-        Self::Google,
-        Self::Dav,
-    ];
+impl From<ManualSetupKind> for AccountKind {
+    fn from(kind: ManualSetupKind) -> Self {
+        match kind {
+            ManualSetupKind::Password => Self::Imap,
+            ManualSetupKind::Jmap => Self::Jmap,
+            ManualSetupKind::Microsoft => Self::Microsoft,
+            ManualSetupKind::Google => Self::Google,
+            ManualSetupKind::Nextcloud => Self::Nextcloud,
+            ManualSetupKind::Dav => Self::Dav,
+        }
+    }
+}
 
-    /// The kinds this build offers, in picker order. A browser sign-in needs an OAuth client
-    /// registration, which is injected at build time, so a build given none drops the route
-    /// rather than showing a button that fails at the provider. The two credential routes are
-    /// always there.
+impl AccountKind {
+    /// The kinds this build offers, in picker order, as the core decides them.
     pub(super) fn offered() -> Vec<Self> {
-        let routes = mailcal_bindings::oauth_routes();
-        Self::ALL
+        mailcal_bindings::manual_setup_kinds()
             .into_iter()
-            .filter(|kind| match kind {
-                Self::Microsoft => routes.microsoft,
-                Self::Google => routes.google,
-                Self::Imap | Self::Jmap | Self::Dav => true,
-            })
+            .map(Self::from)
             .collect()
     }
 
@@ -93,6 +95,7 @@ impl AccountKind {
             Self::Jmap => l10n::setup_account_type_jmap(),
             Self::Microsoft => l10n::setup_account_type_microsoft(),
             Self::Google => l10n::setup_account_type_google(),
+            Self::Nextcloud => l10n::setup_account_type_nextcloud(),
             Self::Dav => l10n::setup_account_type_dav(),
         }
     }
@@ -248,6 +251,11 @@ pub(crate) struct ManualForm {
     /// The calendar or address-book server typed that answered as Nextcloud, whose sign-in the
     /// calendar and contacts pane offers above its fields.
     pub(super) nextcloud: Option<String>,
+    /// The address typed on the Nextcloud pane.
+    pub(super) nextcloud_server: String,
+    /// The address the core could not tell was Nextcloud, and its host: the pane offers the
+    /// sign-in anyway while it holds that address.
+    pub(super) nextcloud_unsure: Option<(String, String)>,
 }
 
 /// What a pane hands the core to connect. Built by whichever pane collected the fields, so the

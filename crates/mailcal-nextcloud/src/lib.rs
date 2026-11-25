@@ -39,8 +39,13 @@ pub use flow::{
 pub use ocs::{User, current_user, revoke};
 pub use root::Root;
 pub use secret::Secret;
-pub use sign::{WELL_KNOWN_PATH, answers_as_nextcloud, nextcloud_root, serves_php};
-pub use status::{STATUS_PATH, STATUS_TIMEOUT, is_nextcloud, is_nextcloud_status};
+pub use sign::{
+    Named, WELL_KNOWN_PATH, answers_as_nextcloud, named_nextcloud_root, nextcloud_root, serves_php,
+};
+pub use status::{
+    STATUS_PATH, STATUS_TIMEOUT, Status, is_nextcloud, is_nextcloud_status, status_of,
+    status_of_body,
+};
 pub use wipe::{wipe_finished, wipe_requested};
 
 /// How long one request of the flow, or of the calls that follow it, may take.
