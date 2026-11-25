@@ -338,11 +338,9 @@
        editable so the user can trim it. The two styles mirror the Rust composer renderer
        (mailcal-composer): Indented puts the body in a left border, LineAndHeader divides it
        off with a rule and shows a labeled header block. The two tokens are the Rust
-       QuoteStyle variant names, which serialize verbatim into the seed JSON. */
-    .allodia-quote {
-      margin: 14px 0 0;
-    }
-
+       QuoteStyle variant names, which serialize verbatim into the seed JSON. Neither the region nor
+       its attribution has spacing of its own: the renderer writes none, and the blank line a reply
+       opens with above the quote is a real one (`quote.ts`). */
     .allodia-quote[data-quote-style="LineAndHeader"] {
       border-top: 1pt solid rgb(181, 196, 223);
       padding-top: 3pt;
@@ -350,7 +348,6 @@
 
     .aq-attr {
       color: var(--muted);
-      margin: 0 0 8px;
       white-space: pre-wrap;
     }
 
@@ -364,14 +361,10 @@
       border-left: 2px solid #cccccc;
     }
 
-    /* The sender's signature. Editable like any other body content (Outlook's model: seeded,
-       then yours to trim before sending) and given no decoration of its own; whatever the user
-       authored in Settings is exactly what they should see here, and what goes out. The margin
-       is the only editor-side addition, so the seeded block doesn't butt against the line above
-       it; the Rust renderer emits the same wrapper class with no styling at all. */
-    .allodia-signature {
-      margin: 14px 0 0;
-    }
+    /* The sender's signature has no rule here. Editable like any other body content (Outlook's
+       model: seeded, then yours to trim before sending) and given no decoration or spacing of its own:
+       what the user authored in Settings is exactly what they see here, and what goes out. The blank
+       line above it is a real one (`signature.ts`), as the renderer emits the wrapper unstyled. */
 
     /* --- Resizing a picture ---
        Drawn over the picture from OUTSIDE the editor, and placed by `resize.ts`, whose header explains
@@ -1685,8 +1678,7 @@
     const walk = (node, pre) => {
       if (node.nodeType === 3) {
         const value = node.nodeValue ?? "";
-        const parts = pre ? value.split(`
-`) : [value];
+        const parts = pre ? value.split(/\r\n|\r|\n/) : [value];
         parts.forEach((part, index) => {
           if (index > 0)
             lines.push({ text: "", pre });
@@ -1800,7 +1792,8 @@
       const plain = doc.createElement("div");
       plain.className = "aq-plain";
       plain.style.whiteSpace = "pre-wrap";
-      plain.textContent = quote.body_plain || "";
+      plain.textContent = (quote.body_plain || "").replace(/\r\n?/g, `
+`);
       body.appendChild(plain);
     }
     container.appendChild(body);
@@ -1817,6 +1810,7 @@
     else
       lead.appendChild(doc.createElement("br"));
     editor.appendChild(lead);
+    editor.appendChild(emptyLine(doc));
     editor.appendChild(quoteContainer(doc, seed));
     caretInto(lead, !initialText);
     focusEditor(editor);
@@ -1860,7 +1854,12 @@
     const doc = documentOf(editor);
     let container = composerSignature(editor);
     if (!signature?.body_html) {
-      container?.remove();
+      if (container) {
+        const next = container.nextElementSibling;
+        if (isBlankLine(next) && next.nextElementSibling?.classList.contains("allodia-quote"))
+          next.remove();
+        container.remove();
+      }
       return;
     }
     if (!container) {
@@ -1870,11 +1869,12 @@
         editor.insertBefore(container, quote);
       else
         editor.appendChild(container);
-      if (!container.previousElementSibling) {
-        const lead = doc.createElement("div");
-        lead.appendChild(doc.createElement("br"));
-        editor.insertBefore(lead, container);
-      }
+      if (!isBlankLine(container.previousElementSibling))
+        container.before(emptyLine(doc));
+      if (quote)
+        container.after(emptyLine(doc));
+      if (container.previousElementSibling === editor.firstElementChild)
+        editor.prepend(emptyLine(doc));
       return;
     }
     fillSignature(container, signature);
@@ -1885,8 +1885,27 @@
     fillSignature(container, signature);
     return container;
   }
+  function isBlankLine(element) {
+    return !!element && element.tagName === "DIV" && !element.className && isBlank(element);
+  }
   function fillSignature(container, signature) {
     container.innerHTML = signature.body_html;
+  }
+  function openLineAboveSignature(editor) {
+    const signature = composerSignature(editor);
+    const selection = documentOf(editor).defaultView?.getSelection();
+    if (!signature || !selection || selection.rangeCount === 0 || !selection.isCollapsed)
+      return false;
+    const caret = selection.getRangeAt(0);
+    if (!signature.contains(caret.startContainer))
+      return false;
+    const before = documentOf(editor).createRange();
+    before.setStart(signature, 0);
+    before.setEnd(caret.startContainer, caret.startOffset);
+    if (!/^[\t\n\f\r ]*$/.test(before.toString()) || before.cloneContents().querySelector("img, br"))
+      return false;
+    signature.before(emptyLine(documentOf(editor)));
+    return true;
   }
   function routeClickBelowSignature(editor, target) {
     if (target !== editor)
@@ -3991,6 +4010,8 @@
       editor.removeChild(editor.firstChild);
     for (const block of blocks)
       editor.insertBefore(block, boundary);
+    if (boundary && blocks.length > 0)
+      editor.insertBefore(emptyLine(documentOf(editor)), boundary);
     const last = blocks.at(-1);
     if (last)
       caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
@@ -4179,6 +4200,110 @@
     view.addEventListener("resize", place);
   }
 
+  // src/region_lines.ts
+  var REGIONS = ".allodia-signature, .aq-body";
+  var BLOCKS2 = new Set([
+    "P",
+    "DIV",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "UL",
+    "OL",
+    "LI",
+    "TABLE",
+    "TD",
+    "TH",
+    "BLOCKQUOTE",
+    "PRE",
+    "HR"
+  ]);
+  function splitRegionLine(editor) {
+    const doc = documentOf(editor);
+    const selection = doc.defaultView?.getSelection();
+    if (!selection || selection.rangeCount === 0)
+      return false;
+    const caret = selection.getRangeAt(0);
+    const region = lineHolder(editor, caret.startContainer);
+    if (!region)
+      return false;
+    if (!caret.collapsed) {
+      if (!region.contains(caret.endContainer))
+        return false;
+      caret.deleteContents();
+    }
+    const anchor = childOf(region, caret.startContainer, caret.startOffset);
+    const run = looseRun(anchor);
+    if (run.length === 0)
+      return false;
+    const line = doc.createElement("div");
+    region.insertBefore(line, run[0]);
+    for (const node of run)
+      line.appendChild(node);
+    let container = caret.startContainer;
+    let offset = caret.startOffset;
+    if (container === region) {
+      offset = anchor && anchor === region.childNodes[caret.startOffset - 1] ? run.indexOf(anchor) + 1 : 0;
+      container = line;
+    }
+    const after = doc.createRange();
+    after.setStart(container, offset);
+    after.setEnd(line, line.childNodes.length);
+    const next = doc.createElement("div");
+    next.appendChild(after.extractContents());
+    line.after(next);
+    for (const half of [line, next]) {
+      if (/^[\t\n\f\r ]*$/.test(half.textContent ?? "") && !half.querySelector("img, br")) {
+        half.replaceChildren(doc.createElement("br"));
+      }
+    }
+    const start = doc.createRange();
+    start.setStart(next, 0);
+    start.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(start);
+    return true;
+  }
+  function lineHolder(editor, node) {
+    let current = node.nodeType === 1 ? node : node.parentNode;
+    while (current && current !== editor) {
+      const element = current;
+      if (element.matches(REGIONS))
+        return element;
+      if (BLOCKS2.has(element.tagName))
+        return null;
+      current = current.parentNode;
+    }
+    return null;
+  }
+  function childOf(region, container, offset) {
+    if (container === region) {
+      const before = region.childNodes[offset - 1];
+      return before && !isBlock(before) ? before : region.childNodes[offset] ?? null;
+    }
+    let current = container;
+    while (current.parentNode !== region)
+      current = current.parentNode;
+    return current;
+  }
+  function looseRun(anchor) {
+    if (!anchor || isBlock(anchor))
+      return [];
+    let first = anchor;
+    while (first.previousSibling && !isBlock(first.previousSibling))
+      first = first.previousSibling;
+    const run = [];
+    for (let node = first;node && !isBlock(node); node = node.nextSibling)
+      run.push(node);
+    return run;
+  }
+  function isBlock(node) {
+    return node.nodeType === 1 && BLOCKS2.has(node.tagName);
+  }
+
   // src/revision.ts
   function installRevisionCounter(editor) {
     let revision = 0;
@@ -4332,7 +4457,7 @@
   }
 
   // src/read_regions.ts
-  var REGIONS = ".allodia-quote, .allodia-signature";
+  var REGIONS2 = ".allodia-quote, .allodia-signature";
   var OWN_INDENTED_BORDER = "border-left:2px solid #cccccc";
   var OWN_HEADER_DIVIDER = "rgb(181, 196, 223)";
   function styleOf(element) {
@@ -4340,7 +4465,7 @@
   }
   function readQuotes(body) {
     for (const element of Array.from(body.querySelectorAll("blockquote, div"))) {
-      if (!element.isConnected || element.closest(REGIONS))
+      if (!element.isConnected || element.closest(REGIONS2))
         continue;
       if (element.tagName === "BLOCKQUOTE")
         readBlockquote(element);
@@ -4486,18 +4611,18 @@
   function readSignatures(body) {
     const containers = body.querySelectorAll("div.moz-signature, div#Signature, div[id^='Signature_']");
     for (const element of Array.from(containers)) {
-      if (!element.isConnected || element.closest(REGIONS))
+      if (!element.isConnected || element.closest(REGIONS2))
         continue;
       replaceWithSignature([element], element.innerHTML);
     }
     readWordSignature(body);
   }
   function readWordSignature(body) {
-    const markers = Array.from(body.querySelectorAll("a[name='_MailAutoSig'], [style*='_MailAutoSig']")).filter((marker) => !marker.closest(REGIONS));
+    const markers = Array.from(body.querySelectorAll("a[name='_MailAutoSig'], [style*='_MailAutoSig']")).filter((marker) => !marker.closest(REGIONS2));
     const lines = [];
     for (const marker of markers) {
       const line = marker.closest("p, div, h1, h2, h3, h4, h5, h6");
-      if (line && !line.closest(REGIONS) && !lines.includes(line) && !line.querySelector("p, div"))
+      if (line && !line.closest(REGIONS2) && !lines.includes(line) && !line.querySelector("p, div"))
         lines.push(line);
       else if (!line && !(marker.textContent ?? "").trim())
         marker.remove();
@@ -4538,11 +4663,11 @@
   }
   var INERT_TAGS = "style, title, template, noscript, script";
   function inRegion(node) {
-    return !!node.parentElement?.closest(REGIONS);
+    return !!node.parentElement?.closest(REGIONS2);
   }
   function adoptPictures(body, attachments) {
     for (const image of Array.from(body.querySelectorAll("img"))) {
-      if (image.closest(REGIONS)) {
+      if (image.closest(REGIONS2)) {
         image.removeAttribute("data-cid");
         continue;
       }
@@ -4654,18 +4779,18 @@
     for (let current = node;; ) {
       const sibling = step(current);
       if (sibling)
-        return isBlock(sibling);
+        return isBlock2(sibling);
       const parent = current.parentNode;
-      if (!parent || parent.nodeType !== 1 || isBlock(parent))
+      if (!parent || parent.nodeType !== 1 || isBlock2(parent))
         return true;
       current = parent;
     }
   }
-  function isBlock(node) {
+  function isBlock2(node) {
     if (node.nodeType !== 1)
       return false;
     const element = node;
-    return BLOCK_TAG.test(element.tagName) || element.matches(REGIONS);
+    return BLOCK_TAG.test(element.tagName) || element.matches(REGIONS2);
   }
   var BLOCK_TAG = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BODY|BR|CENTER|DD|DIV|DL|DT|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|TD|TH|THEAD|TFOOT|TR|UL)$/;
   function tidy(block) {
@@ -5446,6 +5571,12 @@
       return;
     if (!event.shiftKey)
       execCommand("insertText", "\t");
+  });
+  editor.addEventListener("beforeinput", (event) => {
+    if (event.inputType !== "insertParagraph")
+      return;
+    if (openLineAboveSignature(editor) || splitRegionLine(editor))
+      event.preventDefault();
   });
   editor.addEventListener("mousedown", (event) => {
     if (routeClickBelowSignature(editor, event.target))

@@ -314,11 +314,9 @@ pre {
    editable so the user can trim it. The two styles mirror the Rust composer renderer
    (mailcal-composer): Indented puts the body in a left border, LineAndHeader divides it
    off with a rule and shows a labeled header block. The two tokens are the Rust
-   QuoteStyle variant names, which serialize verbatim into the seed JSON. */
-.allodia-quote {
-  margin: 14px 0 0;
-}
-
+   QuoteStyle variant names, which serialize verbatim into the seed JSON. Neither the region nor
+   its attribution has spacing of its own: the renderer writes none, and the blank line a reply
+   opens with above the quote is a real one (`quote.ts`). */
 .allodia-quote[data-quote-style="LineAndHeader"] {
   border-top: 1pt solid rgb(181, 196, 223);
   padding-top: 3pt;
@@ -326,7 +324,6 @@ pre {
 
 .aq-attr {
   color: var(--muted);
-  margin: 0 0 8px;
   white-space: pre-wrap;
 }
 
@@ -340,14 +337,10 @@ pre {
   border-left: 2px solid #cccccc;
 }
 
-/* The sender's signature. Editable like any other body content (Outlook's model: seeded,
-   then yours to trim before sending) and given no decoration of its own; whatever the user
-   authored in Settings is exactly what they should see here, and what goes out. The margin
-   is the only editor-side addition, so the seeded block doesn't butt against the line above
-   it; the Rust renderer emits the same wrapper class with no styling at all. */
-.allodia-signature {
-  margin: 14px 0 0;
-}
+/* The sender's signature has no rule here. Editable like any other body content (Outlook's
+   model: seeded, then yours to trim before sending) and given no decoration or spacing of its own:
+   what the user authored in Settings is exactly what they see here, and what goes out. The blank
+   line above it is a real one (`signature.ts`), as the renderer emits the wrapper unstyled. */
 
 /* --- Resizing a picture ---
    Drawn over the picture from OUTSIDE the editor, and placed by `resize.ts`, whose header explains

@@ -47,6 +47,21 @@ describe("a plain-text original", () => {
     expect(quoteOf(editor).body_html).toContain("&lt;img src=x onerror=alert(1)&gt;");
   });
 
+  test("carries no carriage return out, whatever line endings its MIME part was written in", () => {
+    // A stored message's text keeps CRLF. A line split on `\n` alone keeps its `\r`, which the text
+    // part then carries as a bare CR, not a line ending.
+    const { editor } = harness("");
+    setComposerQuote(editor, {
+      style: "Indented",
+      body_html: "",
+      body_plain: "Hi Alice,\r\n\r\nThanks.\r\n",
+    });
+
+    const { body_plain, body_html } = quoteOf(editor);
+    expect(body_plain).toBe("Hi Alice,\n\nThanks.");
+    expect(body_html).not.toContain("\r");
+  });
+
   test("keeps the original in `body_plain` for the outgoing text part", () => {
     const { editor } = harness("");
     setComposerQuote(editor, { style: "Indented", body_html: "", body_plain: PLAIN_ORIGINAL });

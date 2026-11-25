@@ -17,7 +17,9 @@ export function plainText(element: Element): string {
   const walk = (node: Node, pre: boolean) => {
     if (node.nodeType === 3) {
       const value = node.nodeValue ?? "";
-      const parts = pre ? value.split("\n") : [value];
+      // Any line ending: a stored message's text keeps the CRLF its MIME part was written in, and a
+      // `\r` left on a line goes out as a bare CR.
+      const parts = pre ? value.split(/\r\n|\r|\n/) : [value];
       parts.forEach((part, index) => {
         if (index > 0) lines.push({ text: "", pre });
         current().text += part;
