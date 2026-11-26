@@ -122,8 +122,10 @@ reply, has been shown two different messages.
     same transform (rule 4). The decision is rule 1's and is the client's to make as it makes it for
     a reading view; the page and each moved colour are the core's. The page is there from the
     editor's first frame, as the reading view's canvas is (rule 5): a client hands it to the web
-    view before the editor's document runs (`composer_page_preload_script`, a script injected at
-    the document's start, beside the app's own scheme), names it again with
+    view before the editor's document runs (`composer_page_preload_script`, beside the app's own
+    scheme: a script injected at the document's start, or on Android, which has no such hook, put
+    into the document ahead of the editor's own scripts), and the editor draws it from its head
+    before any of its markup is painted. The client names it again with
     `composer_page_script(scheme)` once the document has loaded and whenever the scheme changes,
     and the editor asks how
     each colour in its message looks on it (the `colours` request, answered by

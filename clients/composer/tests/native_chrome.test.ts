@@ -101,3 +101,18 @@ describe("the native-chrome toolbar", () => {
     expect(stopped()).toBe(1);
   });
 });
+
+describe("the native-chrome row's order", () => {
+  test("ends with the page's sun or moon", async () => {
+    const stylesheet = await Bun.file(`${import.meta.dir}/../src/editor.css`).text();
+    const orders = [...stylesheet.matchAll(/^(body\.native-chrome [^{]+)\{\s*order:\s*(\d+);/gm)].map(
+      ([, selector, order]) => ({ selector: selector!.trim(), order: Number(order) }),
+    );
+    const toggle = orders.find(({ selector }) => selector === "body.native-chrome #page-background");
+    // Left without an order of its own, it would take the default and lead the row.
+    expect(toggle).toBeDefined();
+    for (const { selector, order } of orders) {
+      if (selector !== toggle!.selector) expect(order).toBeLessThan(toggle!.order);
+    }
+  });
+});

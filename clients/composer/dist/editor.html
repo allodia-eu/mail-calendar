@@ -217,7 +217,8 @@
     }
 
     /* What a message on a phone uses most comes first, before the row scrolls: the marks, lists and
-       links, then colour, then the layout controls, and the wide pickers last. */
+       links, then colour, then the layout controls, and the wide pickers. The page's sun or moon ends
+       the row, as it does on a desktop (`docs/reading-dark-mode.md`, rule 14). */
     body.native-chrome .toolbar > [data-command] { order: 1; }
     body.native-chrome #bullet-list,
     body.native-chrome #ordered-list { order: 2; }
@@ -230,6 +231,7 @@
     body.native-chrome .toolbar > .menu:has(#table),
     body.native-chrome #rule { order: 6; }
     body.native-chrome .toolbar > select { order: 7; }
+    body.native-chrome #page-background { order: 8; }
 
     /* A finger's target. The row has the height for it now it is one row. */
     @media (pointer: coarse) {
