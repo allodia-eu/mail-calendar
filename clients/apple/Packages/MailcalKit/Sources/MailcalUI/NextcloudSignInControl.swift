@@ -1,7 +1,8 @@
 // "Sign in with Nextcloud", drawn where a server answered that it is Nextcloud
 // (docs/nextcloud-sign-in.md rule 2): the line that explains it, then the button, and the password
-// route behind "Use a password instead" where the surface has one. While the browser holds the
-// sign-in the button gives way to what to do there and a Cancel.
+// route behind "Use a password instead" where the surface has one. While the server is checked,
+// and then while the browser holds the sign-in, the button gives way to what is happening and a
+// Cancel.
 
 import MailcalBindings // L10n
 import SwiftUI
@@ -12,17 +13,24 @@ struct NextcloudSignInControl: View {
     var leads = true
     /// Offers the password route beneath, until it is chosen.
     var passwordInstead: (() -> Void)? = nil
+    /// The line that explains the sign-in, above it; `nil` where the surface explains it itself.
+    var note: String? = L10n.nextcloud_sign_in_note()
+    /// Whether the button can be pressed: the surface has what the sign-in needs.
+    var enabled = true
     let start: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.nextcloud_sign_in_note())
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if let note {
+                Text(note)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if signIn.waiting {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text(L10n.nextcloud_sign_in_waiting())
+                    Text(signIn.checking
+                        ? L10n.setup_nextcloud_checking() : L10n.nextcloud_sign_in_waiting())
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
@@ -54,6 +62,7 @@ struct NextcloudSignInControl: View {
                 .frame(maxWidth: .infinity)
         }
         .controlSize(.large)
+        .disabled(!enabled)
         if leads {
             label.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
         } else {
