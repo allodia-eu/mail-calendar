@@ -65,7 +65,8 @@ public sealed partial class SettingsDialog
 
         // An explicit height: the detail panel lives in a ScrollViewer, which offers infinite height
         // during measure, and a WebView2 given that lays out at zero.
-        var view = new WebView2();
+        // Transparent until the editor paints, so the panel shows rather than WebView2's own white.
+        var view = new WebView2 { DefaultBackgroundColor = Microsoft.UI.Colors.Transparent };
         panel.Children.Add(new Border
         {
             BorderBrush = _brushes.Of(ThemePalette.ControlStroke),
@@ -83,7 +84,9 @@ public sealed partial class SettingsDialog
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
         };
 
-        var host = new EditorWebViewHost(view);
+        // The signature is written on the page a reading view would draw it on
+        // (docs/reading-dark-mode.md, "Writing in a dark app").
+        var host = new EditorWebViewHost(view) { Model = _model };
         _signatureEditor = host;
         var parts = new SignatureEditorParts(editing, host, nameBox, said, page);
         _signatureParts = parts;
@@ -96,6 +99,9 @@ public sealed partial class SettingsDialog
         host.PageReady = async () =>
         {
             await host.RunAsync(ComposerLabels.Script());
+            // Only the page's colours and the toolbar's sun or moon: a link dialog cannot open over
+            // this one, so the editor keeps its own link panel.
+            await host.RunAsync(MailcalBindingsMethods.ComposerPageRequestsScript());
             await host.RunAsync(
                 $"window.setSignatureBody({EditorWebViewHost.Arg(editing.BodyHtml)}, "
                 + $"{EditorWebViewHost.Arg(L10n.SettingsSignaturesPlaceholder())})");

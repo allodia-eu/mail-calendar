@@ -195,6 +195,9 @@
     <!-- Which page a message is drawn on (docs/reading-dark-mode.md). WinUI-free so the rule is
          pinned here; the reading view feeds it its own ActualTheme and the core's preference. -->
     <Compile Include="..\Mailcal\Services\MessageSchemes.cs" Link="Services\MessageSchemes.cs" />
+    <!-- The page the shared editor writes its message on, and the order a host hands the core what
+         the editor posts. Handed the core's scripts rather than calling them, so no cdylib loads. -->
+    <Compile Include="..\Mailcal\Services\ComposerPage.cs" Link="Services\ComposerPage.cs" />
     <!-- What the message list's multi-selection means (docs/list-selection.md): which rows a
          menu acts on, and what a conversation row becomes when the batch goes to the core.
          WinUI-free on purpose; a conversation sent as one reply archives that reply alone, which
