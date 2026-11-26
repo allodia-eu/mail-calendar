@@ -75,7 +75,7 @@ fn stored() -> ContactCard {
 fn a_draft_carries_every_editable_field() {
     let draft = build_contact_draft(book(), "ada-uid", &edit()).expect("a valid draft");
     assert_eq!(draft.address_book, book());
-    assert_eq!(draft.card.uid.as_deref(), Some("ada-uid"));
+    assert_eq!(draft.card.uid.as_ref().map(|uid| uid.as_str()), Some("ada-uid"));
     assert_eq!(draft.card.display_name().as_deref(), Some("Ada Lovelace"));
     assert_eq!(
         draft

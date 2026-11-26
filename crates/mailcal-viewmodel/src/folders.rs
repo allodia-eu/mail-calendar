@@ -183,7 +183,11 @@ fn mailbox_role_to_folder_role(role: &MailboxRole) -> FolderRole {
         MailboxRole::Junk => FolderRole::Junk,
         MailboxRole::Trash => FolderRole::Trash,
         MailboxRole::Important => FolderRole::Important,
-        MailboxRole::Flagged | MailboxRole::All | MailboxRole::Other(_) => FolderRole::Other,
+        MailboxRole::Flagged
+        | MailboxRole::All
+        | MailboxRole::ServerRecords
+        | MailboxRole::ChatHistory
+        | MailboxRole::Other(_) => FolderRole::Other,
     }
 }
 
@@ -203,11 +207,18 @@ fn mailbox_role_to_folder_role(role: &MailboxRole) -> FolderRole {
 ///
 /// A provider's all-mail mailbox (`\All`) gets no row: the account's own whole mailbox is that
 /// destination, so a row for it would be a second All Mail (`docs/folder-pane.md`, rule 30).
+/// Nor does a folder the service keeps for its own records, which holds no mail anyone filed
+/// (rule 35).
 #[must_use]
 pub fn sorted_folder_rows(folders: &[Mailbox]) -> Vec<FolderRow> {
     let folders: Vec<&Mailbox> = folders
         .iter()
-        .filter(|mailbox| mailbox.role != Some(MailboxRole::All))
+        .filter(|mailbox| {
+            !matches!(
+                mailbox.role,
+                Some(MailboxRole::All | MailboxRole::ServerRecords)
+            )
+        })
         .collect();
     let known: BTreeSet<&str> = folders.iter().map(|&mailbox| mailbox.id.as_str()).collect();
     let mut children: BTreeMap<&str, Vec<&Mailbox>> = BTreeMap::new();
@@ -340,6 +351,9 @@ fn role_rank(role: &MailboxRole) -> Option<u8> {
         MailboxRole::Flagged => 6,
         MailboxRole::Important => 7,
         MailboxRole::All => 8,
-        MailboxRole::Other(_) => return None,
+        // Never drawn (`sorted_folder_rows`), so it has no place to be ranked in.
+        MailboxRole::ServerRecords => 9,
+        // The user's own chats, named by the server: an ordinary folder among theirs.
+        MailboxRole::ChatHistory | MailboxRole::Other(_) => return None,
     })
 }

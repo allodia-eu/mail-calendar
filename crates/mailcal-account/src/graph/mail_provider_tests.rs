@@ -218,10 +218,7 @@ async fn a_write_on_a_dead_connection_is_sent_once_and_the_client_replaced() {
         // stopped reading early would drop it.
         "Body ".repeat(100_000),
     );
-    let folder = MailboxEdit::Create {
-        name: "Receipts".to_owned(),
-        parent: None,
-    };
+    let folder = MailboxEdit::create("Receipts".to_owned(), None);
     for write in ["send", "draft", "folder"] {
         let (tokens, _) = tokens(vec![http_fake::minted(1)]);
         let (base, received) = http_fake::serve(vec![Reply::HangUp, Reply::Json(ME.to_owned())]);

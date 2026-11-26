@@ -56,10 +56,7 @@ async fn a_write_on_a_dead_connection_is_made_once_and_the_next_request_connects
     let [provider] = providers.as_slice() else {
         panic!("one mail provider");
     };
-    let folder = MailboxEdit::Create {
-        name: "Receipts".to_owned(),
-        parent: None,
-    };
+    let folder = MailboxEdit::create("Receipts".to_owned(), None);
 
     server.hang_up_next_call();
     provider
