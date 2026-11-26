@@ -764,6 +764,69 @@
       opacity: 0.5;
     }
   </style>
+  <script>
+(() => {
+  // src/page_paint.ts
+  var PROPERTIES = {
+    background: "--page",
+    text: "--text",
+    link: "--page-link",
+    quote_rule: "--quote-rule",
+    header_rule: "--header-rule",
+    table_rule: "--table-rule"
+  };
+  var COLOUR = /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/;
+  function pageOf(value) {
+    let source = value;
+    if (typeof source === "string") {
+      try {
+        source = JSON.parse(source);
+      } catch {
+        return null;
+      }
+    }
+    const record = source;
+    if (!record || record.scheme !== "light" && record.scheme !== "dark")
+      return null;
+    const colours = {};
+    for (const field of Object.keys(PROPERTIES)) {
+      const colour = record[field];
+      if (typeof colour !== "string" || !COLOUR.test(colour))
+        return null;
+      colours[field] = colour;
+    }
+    return { scheme: record.scheme, colours };
+  }
+  function paintPage(root, scheme, colours) {
+    root.dataset.page = scheme;
+    for (const [field, property] of Object.entries(PROPERTIES)) {
+      root.style.setProperty(property, colours[field]);
+    }
+  }
+
+  // src/scheme.ts
+  function setScheme(root, scheme) {
+    if (scheme === "light" || scheme === "dark") {
+      root.dataset.scheme = scheme;
+    } else {
+      delete root.dataset.scheme;
+    }
+  }
+
+  // src/preset.ts
+  function applyPreset(win) {
+    const root = win.document.documentElement;
+    if (win.composerScheme !== undefined)
+      setScheme(root, win.composerScheme);
+    const page = pageOf(win.composerPage);
+    if (page)
+      paintPage(root, page.scheme, page.colours);
+  }
+
+  // src/preset_main.ts
+  applyPreset(window);
+})();
+  </script>
 </head>
 <body>
   <div class="toolbar" role="toolbar">
@@ -1317,6 +1380,49 @@
     return style.spaced ? "p" : "div";
   }
 
+  // src/page_paint.ts
+  var PROPERTIES = {
+    background: "--page",
+    text: "--text",
+    link: "--page-link",
+    quote_rule: "--quote-rule",
+    header_rule: "--header-rule",
+    table_rule: "--table-rule"
+  };
+  var COLOUR = /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/;
+  function pageOf(value) {
+    let source = value;
+    if (typeof source === "string") {
+      try {
+        source = JSON.parse(source);
+      } catch {
+        return null;
+      }
+    }
+    const record = source;
+    if (!record || record.scheme !== "light" && record.scheme !== "dark")
+      return null;
+    const colours = {};
+    for (const field of Object.keys(PROPERTIES)) {
+      const colour = record[field];
+      if (typeof colour !== "string" || !COLOUR.test(colour))
+        return null;
+      colours[field] = colour;
+    }
+    return { scheme: record.scheme, colours };
+  }
+  function paintPage(root, scheme, colours) {
+    root.dataset.page = scheme;
+    for (const [field, property] of Object.entries(PROPERTIES)) {
+      root.style.setProperty(property, colours[field]);
+    }
+  }
+  function unpaintPage(root) {
+    delete root.dataset.page;
+    for (const property of Object.values(PROPERTIES))
+      root.style.removeProperty(property);
+  }
+
   // src/page_regions.ts
   var WRITTEN_MARKUP = ".allodia-quote .aq-body, .allodia-signature";
   var writtenName = (name) => `data-written-${name}`;
@@ -1465,15 +1571,6 @@
   // src/page.ts
   var MAX_BATCH_BYTES = 1000 * 1024;
   var ANSWER_MS = 5000;
-  var PROPERTIES = {
-    background: "--page",
-    text: "--text",
-    link: "--page-link",
-    quote_rule: "--quote-rule",
-    header_rule: "--header-rule",
-    table_rule: "--table-rule"
-  };
-  var COLOUR = /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/;
   var STAMP = /^#[0-9a-f]{6}$/;
   function installPage(editor, ask, quietly, onScheme = () => {}) {
     const doc = editor.ownerDocument;
@@ -1598,10 +1695,7 @@
     const paint = () => {
       if (!scheme || !colours)
         return;
-      root.dataset.page = scheme;
-      for (const [field, property] of Object.entries(PROPERTIES)) {
-        root.style.setProperty(property, colours[field]);
-      }
+      paintPage(root, scheme, colours);
     };
     let written = 0;
     const shows = () => scheme === "dark" || showsRegions(editor);
@@ -1616,9 +1710,7 @@
       if (scheme !== "dark")
         return;
       sheet.textContent = "";
-      delete root.dataset.page;
-      for (const property of Object.values(PROPERTIES))
-        root.style.removeProperty(property);
+      unpaintPage(root);
     };
     const leave = () => {
       if (written === 0)
@@ -1720,27 +1812,6 @@
     if (type === "deleteContentForward")
       return offset >= (node.nodeValue ?? "").length;
     return true;
-  }
-  function pageOf(value) {
-    let source = value;
-    if (typeof source === "string") {
-      try {
-        source = JSON.parse(source);
-      } catch {
-        return null;
-      }
-    }
-    const record = source;
-    if (!record || record.scheme !== "light" && record.scheme !== "dark")
-      return null;
-    const colours = {};
-    for (const field of Object.keys(PROPERTIES)) {
-      const colour = record[field];
-      if (typeof colour !== "string" || !COLOUR.test(colour))
-        return null;
-      colours[field] = colour;
-    }
-    return { scheme: record.scheme, colours };
   }
 
   // src/tel.ts

@@ -20,6 +20,7 @@ const ROOT = `${import.meta.dir}/`;
 const OUTPUT = `${ROOT}dist/editor.html`;
 const PLACEHOLDER = "<!--EDITOR_BUNDLE-->";
 const STYLES = "<!--EDITOR_STYLES-->";
+const PRESET = "<!--EDITOR_PRESET-->";
 
 const BANNER = `<!--
   GENERATED FILE; do not edit.
@@ -34,9 +35,12 @@ const BANNER = `<!--
 -->
 `;
 
-async function bundle(): Promise<string> {
+/// One entry and everything it imports, as an inline classic script's body. Two entries: the editor
+/// (`main.ts`) at the end of the body, and the head's script (`preset_main.ts`), which draws the
+/// scheme and the page a host preset before any of the markup between them is painted.
+async function bundle(entry: string): Promise<string> {
   const built = await Bun.build({
-    entrypoints: [`${ROOT}src/main.ts`],
+    entrypoints: [`${ROOT}src/${entry}`],
     target: "browser",
     format: "iife",
     // Deliberately unminified: this file is committed and diffed by the gate, so a readable diff is
@@ -71,18 +75,25 @@ async function styles(): Promise<string> {
 
 async function render(): Promise<string> {
   const shell = await Bun.file(`${ROOT}src/index.html`).text();
-  for (const marker of [PLACEHOLDER, STYLES]) {
+  for (const marker of [PLACEHOLDER, STYLES, PRESET]) {
     if (!shell.includes(marker)) {
       throw new Error(`src/index.html is missing the ${marker} placeholder`);
     }
   }
   const stylesheet = await styles();
-  const script = `<script>\n${await bundle()}\n  </script>`;
+  const script = `<script>\n${await bundle("main.ts")}\n  </script>`;
+  const preset = `<script>\n${await bundle("preset_main.ts")}\n  </script>`;
   // A function replacer, not the string itself: `String.replace` reads `$&`, `` $` ``, `$'` and
   // `$1` in a *replacement string* as patterns, so a source file containing one would splice the
   // shell's own text into the bundle. `--check` would then agree with the corrupted artifact,
   // because it re-derives it the same way.
-  return BANNER + shell.replace(STYLES, () => stylesheet).replace(PLACEHOLDER, () => script);
+  return (
+    BANNER +
+    shell
+      .replace(STYLES, () => stylesheet)
+      .replace(PRESET, () => preset)
+      .replace(PLACEHOLDER, () => script)
+  );
 }
 
 const rendered = await render();

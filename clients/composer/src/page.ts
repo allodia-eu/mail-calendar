@@ -14,19 +14,10 @@
 // A host that never names a page keeps the light page the stylesheet starts on, and is never asked.
 
 import { windowOf } from "./dom";
+import { COLOUR, type PageColours, type PageScheme, pageOf, paintPage, unpaintPage } from "./page_paint";
 import { planRegions, type RegionPiece, restoreRegions, showsRegions, touchesRegions } from "./page_regions";
 
-export type PageScheme = "light" | "dark";
-
-/// `mailcal_composer::ComposerPage`.
-interface PageColours {
-  background: string;
-  text: string;
-  link: string;
-  quote_rule: string;
-  header_rule: string;
-  table_rule: string;
-}
+export type { PageScheme } from "./page_paint";
 
 /// `mailcal_composer::ColourPiece`.
 export type ColourPiece = { ink: string } | { fill: string } | RegionPiece;
@@ -42,19 +33,6 @@ export const MAX_BATCH_BYTES = 1000 * 1024;
 /// host that cannot parse a request sends nothing back.
 export const ANSWER_MS = 5000;
 
-/// The custom properties the page's colours are drawn through (`editor.css`).
-const PROPERTIES: Record<keyof PageColours, string> = {
-  background: "--page",
-  text: "--text",
-  link: "--page-link",
-  quote_rule: "--quote-rule",
-  header_rule: "--header-rule",
-  table_rule: "--table-rule",
-};
-
-/// A colour the core writes: `#rrggbb`, `rgb(…)` or `rgba(…)`. Anything else is not put into a
-/// stylesheet.
-const COLOUR = /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/;
 const STAMP = /^#[0-9a-f]{6}$/;
 
 export interface Page {
@@ -201,10 +179,7 @@ export function installPage(
 
   const paint = () => {
     if (!scheme || !colours) return;
-    root.dataset.page = scheme;
-    for (const [field, property] of Object.entries(PROPERTIES)) {
-      root.style.setProperty(property, colours[field as keyof PageColours]);
-    }
+    paintPage(root, scheme, colours);
   };
 
   // An edit runs on the colours as written. An engine writes the computed style of what it works
@@ -224,8 +199,7 @@ export function installPage(
     }
     if (scheme !== "dark") return;
     sheet.textContent = "";
-    delete root.dataset.page;
-    for (const property of Object.values(PROPERTIES)) root.style.removeProperty(property);
+    unpaintPage(root);
   };
   const leave = () => {
     if (written === 0) return;
@@ -333,25 +307,4 @@ function carriesStyle(event: InputEvent, win: Window): boolean {
   if (type === "deleteContentBackward") return offset === 0;
   if (type === "deleteContentForward") return offset >= (node.nodeValue ?? "").length;
   return true;
-}
-
-/// A page the core built, or `null` when `value` is not one.
-function pageOf(value: unknown): { scheme: PageScheme; colours: PageColours } | null {
-  let source = value;
-  if (typeof source === "string") {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      return null;
-    }
-  }
-  const record = source as Record<string, unknown> | null;
-  if (!record || (record.scheme !== "light" && record.scheme !== "dark")) return null;
-  const colours = {} as PageColours;
-  for (const field of Object.keys(PROPERTIES) as (keyof PageColours)[]) {
-    const colour = record[field];
-    if (typeof colour !== "string" || !COLOUR.test(colour)) return null;
-    colours[field] = colour;
-  }
-  return { scheme: record.scheme, colours };
 }
