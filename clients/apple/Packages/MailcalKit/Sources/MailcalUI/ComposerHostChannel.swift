@@ -41,6 +41,12 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
     /// Called with every message the editor posts, before it is parsed: the core reads its
     /// reply-draft report from them (`composerReplyDraftReport`), which the parse leaves out.
     var onMessage: (String) -> Void = { _ in }
+    /// Hands the core a message, answering whether it was the toolbar's sun or moon, which the core
+    /// stores; the preference's Settings signal then names the page back to every editor
+    /// (`ComposerPage.swift`).
+    var choosesBackground: @MainActor (String) -> Bool = { _ in false }
+    /// Runs a script the core wrote in the editor's document.
+    var run: (String) -> Void = { _ in }
     /// Weak: the web view's content controller holds this channel, and the web view's owner holds
     /// the web view.
     private weak var webView: WKWebView?
@@ -48,6 +54,7 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
     /// Registers the channel on `webView`. The editor asks for nothing until `announce()`.
     func install(on webView: WKWebView) {
         self.webView = webView
+        run = { [weak webView] in webView?.evaluateJavaScript($0) }
         webView.configuration.userContentController.add(self, name: composerHostChannel())
     }
 
@@ -67,10 +74,15 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
         receive(body)
     }
 
-    /// One message the editor posted: to `onMessage`, every one, then to whichever handler its
-    /// request has.
+    /// One message the editor posted: to `onMessage`, every one, then to the core for the page's
+    /// colours and its sun or moon, then to whichever handler its request has.
     func receive(_ body: String) {
         onMessage(body)
+        if let answer = composerColoursAnswerScript(message: body) {
+            run(answer)
+            return
+        }
+        if choosesBackground(body) { return }
         guard let request = parseComposerHostRequest(message: body) else { return }
         switch request {
         case let .link(id, text, address, removable):

@@ -9,6 +9,8 @@
 // the representable, creates the web view once, and every later call answers that one.
 
 import Foundation
+import MailcalBindings
+import SwiftUI
 import WebKit
 
 enum EditorHostError: Error {
@@ -29,8 +31,9 @@ final class EditorHost: NSObject, WKNavigationDelegate {
     private let fallbackHTML: String
     private var expectingInitialLoad = true
     private var loaded = false
-    /// The app's scheme as last named, `nil` until a representable has named one.
-    private var dark: Bool?
+    /// The app's scheme and the message's page as last named, `nil` until a representable has
+    /// named them.
+    private var scheme: (dark: Bool, page: MessageScheme)?
 
     /// - Parameters:
     ///   - makeView: builds the web view from the hardened configuration, for a host that needs a
@@ -61,6 +64,7 @@ final class EditorHost: NSObject, WKNavigationDelegate {
         let view = makeView(configuration)
         view.navigationDelegate = self
         view.allowsBackForwardNavigationGestures = false
+        Self.drawNoBackground(view)
         channel.install(on: view)
         if let history = (view as? HistoryWebView)?.history {
             channel.onHistory = { [weak history] undo, redo in history?.update(undo: undo, redo: redo) }
@@ -78,10 +82,38 @@ final class EditorHost: NSObject, WKNavigationDelegate {
             if let ruleList {
                 view.configuration.userContentController.add(ruleList)
             }
+            // Both are named before the editor's document runs, so its first frame is drawn on
+            // them rather than on a light page the load's own naming then repaints.
+            if let scheme = self.scheme {
+                view.configuration.userContentController.addUserScript(WKUserScript(
+                    source: Self.preloadScript(dark: scheme.dark, page: scheme.page),
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true,
+                    in: .page
+                ))
+            }
             let asset = EditorAsset.load(fallbackHTML: self.fallbackHTML)
             view.loadHTMLString(asset.html, baseURL: asset.baseURL)
         }
         return view
+    }
+
+    /// Leaves the web view no background of its own, so the app's surface shows wherever the page
+    /// has not painted: until the document's first paint, which a web view otherwise fills white
+    /// in a dark app, and under the composer's framed toolbar, which sits on the column's own
+    /// colour (`docs/composer-layout.md`, rule 7).
+    private static func drawNoBackground(_ view: WKWebView) {
+        #if os(macOS)
+        // No public switch on macOS: key-value coding reaches WebKit's own `_setDrawsBackground:`,
+        // asked for first so a WebKit without it is left as it is rather than taken down.
+        if view.responds(to: NSSelectorFromString("_setDrawsBackground:")) {
+            view.setValue(false, forKey: "drawsBackground")
+        }
+        #else
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.scrollView.backgroundColor = .clear
+        #endif
     }
 
     /// Runs `script` in the document. Before `mount()` there is no document, and the completion is
@@ -108,25 +140,37 @@ final class EditorHost: NSObject, WKNavigationDelegate {
         return literal
     }
 
-    /// Names the app's light or dark, which the editor's chrome follows
-    /// (`clients/composer/src/scheme.ts`): sent now if the bundle is up, else as it loads. The
-    /// representable passes SwiftUI's colour scheme, which carries a Light or Dark chosen in the app.
-    func setDark(_ dark: Bool) {
-        guard dark != self.dark else { return }
-        self.dark = dark
+    /// Follows the representable's environment: the app's light or dark, which the editor's chrome
+    /// follows (`clients/composer/src/scheme.ts`), and the page its message is written on
+    /// (`ComposerPage.swift`). Named before the document runs when called before `mount()`, sent
+    /// now if the bundle is up, else as it loads. SwiftUI's colour scheme carries a Light or Dark
+    /// chosen in the app.
+    func follow(_ environment: EnvironmentValues) {
+        let source = environment.composerPage
+        channel.choosesBackground = source.choosesBackground
+        let dark = environment.colorScheme == .dark
+        let page = MessageScheme.of(appDark: dark, darkMessages: source.darkMessages)
+        if let scheme, scheme.dark == dark, scheme.page == page { return }
+        scheme = (dark, page)
         if loaded {
-            evaluate(Self.schemeScript(dark))
+            evaluate(Self.schemeScript(dark: dark, page: page))
         }
     }
 
-    nonisolated static func schemeScript(_ dark: Bool) -> String {
-        "window.setComposerScheme(\"\(dark ? "dark" : "light")\")"
+    /// The script naming the app's scheme to the chrome and the page to the message.
+    nonisolated static func schemeScript(dark: Bool, page: MessageScheme) -> String {
+        "window.setComposerScheme(\"\(dark ? "dark" : "light")\");" + composerPageScript(scheme: page)
+    }
+
+    /// The same as a script the web view runs before the editor's document does.
+    nonisolated static func preloadScript(dark: Bool, page: MessageScheme) -> String {
+        "window.composerScheme = \"\(dark ? "dark" : "light")\";" + composerPagePreloadScript(scheme: page)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loaded = true
-        if let dark {
-            evaluate(Self.schemeScript(dark))
+        if let scheme {
+            evaluate(Self.schemeScript(dark: scheme.dark, page: scheme.page))
         }
         onLoad()
     }

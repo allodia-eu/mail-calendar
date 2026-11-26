@@ -97,14 +97,14 @@ private struct SignatureEditorWebView: PlatformViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) { followScheme(context) }
     #endif
 
+    /// Names the scheme and the page first, so the load carries them from its first frame.
     private func mount(_ context: Context) -> WKWebView {
-        let view = editor.mount()
         followScheme(context)
-        return view
+        return editor.mount()
     }
 
     private func followScheme(_ context: Context) {
-        editor.host.setDark(context.environment.colorScheme == .dark)
+        editor.host.follow(context.environment)
     }
 }
 
@@ -158,6 +158,7 @@ struct SignatureEditorView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             SignatureEditorWebView(editor: editor)
+                .composerPage(model)
                 .frame(minHeight: 200)
                 .border(.quaternary)
             HStack {

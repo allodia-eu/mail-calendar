@@ -173,14 +173,6 @@ final class RichComposerEditor: NSObject {
             (view as? EditorWebView)?.columnTakesScroll = { [weak self] towardsEnd in
                 self?.columnTakesScroll(towardsEnd: towardsEnd) ?? false
             }
-            // The framed page has no background, so the toolbar sits on the column's own colour
-            // (`docs/composer-layout.md`, rule 7); a web view that painted white under it would put
-            // the strip back. There is no public switch on macOS: key-value coding reaches
-            // WebKit's own `_setDrawsBackground:`, asked for first so a WebKit without it is left
-            // as it is rather than taken down.
-            if view.responds(to: NSSelectorFromString("_setDrawsBackground:")) {
-                view.setValue(false, forKey: "drawsBackground")
-            }
             #endif
             #if os(iOS)
             // The page is the composer's one scroll on a touch screen, with the header drawn inside

@@ -74,14 +74,20 @@ const SITES: &[Site] = &[
     },
     Site {
         client: "apple",
+        file: "clients/apple/Packages/MailcalKit/Sources/MailcalUI/EditorHost.swift",
+        needle: "composerPagePreloadScript(",
+        what: "the page both editors hand over before the document runs",
+    },
+    Site {
+        client: "apple",
         file: "clients/apple/Packages/MailcalKit/Sources/MailcalUI/RichComposerView.swift",
-        needle: "host.setDark(",
+        needle: "host.follow(",
         what: "the composer's scheme",
     },
     Site {
         client: "apple",
         file: "clients/apple/Packages/MailcalKit/Sources/MailcalUI/SignatureEditorView.swift",
-        needle: "host.setDark(",
+        needle: "host.follow(",
         what: "the signature editor's scheme",
     },
     Site {

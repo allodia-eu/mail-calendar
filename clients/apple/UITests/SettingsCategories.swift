@@ -10,13 +10,18 @@ enum SettingsCategories {
     static func open(_ name: String, hooks: [String: String] = [:]) throws -> App {
         let app = try ShowcaseApp.launch(hooks.merging(["MAILCAL_SHOWCASE_SCREEN": "settings"]) { $1 })
         try app.wait(.text("Settings").role("AXHeading"), "Settings did not open")
+        try go(to: name, in: app)
+        return app
+    }
+
+    /// Opens the category called `name` from Settings' hub or sidebar, already on screen.
+    static func go(to name: String, in app: App) throws {
         var found = try row(name, in: app)
         for _ in 0..<4 where found == nil {
             app.input.swipeUp()
             found = try row(name, in: app)
         }
         try app.tap(try XCTUnwrap(found, "Settings has no \(name) row"))
-        return app
     }
 
     /// The category's row: on the iPhone's hub a button whose label leads with the name, in the

@@ -73,7 +73,7 @@ extension ReadingView {
     /// messages on (docs/reading-dark-mode.md). Known before the body arrives, so the canvas is
     /// right from the first frame.
     var messageScheme: MessageScheme {
-        appScheme == .dark && model.displaySettings.darkMessageBackground ? .dark : .light
+        .of(appDark: appScheme == .dark, darkMessages: model.displaySettings.darkMessageBackground)
     }
 
     /// The body on the page the core says a message is drawn on.
