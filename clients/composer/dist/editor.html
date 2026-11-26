@@ -1595,13 +1595,6 @@
       if (regions || runs)
         show(regions);
     });
-    observer.observe(editor, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ["style", "bgcolor", "color", "data-color", "data-highlight"]
-    });
     const paint = () => {
       if (!scheme || !colours)
         return;
@@ -1644,33 +1637,47 @@
         leave();
       }
     };
-    editor.addEventListener("beforeinput", (event) => {
-      if (!shows() || event.defaultPrevented || !carriesStyle(event, win))
+    let watching = false;
+    const watch = () => {
+      if (watching)
         return;
-      enter();
-      let left = false;
-      const done = () => {
-        if (left)
-          return;
-        left = true;
-        leave();
-      };
-      editor.addEventListener("input", done, { once: true });
-      win.setTimeout(done, 0);
-    });
-    for (const type of ["copy", "cut"]) {
-      editor.addEventListener(type, () => {
-        if (!shows())
+      watching = true;
+      observer.observe(editor, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["style", "bgcolor", "color", "data-color", "data-highlight"]
+      });
+      editor.addEventListener("beforeinput", (event) => {
+        if (!shows() || event.defaultPrevented || !carriesStyle(event, win))
           return;
         enter();
-        win.setTimeout(leave, 0);
+        let left = false;
+        const done = () => {
+          if (left)
+            return;
+          left = true;
+          leave();
+        };
+        editor.addEventListener("input", done, { once: true });
+        win.setTimeout(done, 0);
       });
-    }
+      for (const type of ["copy", "cut"]) {
+        editor.addEventListener(type, () => {
+          if (!shows())
+            return;
+          enter();
+          win.setTimeout(leave, 0);
+        });
+      }
+    };
     const page = {
       set(value) {
         const named = pageOf(value);
         if (!named)
           return;
+        watch();
         colours = named.colours;
         const changed = scheme !== named.scheme;
         scheme = named.scheme;

@@ -198,13 +198,6 @@ export function installPage(
     );
     if (regions || runs) show(regions);
   });
-  observer.observe(editor, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributes: true,
-    attributeFilter: ["style", "bgcolor", "color", "data-color", "data-highlight"],
-  });
 
   const paint = () => {
     if (!scheme || !colours) return;
@@ -250,36 +243,52 @@ export function installPage(
     }
   };
 
-  // The engine's own edits: a key, a cut, a drop, a spelling correction. A character typed or
-  // deleted inside one text node carries no style anywhere and is left alone, so typing in a long
-  // quote costs no pass over it.
-  editor.addEventListener("beforeinput", (event) => {
-    if (!shows() || event.defaultPrevented || !carriesStyle(event, win)) return;
-    enter();
-    let left = false;
-    const done = () => {
-      if (left) return;
-      left = true;
-      leave();
-    };
-    editor.addEventListener("input", done, { once: true });
-    // A `beforeinput` someone cancelled has no `input` after it.
-    win.setTimeout(done, 0);
-  });
-  // A copy or a cut serialises the selection after its event and before any other: the page is
-  // back once the task that copied is over.
-  for (const type of ["copy", "cut"]) {
-    editor.addEventListener(type, () => {
-      if (!shows()) return;
-      enter();
-      win.setTimeout(leave, 0);
+  // Hooked into the editor once a page is named, never before: until then every hook answers
+  // nothing, and on iOS WebKit holding them delays the key after a drafted reply past what an undo
+  // waits for.
+  let watching = false;
+  const watch = () => {
+    if (watching) return;
+    watching = true;
+    observer.observe(editor, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["style", "bgcolor", "color", "data-color", "data-highlight"],
     });
-  }
+    // The engine's own edits: a key, a cut, a drop, a spelling correction. A character typed or
+    // deleted inside one text node carries no style anywhere and is left alone, so typing in a
+    // long quote costs no pass over it.
+    editor.addEventListener("beforeinput", (event) => {
+      if (!shows() || event.defaultPrevented || !carriesStyle(event, win)) return;
+      enter();
+      let left = false;
+      const done = () => {
+        if (left) return;
+        left = true;
+        leave();
+      };
+      editor.addEventListener("input", done, { once: true });
+      // A `beforeinput` someone cancelled has no `input` after it.
+      win.setTimeout(done, 0);
+    });
+    // A copy or a cut serialises the selection after its event and before any other: the page is
+    // back once the task that copied is over.
+    for (const type of ["copy", "cut"]) {
+      editor.addEventListener(type, () => {
+        if (!shows()) return;
+        enter();
+        win.setTimeout(leave, 0);
+      });
+    }
+  };
 
   const page: Page = {
     set(value) {
       const named = pageOf(value);
       if (!named) return;
+      watch();
       colours = named.colours;
       const changed = scheme !== named.scheme;
       scheme = named.scheme;

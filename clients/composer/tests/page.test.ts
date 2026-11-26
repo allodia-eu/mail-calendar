@@ -106,6 +106,31 @@ describe("setComposerPage", () => {
     }
     expect(editor.ownerDocument.documentElement.style.getPropertyValue("--text")).toBe("#1a1a1a");
   });
+
+  test("hooks nothing into the editor until a page is named, and hooks it once", () => {
+    const { editor } = harness("<p>Hi</p>");
+    const hooked: string[] = [];
+    const listen = editor.addEventListener.bind(editor);
+    editor.addEventListener = (type: string, ...rest: [EventListenerOrEventListenerObject]) => {
+      hooked.push(type);
+      listen(type, ...rest);
+    };
+    const proto = (editor.ownerDocument.defaultView as Window & typeof globalThis).MutationObserver.prototype;
+    const observe = proto.observe;
+    proto.observe = function (this: MutationObserver, ...args: Parameters<MutationObserver["observe"]>) {
+      hooked.push("mutations");
+      observe.apply(this, args);
+    };
+    try {
+      const page = installPage(editor, async () => null, (change) => change());
+      expect(hooked).toEqual([]);
+      page.set(LIGHT);
+      page.set(DARK);
+      expect(hooked.sort()).toEqual(["beforeinput", "copy", "cut", "mutations"]);
+    } finally {
+      proto.observe = observe;
+    }
+  });
 });
 
 describe("the writer's own runs", () => {
