@@ -184,7 +184,7 @@ function reply() {
 const BLANK = "<div><br></div>";
 const REGION = `<div class="allodia-signature">${SIGNATURE.body_html}</div>`;
 
-describe("the signature is set apart by a blank line, as Outlook does", () => {
+describe("the signature is set apart by a real blank line", () => {
   // A real line rather than a margin of the editor's own: the message is spaced as the editor
   // shows it, and the person can delete it.
   test("in a new message, under the line the caret is in", () => {

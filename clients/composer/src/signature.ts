@@ -69,8 +69,8 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
     const quote = editor.querySelector(".allodia-quote");
     if (quote) editor.insertBefore(container, quote);
     else editor.appendChild(container);
-    // Set apart by a blank line above it, and from a quote below it, as Outlook does. Real lines
-    // rather than a margin of the editor's own, so the message is spaced as the editor shows it.
+    // Set apart by a blank line above it, and from a quote below it. Real lines rather than a
+    // margin of the editor's own, so the message is spaced as the editor shows it.
     if (!isBlankLine(container.previousElementSibling)) container.before(emptyLine(doc));
     if (quote) container.after(emptyLine(doc));
     // `focusComposerBody` puts the caret in the first element. A new message opens empty, so that
@@ -102,7 +102,7 @@ function fillSignature(container: HTMLElement, signature: SignatureValue): void 
 
 /// Enter with the caret at the very start of this message's signature opens an empty line of the
 /// message above the region, rather than inside it, so what is typed there is the message and not
-/// the signature (Outlook's behaviour). The caret stays where it was, as Enter leaves it anywhere.
+/// the signature. The caret stays where it was, as Enter leaves it anywhere.
 /// Returns whether it did; anywhere else Enter is the engine's.
 export function openLineAboveSignature(editor: HTMLElement): boolean {
   const signature = composerSignature(editor);

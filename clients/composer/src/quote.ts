@@ -128,8 +128,8 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
   if (initialText) lead.textContent = initialText;
   else lead.appendChild(doc.createElement("br"));
   editor.appendChild(lead);
-  // A blank line between the reply and the original, as Outlook opens one: a real line, so the
-  // message is spaced as the editor shows it.
+  // A blank line between the reply and the original: a real line, so the message is spaced as
+  // the editor shows it.
   editor.appendChild(emptyLine(doc));
   editor.appendChild(quoteContainer(doc, seed));
 
