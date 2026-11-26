@@ -177,8 +177,8 @@ Legend: ✅ shipped · ⬜ planned · — not applicable.
 | Re-renders live on an appearance or preference change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A scheme change keeps the reader's place | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Reading windows follow | ✅ | — | ✅ | — | ✅ |
-| The composer writes on the reading page (rules 10 to 13) | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| The editor's page is right from its first frame | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| The signature editor writes on it too | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| Sun/moon on the editor's toolbar, dark app only (rule 14) | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| The editor follows an appearance or preference change live | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| The composer writes on the reading page (rules 10 to 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The editor's page is right from its first frame | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The signature editor writes on it too | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sun/moon on the editor's toolbar, dark app only (rule 14) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The editor follows an appearance or preference change live | ✅ | ✅ | ✅ | ✅ | ✅ |

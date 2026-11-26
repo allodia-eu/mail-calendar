@@ -1,4 +1,5 @@
-//! Fails when a host of the shared editor does not tell it the app's light or dark.
+//! Fails when a host of the shared editor does not tell it the app's light or dark, or the page its
+//! message is written on (`docs/reading-dark-mode.md`, "Writing in a dark app").
 //!
 //! The bundle draws its toolbar and panels in the scheme its host names through
 //! `window.setComposerScheme` (`clients/composer/src/scheme.ts`), and falls back to the web view's
@@ -7,8 +8,10 @@
 //! in the app is missed. A host that stops naming the scheme still draws a toolbar, in the system's
 //! colours inside the app's, and nothing throws, logs or fails a build.
 //!
-//! Each editor surface (the composer, the signature editor) is checked on every client, at the
-//! place that names the scheme on load and on change, plus the script the client builds.
+//! The page fails the same way: a host that stops naming it leaves the message on the light page in
+//! a dark app. Each editor surface (the composer, the signature editor) is checked on every client,
+//! at the place that names the scheme and the page on load and on change, plus the scripts the
+//! client builds.
 
 use std::path::Path;
 
@@ -65,6 +68,12 @@ const SITES: &[Site] = &[
         file: "clients/android/app/src/main/java/eu/allodia/mailcal/ComposerPage.kt",
         needle: "composerSchemeScript(",
         what: "the scheme beside the page, which both editors send on a change",
+    },
+    Site {
+        client: "android",
+        file: "clients/android/app/src/main/java/eu/allodia/mailcal/ComposerPage.kt",
+        needle: "composerPagePreloadScript(",
+        what: "the page both editors hand over before the document runs",
     },
     Site {
         client: "apple",
@@ -171,6 +180,30 @@ const SITES: &[Site] = &[
         file: "clients/windows/Mailcal/Services/EditorWebView.cs",
         needle: "await SyncSchemeAsync();",
         what: "both editors' scheme at load",
+    },
+    Site {
+        client: "windows",
+        file: "clients/windows/Mailcal/Services/EditorWebView.cs",
+        needle: "MailcalBindingsMethods.ComposerPagePreloadScript",
+        what: "the page both editors hand over before the document runs",
+    },
+    Site {
+        client: "windows",
+        file: "clients/windows/Mailcal/Services/EditorWebView.cs",
+        needle: "MailcalBindingsMethods.ComposerPageScript(",
+        what: "the page both editors name on load and on change",
+    },
+    Site {
+        client: "windows",
+        file: "clients/windows/Mailcal/Views/ComposerView.xaml.cs",
+        needle: "_editor.Model = model;",
+        what: "the composer's page",
+    },
+    Site {
+        client: "windows",
+        file: "clients/windows/Mailcal/Dialogs/SettingsDialog.SignatureEditor.cs",
+        needle: "{ Model = _model }",
+        what: "the signature editor's page",
     },
 ];
 
