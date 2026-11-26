@@ -75,6 +75,7 @@ internal sealed class CalendarVelocityTracker
 /// <remarks>
 /// The gesture owner speaks in these rather than in <c>PointerRoutedEventArgs</c>, which is what
 /// makes the whole of §6 and §9 testable without a window. The WinUI layer's only job is to
-/// translate.
+/// translate. <c>Mouse</c> is a mouse's primary button, which draws a slot where a finger pans (§10).
 /// </remarks>
-internal readonly record struct PointerSample(uint Id, float X, float Y, double TimeMs);
+internal readonly record struct PointerSample(
+    uint Id, float X, float Y, double TimeMs, bool Mouse = false);

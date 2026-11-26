@@ -22,7 +22,12 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class CalendarView
 {
-    private async void OnNewEvent(object sender, RoutedEventArgs e)
+    private void OnNewEvent(object sender, RoutedEventArgs e) => ShowCreate(slot: null);
+
+    /// <summary>A slot drawn out on the grid opens the editor on the time drawn (§10).</summary>
+    private void OnCreateAt(CreateSlot slot) => ShowCreate(slot);
+
+    private async void ShowCreate(CreateSlot? slot)
     {
         if (Model is null)
         {
@@ -31,11 +36,55 @@ public sealed partial class CalendarView
         // A fresh editor, defaulting to the first writable calendar and the device's own zone (so the
         // created event reads back the same wall clock when it is opened to edit).
         var editor = EventEditorState.Create(DefaultChoice(), Model.ActiveZone, Model.WallClock());
+        if (slot is { } drawn)
+        {
+            editor.Start = drawn.Start;
+            editor.End = drawn.End;
+        }
         var dialog = new EventEditorDialog(Model, editor) { XamlRoot = this.XamlRoot };
         if (await DialogHelper.ShowAsync(dialog) == ContentDialogResult.Primary)
         {
             Model.CreateEvent(editor.CreateArgs());
         }
+    }
+
+    /// <summary>
+    /// An event dragged somewhere new on the grid: written, once the user has said which occurrences
+    /// a drag on a repeating event meant. Cancelling the question writes nothing (§10).
+    /// </summary>
+    private async void OnMoveDropped(CalendarDragState drag)
+    {
+        if (Model is null)
+        {
+            return;
+        }
+        var thisOccurrenceOnly = false;
+        if (drag.AsksAboutTheSeries)
+        {
+            var scope = await DialogHelper.ScopeAsync(this.XamlRoot, L10n.EventSeriesScopeTitle());
+            if (scope == ContentDialogResult.None)
+            {
+                return;
+            }
+            thisOccurrenceOnly = scope == ContentDialogResult.Primary;
+        }
+        if (drag.MoveArgs(thisOccurrenceOnly) is { } args)
+        {
+            Model.MoveEvent(args);
+        }
+    }
+
+    /// <summary>The colour a slot being drawn wears: the calendar a new event goes on, or none when
+    /// there is nowhere it could go.</summary>
+    private string? NewEventHex()
+    {
+        if (Model is not { NewEventEnabled: true } model)
+        {
+            return null;
+        }
+        var row = model.Calendars().FirstOrDefault(c => c.IsDefault && c.CanWrite)
+            ?? model.NewEventCalendars()?.Groups.SelectMany(g => g.Calendars).FirstOrDefault();
+        return row?.Color.Hex ?? CalendarColors.FallbackHex;
     }
 
     /// <summary>Opens an event's detail as a tap on it would: the meeting screenshot's way in.</summary>

@@ -52,6 +52,8 @@
     <Compile Include="..\Mailcal\Calendar\CalendarVelocity.cs" Link="Calendar\CalendarVelocity.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.cs" Link="Calendar\CalendarGestureOwner.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.Wheel.cs" Link="Calendar\CalendarGestureOwner.Wheel.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.Drag.cs" Link="Calendar\CalendarGestureOwner.Drag.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarDrag.cs" Link="Calendar\CalendarDrag.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarWriteIndicator.cs" Link="Calendar\CalendarWriteIndicator.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarWriteGating.cs" Link="Calendar\CalendarWriteGating.cs" />
     <!-- The grid's clock and hour-ruler labels. Pure BCL, its L10n half is CalendarSurfaceStrings.cs,

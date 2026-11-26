@@ -27,7 +27,7 @@ internal static class CalendarColors
     // The colour of an event whose calendar is not in the list (hidden mid-view, an account just
     // removed, or the invitation card's preview, which carries no list): a neutral grey, the one
     // Apple and Android fall back to, so the event is still legible rather than invisible.
-    private const string FallbackHex = "#6b7280";
+    internal const string FallbackHex = "#6b7280";
 
     // The core's answer for each colour and theme, asked once rather than for every event drawn.
     private static readonly Dictionary<(string Hex, bool Dark), EventColors> Events = [];
