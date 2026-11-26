@@ -57,8 +57,14 @@ const SITES: &[Site] = &[
     Site {
         client: "android",
         file: "clients/android/app/src/main/java/eu/allodia/mailcal/SignatureEditorDialog.kt",
-        needle: "composerSchemeScript(",
+        needle: "composerAppearanceScript(",
         what: "the signature editor's scheme",
+    },
+    Site {
+        client: "android",
+        file: "clients/android/app/src/main/java/eu/allodia/mailcal/ComposerPage.kt",
+        needle: "composerSchemeScript(",
+        what: "the scheme beside the page, which both editors send on a change",
     },
     Site {
         client: "apple",
