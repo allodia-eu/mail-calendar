@@ -5,7 +5,7 @@ Bump: patch
 
 > The shared editor's light page takes the reading view's ink, and the quote attribution, sent
 > without a colour of its own, is drawn in it rather than in grey (`docs/reading-dark-mode.md`,
-> rule 10). The dark page itself is Linux's so far (`composer-dark-page.md`).
+> rule 10). The dark page itself is `composer-dark-page.md`'s.
 
 **English**
 
