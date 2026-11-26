@@ -11,7 +11,7 @@ import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.accountConfigToml
 import uniffi.mailcal_bindings.jmapAccountConfigToml
-import uniffi.mailcal_bindings.oauthRoutes
+import uniffi.mailcal_bindings.manualSetupKinds
 import uniffi.mailcal_bindings.providerSetupChoices
 
 // What the form should say about a connect that did not succeed. A refused certificate comes
@@ -126,10 +126,10 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                             // The servers found beside a JMAP server, offered once it is added.
                             onRoute = { email, setup -> setupFlow.found = FoundBeside.of(email, setup) },
                             startOn = setupFlow.startOn,
-                            // Only the browser sign-ins this build carries a registration for.
-                            // Asked here rather than in the form, which has to render without the
-                            // core for the JVM suite.
-                            offeredKinds = AccountKind.offered(oauthRoutes()),
+                            // The core's account types, without a browser sign-in this build
+                            // carries no registration for. Asked here rather than in the form,
+                            // which has to render without the core for the JVM suite.
+                            offeredKinds = AccountKind.of(manualSetupKinds()),
                             // The blocking availability probe, hopped off the main thread by the
                             // form's debounced effect; and the browser sign-in it gates.
                             onCheckJmapSignIn = { email, server ->

@@ -91,7 +91,8 @@ internal fun AccountSetupScreen(
     onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
     onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
     signingInImap: Boolean = false,
-    // The sign-in with Nextcloud the calendar and contacts type offers once its server answers.
+    // The sign-in with Nextcloud the calendar and contacts type offers once its server answers,
+    // and the Nextcloud type's own, from the server's address alone.
     nextcloud: NextcloudSetupUi = NextcloudSetupUi(),
     initialKind: AccountKind = AccountKind.PASSWORD,
     // Which account types the picker shows, [AccountKind.offered] for what this build carries.
@@ -121,6 +122,7 @@ internal fun AccountSetupScreen(
         mutableStateOf(standardPort?.let(ManualServerPair::fromCore) ?: ManualServerPair())
     }
     var caldavBaseUrl by remember { mutableStateOf(prefillCaldav) }
+    var nextcloudServer by remember { mutableStateOf("") }
     var carddavBaseUrl by remember { mutableStateOf(prefillCarddav) }
     // The calendar-and-contacts type's first server, marked when Connect found neither typed.
     var davMissing by remember { mutableStateOf(false) }
@@ -276,6 +278,7 @@ internal fun AccountSetupScreen(
                 nextcloud = nextcloud,
                 connecting = connecting,
             )
+            AccountKind.NEXTCLOUD -> NextcloudManualFields(nextcloudServer, { nextcloudServer = it }, nextcloud, connecting)
             AccountKind.JMAP -> {
                 Text(
                     text = L10n.setup_jmap_note(ctx),
@@ -420,6 +423,8 @@ internal fun AccountSetupScreen(
                     )
                 },
             )
+            // The pane draws its own sign-in, beside what it says while it runs.
+            AccountKind.NEXTCLOUD -> Unit
             AccountKind.DAV -> ConnectButton(
                 enabled = username.isNotBlank() && password.isNotBlank() && !connecting && certificateOk,
                 connecting = connecting,
