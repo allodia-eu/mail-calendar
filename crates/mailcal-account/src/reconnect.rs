@@ -2,42 +2,42 @@
 //!
 //! The engine's `ImapProvider` borrows a connection from its account per call and replaces a
 //! dead one on the *next* call, but the call that found it dead has already failed with a
-//! [`FailureClass::Retryable`] transport error (`Broken pipe`, `peer closed connection without
-//! sending TLS close_notify`). After the machine slept or the network dropped, that is the first
-//! thing the user does: a Refresh, or opening a message, and it would fail once for no reason
-//! they can see.
+//! [`FailureClass::Retryable`](engine_core::error::FailureClass::Retryable) transport error
+//! (`Broken pipe`, `peer closed connection without sending TLS close_notify`). After the machine
+//! slept or the network dropped, that is the first thing the user does: a Refresh, or opening a
+//! message, and it would fail once for no reason they can see.
 //!
-//! [`ReconnectingImapProvider`] retries it the same way [`RefreshingGraphProvider`] does on the
+//! [`ReconnectingImapProvider`] retries it the way [`ReconnectingGraphProvider`] does on the
 //! Graph side ([`crate::graph`]): it caches a live delegate and, on a retryable transport
 //! failure, drops it, takes a fresh one, and retries the (idempotent) call once. The fresh one
 //! comes from an **injected closure** ([`Redial`]) so the path is unit-testable without a real
 //! socket; the live closure (`imap::make_imap_redial`) drops the account's resting connections
 //! and binds the folder again, so the retry runs on a connection dialled for it.
 //!
-//! [`RefreshingGraphProvider`]: crate::graph
+//! [`ReconnectingGraphProvider`]: crate::graph
 
 use std::{
-    collections::BTreeSet,
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex},
 };
 
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, ProviderKey};
 use engine_core::{
-    error::FailureClass,
     ids::{AccountId, MailboxId},
-    mail::{Mailbox, Message},
+    mail::{Mailbox, Message, MessageMetadata},
     raw::RawMime,
     sync::{MailboxWindows, SyncScope, SyncState},
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
-    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult,
-    ReportReceipt, ScopeSync, SharedAccount, SourceStream, SubmissionReceipt,
+    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
+    ScopeSync, SharedAccount, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
+
+use crate::shared_client::{lost_its_connection, should_reconnect};
 
 /// Re-dials a fresh, logged-in IMAP session bound to the wrapper's mailbox. Boxed so it can
 /// be injected (a real `ImapProvider::connect` on the live path, a fake in tests).
@@ -63,7 +63,7 @@ pub(crate) struct ReconnectingImapProvider {
     last_info: Mutex<ConnectionInfo>,
     /// The live delegate, or `None` after a retryable failure invalidated it (the next call
     /// re-dials). Held behind a std mutex read only to clone the `Arc`; never across an
-    /// `.await`; like `RefreshingGraphProvider`'s `cached`.
+    /// `.await`.
     cached: Mutex<Option<Arc<dyn Provider>>>,
 }
 
@@ -109,8 +109,8 @@ impl ReconnectingImapProvider {
         *self.cached.lock().expect("imap delegate mutex poisoned") = None;
     }
 
-    /// Runs `op` on the live delegate; on a [`FailureClass::Retryable`] failure (a dead
-    /// socket), drops the session, re-dials, and retries `op` **once** on the fresh session.
+    /// Runs `op` on the live delegate; on a failure on a dead socket ([`should_reconnect`]), drops
+    /// the session, re-dials, and retries `op` **once** on the fresh session.
     /// Only idempotent reads/edits use this: a dead socket means the command never reached
     /// the server, so a single retry is safe. `op` takes an owned `Arc`, so the retry holds
     /// nothing borrowed across the `.await`.
@@ -121,7 +121,7 @@ impl ReconnectingImapProvider {
     {
         let provider = self.delegate().await?;
         match op(Arc::clone(&provider)).await {
-            Err(err) if err.class() == FailureClass::Retryable => {
+            Err(err) if should_reconnect(&err) => {
                 self.invalidate();
                 let provider = self.delegate().await?;
                 op(provider).await
@@ -191,8 +191,8 @@ impl Provider for ReconnectingImapProvider {
         chunk_size: usize,
     ) -> EmailStream<'a> {
         crate::stream_redial::redialling_stream(
-            || self.delegate(),
-            || self.invalidate(),
+            || async { self.delegate().await.map(|provider| ((), provider)) },
+            |()| self.invalidate(),
             account,
             cursor,
             window,
@@ -242,7 +242,9 @@ impl Provider for ReconnectingImapProvider {
     /// because the engine already asks once more on a fresh connection for what a lost one had
     /// not delivered, and repeating the batch here would fetch again what already arrived. A
     /// lost connection still drops the session, so the next call redials, as a single fetch's
-    /// would.
+    /// would. A session that cannot be dialled answers each message with the dial's failure,
+    /// every fact a caller reads kept
+    /// ([`ProviderError::reworded`](engine_provider::ProviderError::reworded)).
     fn fetch_message_sources<'a>(
         &'a self,
         account: &'a AccountId,
@@ -253,7 +255,7 @@ impl Provider for ReconnectingImapProvider {
                 Ok(provider) => provider,
                 Err(err) => {
                     for index in 0..messages.len() {
-                        yield (index, Err(ProviderError::new(err.class(), err.to_string())));
+                        yield (index, Err(err.reworded(err.detail())));
                     }
                     return;
                 }
@@ -262,7 +264,7 @@ impl Provider for ReconnectingImapProvider {
             {
                 let mut sources = provider.fetch_message_sources(account, messages);
                 while let Some((index, result)) = sources.next().await {
-                    lost |= matches!(&result, Err(err) if err.class() == FailureClass::Retryable);
+                    lost |= matches!(&result, Err(err) if should_reconnect(err));
                     yield (index, result);
                 }
             }
@@ -273,9 +275,10 @@ impl Provider for ReconnectingImapProvider {
     }
 
     /// Submitting is **not** auto-retried: a send is not idempotent (a drop after the end of
-    /// `DATA` may have delivered), so blind-retrying could double-send. A retryable failure only
-    /// invalidates the session so the next attempt re-dials; the outbox decides whether there is
-    /// one, from the hand-over record the SMTP adapter writes before that end goes out.
+    /// `DATA` may have delivered), so blind-retrying could double-send. A lost connection
+    /// ([`lost_its_connection`]) only invalidates the session so the next attempt re-dials; the
+    /// outbox decides whether there is one, from the hand-over record the SMTP adapter writes
+    /// before that end goes out.
     async fn submit_email(
         &self,
         account: &AccountId,
@@ -284,7 +287,7 @@ impl Provider for ReconnectingImapProvider {
     ) -> ProviderResult<SubmissionReceipt> {
         let provider = self.delegate().await?;
         match provider.submit_email(account, draft, hand_over).await {
-            Err(err) if err.class() == FailureClass::Retryable => {
+            Err(err) if lost_its_connection(&err) => {
                 self.invalidate();
                 Err(err)
             }
@@ -300,14 +303,14 @@ impl Provider for ReconnectingImapProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> ProviderResult<DraftReceipt> {
         let provider = self.delegate().await?;
         match provider
-            .put_draft(account, draft, replacing, keywords)
+            .put_draft(account, draft, replacing, metadata)
             .await
         {
-            Err(err) if err.class() == FailureClass::Retryable => {
+            Err(err) if lost_its_connection(&err) => {
                 self.invalidate();
                 Err(err)
             }
@@ -377,7 +380,7 @@ impl CalendarWrites for ReconnectingImapProvider {}
 
 /// A folder change is **not** auto-retried on a dropped socket, unlike [`edit_mail`]: a
 /// `RENAME` replayed after it landed meets a path that no longer exists and reads as a
-/// conflict. A retryable failure only invalidates the session; the outbox retries the change
+/// conflict. A lost connection only invalidates the session; the outbox retries the change
 /// after re-reading the folder list, which is what makes a repeat safe.
 ///
 /// [`edit_mail`]: Provider::edit_mail
@@ -390,7 +393,7 @@ impl MailboxWrites for ReconnectingImapProvider {
     ) -> ProviderResult<MailboxEditReceipt> {
         let provider = self.delegate().await?;
         match provider.edit_mailbox(account, edit).await {
-            Err(err) if err.class() == FailureClass::Retryable => {
+            Err(err) if lost_its_connection(&err) => {
                 self.invalidate();
                 Err(err)
             }
@@ -402,3 +405,7 @@ impl MailboxWrites for ReconnectingImapProvider {
 #[cfg(test)]
 #[path = "reconnect_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "reconnect_credential_tests.rs"]
+mod credential_tests;

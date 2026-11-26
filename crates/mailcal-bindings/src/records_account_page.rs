@@ -228,6 +228,11 @@ pub struct AccountServers {
     /// its form.
     #[uniffi(default = false)]
     pub sign_in_refused: bool,
+    /// The account's server is reached only over plaintext, so no sign-in is sent to it, and why:
+    /// the section says so, and for a plaintext address that its secure one, where the server has
+    /// one, is typed into its form.
+    #[uniffi(default = None)]
+    pub insecure_server: Option<crate::InsecureCause>,
     /// The address book server may be left empty, the calendar server then serving the contacts,
     /// so the field says so (`settings_account_carddav_empty_hint`).
     #[uniffi(default = false)]
@@ -342,6 +347,8 @@ pub enum AccountChangeNotice {
 pub enum AccountChangeRefusal {
     /// The server refused the sign-in: a wrong password, or a grant it no longer accepts.
     SignInRefused,
+    /// The server is reached only over plaintext, so no sign-in was sent to it, for `cause`.
+    InsecureServer { cause: crate::InsecureCause },
     /// The servers are another account's, already set up.
     AlreadySetUp,
     /// The sign-in was for a different account than this one.
@@ -372,6 +379,9 @@ impl From<&crate::MailcalError> for AccountChangeRefusal {
         use crate::MailcalError;
         match error {
             MailcalError::SignInRefused { .. } => Self::SignInRefused,
+            MailcalError::InsecureServer { insecure_cause, .. } => Self::InsecureServer {
+                cause: *insecure_cause,
+            },
             MailcalError::AlreadySetUp { .. } => Self::AlreadySetUp,
             MailcalError::DifferentAccount => Self::DifferentAccount,
             MailcalError::StaleSignIn => Self::StaleSignIn,

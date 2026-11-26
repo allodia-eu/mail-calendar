@@ -12,6 +12,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.InsecureCause
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.UseProblem
 
@@ -31,6 +32,20 @@ class CoreErrorTextTest {
         assertEquals(L10n.signin_refused(ctx), coreErrorSaid(refused, ctx))
         assertEquals("JMAP HTTP 401: {\"status\":401}", coreErrorText(refused))
         assertEquals("no route to host", coreErrorSaid(MailcalException.Connect("no route to host"), ctx))
+    }
+
+    @Test
+    fun a_server_reached_only_over_plaintext_is_said_by_what_clears_it_and_logged_as_the_core_put_it() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val plaintext = MailcalException.InsecureServer("the server is not reached securely", InsecureCause.PLAINTEXT_ADDRESS)
+        val led = MailcalException.InsecureServer("the server is not reached securely", InsecureCause.LED_TO_PLAINTEXT)
+        assertEquals(L10n.signin_plaintext_address(ctx), coreErrorSaid(plaintext, ctx))
+        assertEquals(L10n.signin_led_to_plaintext(ctx), coreErrorSaid(led, ctx))
+        assertEquals("the server is not reached securely", coreErrorText(plaintext))
+        assertEquals(
+            L10n.signin_led_to_plaintext(ctx),
+            refusalSaid(ctx, uniffi.mailcal_bindings.AccountChangeRefusal.InsecureServer(InsecureCause.LED_TO_PLAINTEXT)),
+        )
     }
 
     @Test
@@ -79,6 +94,10 @@ class CoreErrorTextTest {
                 L10n.settings_account_use_own_sign_in_contacts(ctx),
             AccountCapability.CALENDAR to UseProblem.SIGN_IN_REFUSED to L10n.signin_refused(ctx),
             AccountCapability.CONTACTS to UseProblem.SIGN_IN_REFUSED to L10n.signin_refused(ctx),
+            AccountCapability.CALENDAR to UseProblem.PLAINTEXT_ADDRESS to
+                L10n.settings_account_use_plaintext_address_calendar(ctx),
+            AccountCapability.CONTACTS to UseProblem.LED_TO_PLAINTEXT to
+                L10n.settings_account_use_led_to_plaintext_contacts(ctx),
             AccountCapability.CALENDAR to UseProblem.SERVER_CHANGED to
                 L10n.settings_account_use_server_changed_calendar(ctx),
             AccountCapability.CONTACTS to UseProblem.SERVER_CHANGED to

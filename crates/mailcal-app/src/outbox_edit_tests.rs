@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use engine_api::{
     AccountId, ContentIdHeader, Draft, DraftAttachment, DraftCalendar, EmailAddress,
-    MessageIdHeader, ScheduleMethod,
+    MessageIdHeader, MessageMetadata, ScheduleMethod,
 };
 use mailcal_composer::{
     Block, ComposerDocument, InlineContent, Paragraph, Quote, QuoteAttribution, QuoteStyle, TextRun,
@@ -147,7 +147,7 @@ async fn editing_a_queued_send_moves_all_of_it_back_into_drafts() {
 async fn a_drafted_reply_moved_back_into_drafts_keeps_its_mark() {
     let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::offline();
-    let keywords = provider.draft_keywords();
+    let metadata = provider.draft_metadata();
     let app = app_over(provider);
     let draft = Draft::new(
         MessageIdHeader::new("drafted-reply@allodia.local").unwrap(),
@@ -169,8 +169,8 @@ async fn a_drafted_reply_moved_back_into_drafts_keeps_its_mark() {
     app.dispatch(save(&request.composition, "Friday works, I think."))
         .await;
 
-    let marked = std::collections::BTreeSet::from([mailcal_account::drafted_reply_keyword()]);
-    assert_eq!(*keywords.lock().unwrap(), [marked.clone(), marked]);
+    let marked = MessageMetadata::default().with_keyword(mailcal_account::drafted_reply_keyword());
+    assert_eq!(*metadata.lock().unwrap(), [marked.clone(), marked]);
 }
 
 /// A message whose files cannot be written where the composer reads them stays where it is:
@@ -322,3 +322,6 @@ async fn an_edited_message_opens_formatted_and_keeps_its_quoted_picture() {
         "and the part goes with it"
     );
 }
+
+#[path = "outbox_legacy_tests.rs"]
+mod legacy;

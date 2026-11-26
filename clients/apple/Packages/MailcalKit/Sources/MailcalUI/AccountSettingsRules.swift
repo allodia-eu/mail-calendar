@@ -250,6 +250,7 @@ enum AccountSettingsLabels {
     static func refused(_ refusal: AccountChangeRefusal) -> String {
         switch refusal {
         case .signInRefused: L10n.signin_refused()
+        case let .insecureServer(cause): insecureMessage(cause)
         case .alreadySetUp: L10n.account_already_set_up()
         case .differentAccount: L10n.signin_different_account()
         case .staleSignIn: L10n.signin_stale()
@@ -261,6 +262,19 @@ enum AccountSettingsLabels {
         case .browserNotOpened: L10n.account_signin_browser_failed()
         case .notFinished: L10n.account_signin_timeout()
         case let .other(detail): detail
+        }
+    }
+
+    /// What the servers section says beneath its heading: a server reached only over plaintext
+    /// and what clears it, else the expired sign-in, otherwise how saving works.
+    static func serversDescription(_ servers: AccountServers, _ entry: AccountEntry) -> String {
+        switch servers.insecureServer {
+        case .plaintextAddress: L10n.settings_account_servers_plaintext_address()
+        case .ledToPlaintext: L10n.settings_account_servers_led_to_plaintext()
+        case nil:
+            servers.signInRefused
+                ? L10n.signin_expired_prompt(accounts: name(entry))
+                : L10n.settings_account_servers_description()
         }
     }
 
@@ -293,6 +307,14 @@ enum AccountSettingsLabels {
             calendar
                 ? L10n.settings_account_use_own_sign_in_calendar()
                 : L10n.settings_account_use_own_sign_in_contacts()
+        case .plaintextAddress:
+            calendar
+                ? L10n.settings_account_use_plaintext_address_calendar()
+                : L10n.settings_account_use_plaintext_address_contacts()
+        case .ledToPlaintext:
+            calendar
+                ? L10n.settings_account_use_led_to_plaintext_calendar()
+                : L10n.settings_account_use_led_to_plaintext_contacts()
         case .serverChanged:
             calendar
                 ? L10n.settings_account_use_server_changed_calendar()

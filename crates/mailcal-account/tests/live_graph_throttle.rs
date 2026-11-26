@@ -9,7 +9,7 @@
 //! thing (a field on `GraphTokenSource`, of which a host builds one per core).
 //!
 //! What it drives is the shape the app actually produces: `connect_graph_mail_providers`
-//! binds one `RefreshingGraphProvider` per folder the account lists, and the engine
+//! binds one `ReconnectingGraphProvider` per folder the account lists, and the engine
 //! then streams them **five at a time** (`MAX_CONCURRENT_FOLDERS`). Five folder syncs against
 //! a mailbox Exchange Online allows four concurrent requests is the reported symptom, so this
 //! runs at that width deliberately rather than at a comfortable one.

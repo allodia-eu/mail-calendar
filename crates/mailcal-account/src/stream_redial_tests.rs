@@ -104,11 +104,11 @@ fn pass<'a>(first: Vec<Step>, then: Vec<Step>, redials: &Arc<AtomicUsize>) -> Em
             redials.fetch_add(1, Ordering::SeqCst);
             then.clone()
         };
-        async move { Ok(Arc::new(StreamDelegate { steps })) }
+        async move { Ok(((), Arc::new(StreamDelegate { steps }))) }
     };
     redialling_stream(
         delegate,
-        || {},
+        |()| {},
         &account(),
         None,
         SyncWindow::full().into(),

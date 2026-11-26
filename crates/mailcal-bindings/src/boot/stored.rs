@@ -267,9 +267,16 @@ pub(super) fn imap_tokens(
     let Some(grant) = config.oauth.as_ref() else {
         return Ok(None);
     };
-    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "imap")
-        .map(Some)
-        .map_err(|err| MailcalError::Connect(err.to_string()))
+    mailcal_account::oauth_token_source(
+        grant,
+        id.clone(),
+        config.username(),
+        Some(Arc::clone(sink)),
+        origin,
+        "imap",
+    )
+    .map(Some)
+    .map_err(|err| MailcalError::Connect(err.to_string()))
 }
 
 /// The shared, self-refreshing token source for an **OAuth** JMAP account, or `None` for a
@@ -288,7 +295,18 @@ pub(super) fn jmap_tokens(
     let Some(grant) = config.oauth.as_ref() else {
         return Ok(None);
     };
-    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "jmap")
-        .map(Some)
-        .map_err(|err| MailcalError::Connect(err.to_string()))
+    mailcal_account::oauth_token_source(
+        grant,
+        id.clone(),
+        &config.email,
+        Some(Arc::clone(sink)),
+        origin,
+        "jmap",
+    )
+    .map(Some)
+    .map_err(|err| MailcalError::Connect(err.to_string()))
 }
+
+#[cfg(test)]
+#[path = "stored_tests.rs"]
+mod tests;

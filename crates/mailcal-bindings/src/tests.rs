@@ -130,6 +130,7 @@ fn launch_diagnostics_keep_disconnected_accounts() {
         Some(DialFailure::MailFailed {
             detail: "ann@host: connection refused".to_owned(),
             signin_rejected: false,
+            insecure: None,
         }),
         &mut accounts,
         &mut account_errors,
@@ -141,6 +142,7 @@ fn launch_diagnostics_keep_disconnected_accounts() {
         Some(DialFailure::MailFailed {
             detail: "dee@host: sign-in rejected: imap: IMAP authentication failed".to_owned(),
             signin_rejected: true,
+            insecure: None,
         }),
         &mut accounts,
         &mut account_errors,

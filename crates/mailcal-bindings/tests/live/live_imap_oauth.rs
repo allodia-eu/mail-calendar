@@ -156,8 +156,8 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         .expect("the signed-in account connects over OAUTHBEARER");
     assert_eq!(row.email, EMAIL);
     // The calendar connected on the same grant, over Bearer: the one provider that speaks HTTP.
-    // Contacts take the same path (`dav_credentials`) but bind nothing here, because the sign-in
-    // server holds no address book for this user.
+    // Contacts take the same path (`dav_credential_source`) but bind nothing here, because the
+    // sign-in server holds no address book for this user.
     assert!(
         !app.notices()
             .notices

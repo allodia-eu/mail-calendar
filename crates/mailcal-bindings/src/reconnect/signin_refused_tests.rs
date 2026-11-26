@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// A JMAP server that refuses every credential, and how many requests it has answered.
-fn refusing_server() -> (String, Arc<AtomicUsize>) {
+pub(super) fn refusing_server() -> (String, Arc<AtomicUsize>) {
     let requests = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&requests);
     let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");

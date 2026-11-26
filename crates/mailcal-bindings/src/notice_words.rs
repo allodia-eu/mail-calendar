@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use crate::{FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
+use crate::{FolderProblem, InsecureCause, NoticeAction, NoticeKind, NoticeText, UseProblem};
 
 fn text(key: &str, args: &[(&str, &str)]) -> NoticeText {
     NoticeText {
@@ -22,6 +22,14 @@ pub(crate) fn title(kind: &NoticeKind, address: &str) -> NoticeText {
     let about = [("address", address)];
     match kind {
         NoticeKind::SignInExpired => text("notice_signin_expired", &about),
+        NoticeKind::InsecureServer {
+            cause: InsecureCause::PlaintextAddress,
+            ..
+        } => text("notice_plaintext_address", &about),
+        NoticeKind::InsecureServer {
+            cause: InsecureCause::LedToPlaintext,
+            ..
+        } => text("notice_led_to_plaintext", &about),
         NoticeKind::MailReauth => text("notice_mail_reauth", &about),
         NoticeKind::CalendarReauth => text("notice_calendar_reauth", &about),
         NoticeKind::CalendarOutage { .. } => text("notice_calendar_outage", &about),
@@ -68,11 +76,27 @@ pub(crate) fn detail(kind: &NoticeKind) -> Option<NoticeText> {
         NoticeKind::SettingsNotSaved => {
             return Some(text("notice_detail_settings_not_saved", &[]));
         }
+        NoticeKind::InsecureServer {
+            cause,
+            address_editable,
+        } => {
+            let key = match (cause, address_editable) {
+                (InsecureCause::PlaintextAddress, true) => {
+                    "notice_detail_plaintext_address_editable"
+                }
+                (InsecureCause::PlaintextAddress, false) => "notice_detail_plaintext_address",
+                (InsecureCause::LedToPlaintext, true) => "notice_detail_led_to_plaintext_editable",
+                (InsecureCause::LedToPlaintext, false) => "notice_detail_led_to_plaintext",
+            };
+            return Some(text(key, &[]));
+        }
         _ => return None,
     };
     let why = match problem {
         UseProblem::Unreachable => "unreachable",
         UseProblem::SignInRefused => "refused",
+        UseProblem::PlaintextAddress => "plaintext_address",
+        UseProblem::LedToPlaintext => "led_to_plaintext",
         UseProblem::NeedsOwnSignIn => "own_sign_in",
         UseProblem::ServerChanged => "server_changed",
         UseProblem::NoneOnServer => "none_on_server",
@@ -84,6 +108,7 @@ pub(crate) fn detail(kind: &NoticeKind) -> Option<NoticeText> {
 pub(crate) fn mark(kind: &NoticeKind) -> Option<NoticeText> {
     let key = match kind {
         NoticeKind::SignInExpired => "notice_mark_signin_expired",
+        NoticeKind::InsecureServer { .. } => "notice_mark_insecure_server",
         NoticeKind::MailReauth => "notice_mark_mail_reauth",
         NoticeKind::CalendarReauth => "notice_mark_calendar_reauth",
         NoticeKind::CalendarOutage {

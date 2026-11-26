@@ -86,6 +86,14 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
         UseProblem::Unreachable => l10n::settings_account_use_unreachable_contacts(),
         UseProblem::SignInRefused if calendar => l10n::settings_account_use_refused_calendar(),
         UseProblem::SignInRefused => l10n::settings_account_use_refused_contacts(),
+        UseProblem::PlaintextAddress if calendar => {
+            l10n::settings_account_use_plaintext_address_calendar()
+        }
+        UseProblem::PlaintextAddress => l10n::settings_account_use_plaintext_address_contacts(),
+        UseProblem::LedToPlaintext if calendar => {
+            l10n::settings_account_use_led_to_plaintext_calendar()
+        }
+        UseProblem::LedToPlaintext => l10n::settings_account_use_led_to_plaintext_contacts(),
         UseProblem::NeedsOwnSignIn if calendar => l10n::settings_account_use_own_sign_in_calendar(),
         UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_contacts(),
         UseProblem::ServerChanged if calendar => {

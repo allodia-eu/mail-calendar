@@ -13,23 +13,6 @@ use mailcal_bindings::{
 use super::{PageContext, group};
 use crate::{l10n, ui::controls};
 
-/// What the section says beneath its heading: the expired sign-in when there is one, otherwise
-/// how saving works, then what an empty address book server means when it may be left empty. An
-/// entry row has no subtitle, and a widget added to the group lands under the whole list, so that
-/// is said here rather than under its field.
-pub(super) fn description(address: &str, expired: bool, contacts_fall_back: bool) -> String {
-    let mut said = if expired {
-        l10n::signin_expired_prompt(address)
-    } else {
-        l10n::settings_account_servers_description().to_owned()
-    };
-    if contacts_fall_back {
-        said.push(' ');
-        said.push_str(l10n::settings_account_carddav_empty_hint());
-    }
-    said
-}
-
 /// What Save says the fields leave out, naming the field as the form labels it.
 pub(super) fn gap_said(gap: AccountEndpointsGap) -> String {
     l10n::settings_account_servers_gap(match gap {
@@ -82,10 +65,9 @@ pub(super) fn server_group(
 ) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_servers_heading(),
-        &description(
+        &super::account_servers_words::description(
             &super::account_names::entry_name(entry),
-            servers.sign_in_refused,
-            servers.contacts_fall_back_to_calendar,
+            servers,
         ),
     );
     let form = &servers.form;
@@ -352,8 +334,7 @@ fn server_rows(
 mod tests {
     use mailcal_bindings::{AccountEndpoints, ConnectionSecurity, MailServerKind as Server};
 
-    use super::{Fields, description, edited, joined, split};
-    use crate::l10n;
+    use super::{Fields, edited, joined, split};
 
     fn mailbox() -> AccountEndpoints {
         AccountEndpoints {
@@ -458,34 +439,5 @@ mod tests {
         assert_eq!(joined("[::1]", "1143", Server::Imap, tls), "[::1]:1143");
         assert_eq!(joined("::1", "1143", Server::Imap, tls), "[::1]:1143");
         assert_eq!(joined("[::1]", "993", Server::Imap, tls), "[::1]");
-    }
-
-    #[test]
-    fn the_section_says_when_the_sign_in_has_expired() {
-        assert_eq!(
-            description("alice@example.org", true, false),
-            l10n::signin_expired_prompt("alice@example.org")
-        );
-        assert_eq!(
-            description("alice@example.org", false, false),
-            l10n::settings_account_servers_description()
-        );
-    }
-
-    #[test]
-    fn the_section_says_an_empty_address_book_server_leaves_the_contacts_on_the_calendar() {
-        assert_eq!(
-            description("alice@example.org", false, true),
-            format!(
-                "{} {}",
-                l10n::settings_account_servers_description(),
-                l10n::settings_account_carddav_empty_hint()
-            )
-        );
-        assert!(
-            description("alice@example.org", true, true)
-                .ends_with(l10n::settings_account_carddav_empty_hint()),
-            "beside an expired sign-in too"
-        );
     }
 }

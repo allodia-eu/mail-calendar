@@ -208,7 +208,8 @@ fn origin_of(url: &str) -> &str {
 }
 
 /// Builds the shared, self-refreshing token source for `grant`, reusing the same
-/// provider-neutral [`GraphTokenSource`] the Microsoft and Google accounts use. `sink`
+/// provider-neutral [`GraphTokenSource`] the Microsoft and Google accounts use. `username` is the
+/// name the account signs in as, which IMAP and SMTP present beside the token. `sink`
 /// (optional) receives a rotated refresh token for re-persistence in the host's OS keystore.
 ///
 /// `protocol` names the family in the refresh log line (`jmap` / `imap`); a line that cannot
@@ -221,6 +222,7 @@ fn origin_of(url: &str) -> &str {
 pub fn oauth_token_source(
     grant: &OAuthGrant,
     account: AccountId,
+    username: &str,
     sink: Option<Arc<dyn TokenSink>>,
     origin: CredentialOrigin,
     protocol: &'static str,
@@ -230,6 +232,7 @@ pub fn oauth_token_source(
     Ok(GraphTokenSource::from_parts(
         oauth,
         account,
+        username,
         grant.refresh_token.expose().to_owned(),
         sink,
         protocol,

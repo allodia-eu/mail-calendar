@@ -19,6 +19,11 @@ use tokio_rustls::TlsAcceptor;
 /// Starts an IMAP server on `127.0.0.1` that answers every `LOGIN` with `refusal`, and returns
 /// an account pointed at it that has accepted its certificate.
 async fn server_refusing_login_with(refusal: &'static str) -> AccountConfig {
+    server_refusing_login_of(refusal, "secret").await
+}
+
+/// [`server_refusing_login_with`], for an account storing `password`, written as a TOML string.
+async fn server_refusing_login_of(refusal: &'static str, password: &str) -> AccountConfig {
     let key = rcgen::KeyPair::generate().expect("key pair");
     let params =
         rcgen::CertificateParams::new(vec!["127.0.0.1".to_owned()]).expect("certificate params");
@@ -67,7 +72,7 @@ async fn server_refusing_login_with(refusal: &'static str) -> AccountConfig {
     let accepted = CertificateException::new("127.0.0.1", &der);
     load_str(&format!(
         "[imap]\naddr = \"127.0.0.1:{port}\"\nserver_name = \"127.0.0.1\"\n\
-         username = \"someone@example.com\"\npassword = \"secret\"\n\
+         username = \"someone@example.com\"\npassword = \"{password}\"\n\
          \n[[certificate_exception]]\nserver_name = \"{}\"\nsha256 = \"{}\"\n",
         accepted.server_name, accepted.sha256
     ))
@@ -108,5 +113,19 @@ async fn a_first_login_refused_for_the_credential_is_a_rejected_signin() {
     assert!(
         matches!(error, AccountError::SigninRejected(_)),
         "a refused credential was not read as one: {error}"
+    );
+}
+
+/// A stored password holding a line break cannot go into `LOGIN`, so the engine sends nothing;
+/// it never goes out as stored, so the person is asked to sign in again, as after a refused one.
+/// The server would answer a `LOGIN` with a limit, so one that went out cannot pass.
+#[tokio::test]
+async fn a_stored_password_imap_cannot_carry_is_a_rejected_signin() {
+    let config = server_refusing_login_of("NO [LIMIT] LOGIN Rate limit hit.", "sec\\r\\nret").await;
+
+    let error = first_login(&config).await;
+    assert!(
+        matches!(error, AccountError::SigninRejected(_)),
+        "a password that cannot be presented was not read as one to change: {error}"
     );
 }

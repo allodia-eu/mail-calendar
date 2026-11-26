@@ -31,6 +31,17 @@ mod uses;
 
 pub(crate) use uses::reconnect_uses;
 
+/// What a pass of [`reconnect_all`] found.
+pub(crate) struct Reconnected {
+    /// The accounts whose calendar or address-book server did not answer, for looking again.
+    pub(crate) unanswered: Vec<String>,
+    /// The accounts this pass connected and joined to the app; no other.
+    pub(crate) connected: Vec<String>,
+    /// The accounts this pass queued for the next retry: those it could not reach, or reached
+    /// only over plaintext. Not one whose sign-in was refused, which waits for a new credential.
+    pub(crate) requeued: Vec<String>,
+}
+
 /// Dials every account in `plans`, at most `MAX_CONCURRENT_DIALS` at a time: on success joins it
 /// back into the app (which syncs and clears its outage badge) and restarts its background sync
 /// from the now-live settings; on an outage re-queues its id in `disconnected` so the next Refresh
@@ -55,14 +66,16 @@ pub(crate) async fn reconnect_all(
     redialling: crate::retry::Redialling,
     plans: Vec<(AccountId, AccountDial)>,
     display_zone: TimeZoneId,
-) -> Vec<String> {
+) -> Reconnected {
     // The accounts whose calendar or address-book server did not answer, for looking again
     // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
     let unanswered = Arc::new(Mutex::new(Vec::new()));
     let connected = Arc::new(Mutex::new(Vec::new()));
+    let requeued = Arc::new(Mutex::new(Vec::new()));
     let dial = |index: usize, (id, plan): (AccountId, AccountDial)| {
         let unanswered = Arc::clone(&unanswered);
         let connected = Arc::clone(&connected);
+        let requeued = Arc::clone(&requeued);
         let app = Arc::clone(&app);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
@@ -121,6 +134,7 @@ pub(crate) async fn reconnect_all(
                     } else {
                         app.clear_calendar_reauth_required(&id);
                     }
+                    app.clear_insecure_server(&id);
                     // Register the live providers WITHOUT syncing (`add_account_deferred`); the
                     // catch-up starts as soon as this returns, below. A plain `add_account` would
                     // show progress immediately over mail this account has already cached.
@@ -175,6 +189,17 @@ pub(crate) async fn reconnect_all(
                     }
                     None
                 }
+                Err(err) if let Some(cause) = err.insecure() => {
+                    // The server is reached only over plaintext (`docs/provider-oauth.md` rule
+                    // 12): no new sign-in changes that and waiting does not, so the account is
+                    // neither badged unreachable nor asked to sign in again. It is queued for the
+                    // next retry, one dial, in case the server or its address changed.
+                    app.note_insecure_server(&id, cause);
+                    app.note_use_problems(&id, app.use_problems(&id).paused_only());
+                    requeue(&disconnected, &requeued, &id);
+                    log::warn!("reconnect: account[{index}] server not reached securely: {err}");
+                    None
+                }
                 Err(err) => {
                     // Badge the account unreachable with the account-labelled technical detail, so
                     // the connection-issues banner names it. At interactive boot every account is
@@ -184,10 +209,7 @@ pub(crate) async fn reconnect_all(
                     // next attempt.
                     app.note_account_unreachable(&id, Some(format!("{label}: {err}")));
                     app.note_use_problems(&id, app.use_problems(&id).paused_only());
-                    disconnected
-                        .lock()
-                        .expect("disconnected mutex poisoned")
-                        .insert(id.as_str().to_owned());
+                    requeue(&disconnected, &requeued, &id);
                     log::warn!("reconnect: account[{index}] still unreachable: {err}");
                     // Looked for again only when a DAV server said its start is gone: an outage
                     // changes nothing, and a certificate that does not verify is asked about,
@@ -250,7 +272,23 @@ pub(crate) async fn reconnect_all(
     // without waiting on any of it.
     let ids = std::mem::take(&mut *connected.lock().expect("connected mutex poisoned"));
     app.refresh_contacts_of(&ids).await;
-    std::mem::take(&mut *unanswered.lock().expect("unanswered mutex poisoned"))
+    Reconnected {
+        unanswered: std::mem::take(&mut *unanswered.lock().expect("unanswered mutex poisoned")),
+        connected: ids.iter().map(|id| id.as_str().to_owned()).collect(),
+        requeued: std::mem::take(&mut *requeued.lock().expect("requeued mutex poisoned")),
+    }
+}
+
+/// Queues `id` for the next retry, and records that this pass did.
+fn requeue(disconnected: &Mutex<HashSet<String>>, requeued: &Mutex<Vec<String>>, id: &AccountId) {
+    disconnected
+        .lock()
+        .expect("disconnected mutex poisoned")
+        .insert(id.as_str().to_owned());
+    requeued
+        .lock()
+        .expect("requeued mutex poisoned")
+        .push(id.as_str().to_owned());
 }
 
 #[cfg(test)]
@@ -264,3 +302,19 @@ mod refresh_redial_tests;
 #[cfg(test)]
 #[path = "reconnect/asked_again_tests.rs"]
 mod asked_again_tests;
+
+#[cfg(test)]
+#[path = "reconnect/insecure_tests.rs"]
+mod insecure_tests;
+
+#[cfg(test)]
+#[path = "reconnect/leading_server.rs"]
+mod leading_server;
+
+#[cfg(test)]
+#[path = "reconnect/shared_retry_tests.rs"]
+mod shared_retry_tests;
+
+#[cfg(test)]
+#[path = "reconnect/insecure_retry_tests.rs"]
+mod insecure_retry_tests;

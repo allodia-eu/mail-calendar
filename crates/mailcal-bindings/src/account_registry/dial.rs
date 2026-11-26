@@ -84,6 +84,9 @@ pub(crate) struct ConnectFailure {
     /// Whether the server needs a sign-in of its own, because the account's grant may not reach
     /// it (`docs/mail-oauth.md` rule 10). Nothing was sent to it.
     needs_own_sign_in: bool,
+    /// Why the server is reached only over plaintext, when it is, so no sign-in was sent to it:
+    /// not an outage and not a refused sign-in (`docs/provider-oauth.md` rule 12).
+    insecure: Option<mailcal_account::InsecureCause>,
     /// Whether a DAV server said the start it was given is gone (a `404`, `410` or `403`, or no
     /// home), rather than not answering: the one failure worth finding the servers again for.
     gone: bool,
@@ -97,6 +100,7 @@ impl ConnectFailure {
             signin_expired: false,
             certificate: None,
             needs_own_sign_in: false,
+            insecure: None,
             gone: false,
         }
     }
@@ -117,15 +121,22 @@ impl ConnectFailure {
     }
 
     /// Whether the server simply did not answer: not a refusal, a start it says is gone, a
-    /// certificate, or a server that needs a sign-in of its own, each of which is an answer.
+    /// certificate, a server that needs a sign-in of its own, or one reached only over
+    /// plaintext, each of which is an answer.
     pub(crate) const fn is_outage(&self) -> bool {
-        !self.signin_expired && self.certificate.is_none() && !self.needs_own_sign_in && !self.gone
+        !self.signin_expired
+            && self.certificate.is_none()
+            && !self.needs_own_sign_in
+            && self.insecure.is_none()
+            && !self.gone
     }
 
     /// What this failure means for a use that failed beside a working mailbox.
     pub(crate) const fn use_problem(&self) -> mailcal_app::UseProblem {
         if self.needs_own_sign_in {
             mailcal_app::UseProblem::NeedsOwnSignIn
+        } else if let Some(cause) = self.insecure {
+            mailcal_app::UseProblem::Insecure(cause)
         } else if self.signin_expired {
             mailcal_app::UseProblem::SignInRefused
         } else if self.gone {
@@ -140,6 +151,12 @@ impl ConnectFailure {
     pub(crate) const fn signin_expired(&self) -> bool {
         self.signin_expired
     }
+
+    /// Why the server is reached only over plaintext, when it is: the caller says so and the
+    /// next retry dials it again, neither badging an outage nor asking for a sign-in.
+    pub(crate) const fn insecure(&self) -> Option<mailcal_account::InsecureCause> {
+        self.insecure
+    }
 }
 
 impl From<AccountError> for ConnectFailure {
@@ -147,6 +164,10 @@ impl From<AccountError> for ConnectFailure {
         Self {
             signin_expired: matches!(err, AccountError::SigninRejected(_)),
             needs_own_sign_in: matches!(err, AccountError::DavNeedsOwnSignIn(_)),
+            insecure: match &err {
+                AccountError::InsecureServer { cause, .. } => Some(*cause),
+                _ => None,
+            },
             gone: err.is_gone(),
             certificate: match &err {
                 AccountError::CertificateRejected { rejected, .. } => {
@@ -169,10 +190,16 @@ impl From<ConnectFailure> for crate::MailcalError {
                 reason: failure.detail,
                 certificate: Box::new((*certificate).into()),
             },
-            None if failure.signin_expired => Self::SignInRefused {
-                reason: failure.detail,
+            None => match failure.insecure {
+                Some(cause) => Self::InsecureServer {
+                    reason: failure.detail,
+                    insecure_cause: cause.into(),
+                },
+                None if failure.signin_expired => Self::SignInRefused {
+                    reason: failure.detail,
+                },
+                None => Self::Connect(failure.detail),
             },
-            None => Self::Connect(failure.detail),
         }
     }
 }

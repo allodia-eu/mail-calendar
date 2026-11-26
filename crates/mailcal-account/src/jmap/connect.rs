@@ -6,37 +6,26 @@
 //! open reconnects that same account-wide provider. Split from the module root to keep both
 //! files under the 500-line cap.
 //!
-//! # Two authentication paths, one provider shape
+//! # One provider, connected again only after a dead connection
 //!
-//! A **stored-secret** account (a password or API token the user pasted) connects a plain
-//! [`JmapProvider`] with those credentials, nothing expires, so nothing needs wrapping.
-//!
-//! An **OAuth** account cannot do that: its access token dies in about an hour while the app
-//! session runs for days, so it connects the same provider and then wraps it in a
-//! [`RefreshingJmapProvider`], which re-mints the token and rebuilds the delegate whenever it
-//! changes. Both return `Box<dyn Provider>`, so every caller above this layer is unaware of
-//! the difference.
-
-use std::sync::Arc;
+//! Every account connects one [`JmapProvider`] over its credential source
+//! (`JmapAccountConfig::credential_source`), which the engine asks on every request: a stored
+//! secret answers the same each time, and an OAuth account's token source answers its current
+//! access token and, after a `401` that refuses it, a replacement through its single-flight
+//! refresh. The engine judges the `401`: a bare one, or one that challenges for Bearer, refuses
+//! the token; one that offers only Basic, which a token cannot be framed as, is final. So the
+//! provider outlives every token. It is connected again, with the same bindings, only after a
+//! request found its connection dead ([`ReconnectingJmapProvider`]).
 
 use engine_core::{
     ids::{AddressBookId, SharedAccountId},
     sync::SyncUpdate,
 };
-use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
-use provider_jmap::{Credentials, JmapConfig, JmapProvider};
+use engine_provider::{ContactSourceSync, ContactsProvider, Provider, ProviderError};
+use provider_jmap::{JmapConfig, JmapProvider};
 
-use super::{JmapAccountConfig, refreshing::RefreshingJmapProvider};
-use crate::{AccountError, GraphTokenSource, connect_log::connect_logger, tls::tls_with};
-
-/// The credentials to connect a JMAP account with: either the secret stored in its config, or
-/// a live access token minted from its OAuth grant.
-///
-/// Passed in rather than derived from the config because an OAuth account's token source is
-/// **shared**; one refresh serves the account's mail and calendar providers alike, and a
-/// rotated refresh token reaches the host's keystore through the source's sink. Building one
-/// per connect would defeat both.
-pub(crate) type JmapTokens<'a> = Option<&'a Arc<GraphTokenSource>>;
+use super::{JmapAccountConfig, reconnecting::ReconnectingJmapProvider};
+use crate::{AccountError, AccountTokens, error::SignsIn, tls::tls_with};
 
 /// Connects the JMAP provider a JMAP account syncs through: **one** [`JmapProvider`]
 /// covering the whole account (mailboxes + all folders' email in one account-wide
@@ -54,12 +43,14 @@ pub(crate) type JmapTokens<'a> = Option<&'a Arc<GraphTokenSource>>;
 ///
 /// # Errors
 ///
-/// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
+/// Returns [`AccountError::Jmap`] if the connection or session discovery fails,
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
-/// grant, or a password/API token it answers `401` to.
+/// grant, or a password/API token it answers `401` to, or [`AccountError::MissingCredential`] if
+/// the account has none to present: an OAuth account given no token source, or one that stores
+/// neither a secret nor a grant.
 pub async fn connect_jmap_mail_providers(
     config: &JmapAccountConfig,
-    tokens: JmapTokens<'_>,
+    tokens: AccountTokens<'_>,
     shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     Ok(vec![connect_one(config, tokens, None, shared).await?])
@@ -77,12 +68,14 @@ pub async fn connect_jmap_mail_providers(
 ///
 /// # Errors
 ///
-/// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
+/// Returns [`AccountError::Jmap`] if the connection or session discovery fails,
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
-/// grant, or a password/API token it answers `401` to.
+/// grant, or a password/API token it answers `401` to, or [`AccountError::MissingCredential`] if
+/// the account has none to present: an OAuth account given no token source, or one that stores
+/// neither a secret nor a grant.
 pub async fn connect_jmap_contact_providers(
     config: &JmapAccountConfig,
-    tokens: JmapTokens<'_>,
+    tokens: AccountTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     let discovery = connect_one(config, tokens, None, None).await?;
     if !discovery.connection_info().capabilities.contacts() {
@@ -144,12 +137,14 @@ async fn default_address_book(provider: &dyn ContactsProvider) -> Option<Address
 ///
 /// # Errors
 ///
-/// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
+/// Returns [`AccountError::Jmap`] if the connection or session discovery fails,
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
-/// grant, or a password/API token it answers `401` to.
+/// grant, or a password/API token it answers `401` to, or [`AccountError::MissingCredential`] if
+/// the account has none to present: an OAuth account given no token source, or one that stores
+/// neither a secret nor a grant.
 pub async fn connect_jmap_folder(
     config: &JmapAccountConfig,
-    tokens: JmapTokens<'_>,
+    tokens: AccountTokens<'_>,
     shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     // Upcast: `ContactsProvider: Provider`, so the contacts-shaped box this connect returns
@@ -167,85 +162,71 @@ pub async fn connect_jmap_folder(
 ///
 /// # Errors
 ///
-/// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
+/// Returns [`AccountError::Jmap`] if the connection or session discovery fails,
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
-/// grant, or a password/API token it answers `401` to.
+/// grant, or a password/API token it answers `401` to, or [`AccountError::MissingCredential`] if
+/// the account has none to present: an OAuth account given no token source, or one that stores
+/// neither a secret nor a grant.
 ///
 /// `shared` binds it to the calendars of a store shared with the account rather than its own.
 pub async fn connect_jmap_calendar_provider(
     config: &JmapAccountConfig,
-    tokens: JmapTokens<'_>,
+    tokens: AccountTokens<'_>,
     shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     Ok(connect_one(config, tokens, None, shared).await?)
 }
 
 /// Connects a single JMAP provider from `config`, boxed behind the neutral
-/// [`ContactsProvider`] contract; self-refreshing when the account is OAuth, plain otherwise.
+/// [`ContactsProvider`] contract.
 ///
-/// Boxed as `dyn ContactsProvider` rather than `dyn Provider` because both concrete types
-/// implement it and `ContactsProvider: Provider`, so the mail and calendar callers upcast to
-/// `Box<dyn Provider>` for free. The alternative: a second near-identical connect that
-/// differed only in its box, is exactly the pair that drifts.
+/// Boxed as `dyn ContactsProvider` rather than `dyn Provider` because `ContactsProvider:
+/// Provider`, so the mail and calendar callers upcast to `Box<dyn Provider>` for free. The
+/// alternative: a second near-identical connect that differed only in its box, is exactly the
+/// pair that drifts.
 ///
 /// `contact_book` binds the provider's contact **write** destination. Only the contacts
 /// connect passes one; the mail and calendar paths never write a card, and a destination they
 /// carried would be one more thing to keep in step for nothing. `shared` binds it to a mailbox
 /// shared with the account rather than the account's own.
+///
+/// The connect discovers the session, which presents the credential: a revoked grant or a
+/// refused secret fails here as [`AccountError::SigninRejected`] rather than at the first
+/// background sync, and the provider reports the server's capabilities from that session.
 async fn connect_one(
     config: &JmapAccountConfig,
-    tokens: JmapTokens<'_>,
+    tokens: AccountTokens<'_>,
     contact_book: Option<AddressBookId>,
     shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
-    let tls = tls_with(&[])?;
-    let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
-        let account = config
-            .account_id()
-            .map_err(|err| AccountError::Jmap(err.to_string()))?;
-        let provider =
-            JmapProvider::connect(bind_shared(config.engine_config(tls, &account), shared))
-                .await
-                .map_err(|err| AccountError::from_jmap_connect(&err))?;
-        return Ok(Box::new(bind_book(provider, contact_book)));
-    };
-
-    // Mint a token and connect once here rather than lazily: it proves the grant still works
-    // (a revoked one surfaces as a connect failure now, not on the first background sync) and
-    // it reads the server's real capabilities from the session, which the wrapper must be
-    // able to report synchronously without ever having to guess.
-    let access_token = tokens.access_token().await?;
-    let engine_config = JmapConfig::new(
-        config.base_url.clone(),
-        Credentials::bearer(access_token.clone()),
-        crate::user_agent(),
-    )
-    .with_tls(tls.clone())
-    .with_retry(tokens.retry())
-    .with_connect_observer(connect_logger("jmap"));
-    let provider = JmapProvider::connect(bind_shared(engine_config, shared))
+    let account = config
+        .account_id()
+        .map_err(|err| AccountError::Jmap(err.to_string()))?;
+    let source = config.credential_source(&account, tokens)?;
+    let engine_config = bind_shared(
+        config.engine_config(source, tls_with(&[])?, &account),
+        shared,
+    );
+    let provider = JmapProvider::connect(engine_config.clone())
         .await
-        .map_err(|err| AccountError::from_jmap_connect(&err))?;
-    let capabilities = provider.connection_info().capabilities;
-    Ok(Box::new(
-        RefreshingJmapProvider::new(
-            config.base_url.clone(),
-            Arc::clone(tokens),
-            tls,
-            access_token,
-            bind_book(provider, contact_book.clone()),
-            capabilities,
-            // The wrapper rebuilds its delegate on every token change, so it has to be told the
-            // book too: a rebuilt delegate that forgot it would silently stop advertising a write
-            // destination an hour into the session.
-            contact_book,
-        )
-        .with_shared_mailbox(shared.cloned()),
-    ))
+        .map_err(|err| {
+            AccountError::from_jmap_connect(&err, SignsIn::grant_if(config.is_oauth()))
+        })?;
+    let connected = bind_book(provider, contact_book.clone());
+    let redial = Box::new(move || {
+        let (config, book) = (engine_config.clone(), contact_book.clone());
+        Box::pin(async move {
+            let provider = JmapProvider::connect(config)
+                .await
+                .map_err(ProviderError::from)?;
+            Ok(bind_book(provider, book))
+        }) as _
+    });
+    Ok(Box::new(ReconnectingJmapProvider::adopt(connected, redial)))
 }
 
 /// `config` bound to the mailbox `shared` names, or to the account's own when it is `None`.
-pub(super) fn bind_shared(config: JmapConfig, shared: Option<&SharedAccountId>) -> JmapConfig {
+fn bind_shared(config: JmapConfig, shared: Option<&SharedAccountId>) -> JmapConfig {
     match shared {
         Some(handle) => config.with_shared_account(handle.clone()),
         None => config,
@@ -258,3 +239,7 @@ fn bind_book(provider: JmapProvider, book: Option<AddressBookId>) -> JmapProvide
         None => provider,
     }
 }
+
+#[cfg(test)]
+#[path = "connect_tests.rs"]
+mod tests;

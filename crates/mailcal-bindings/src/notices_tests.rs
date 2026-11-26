@@ -14,6 +14,7 @@ fn quiet() -> ConnectivitySnapshot {
         calendar_reauth_accounts: Vec::new(),
         mail_reauth_accounts: Vec::new(),
         signin_expired_accounts: Vec::new(),
+        insecure_server_accounts: Vec::new(),
         calendar_outages: Vec::new(),
         contacts_outages: Vec::new(),
         allodia_sign_in_ended: None,
@@ -58,6 +59,7 @@ fn pull_with(
         skipped_at_launch,
         folder_notice,
         provider: &oauth,
+        edits_servers: &|_| false,
         address: &mail_address,
         questions: &Questions::default(),
         signing_in: None,
@@ -136,6 +138,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         skipped_at_launch: 0,
         folder_notice: None,
         provider: &provider,
+        edits_servers: &|_| false,
         address: &mail_address,
         questions: &Questions::default(),
         signing_in: None,
@@ -377,6 +380,9 @@ mod mapping;
 #[path = "notices_retry_tests.rs"]
 mod retry;
 
+#[path = "notices_insecure_tests.rs"]
+mod insecure;
+
 #[test]
 fn the_allodia_notice_is_blocked_while_a_paid_capability_is_about_to_lapse() {
     let mut book = NoticeBook::default();
@@ -422,6 +428,7 @@ fn the_allodia_notice_runs_while_the_allodia_sign_in_does() {
             skipped_at_launch: 0,
             folder_notice: None,
             provider: &oauth,
+            edits_servers: &|_| false,
             address: &mail_address,
             questions: &Questions::default(),
             signing_in,

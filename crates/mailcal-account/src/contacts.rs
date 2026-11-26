@@ -53,7 +53,7 @@ const BOOKS_AT_ONCE: usize = 4;
 /// cannot be built, or the *discovery* connection itself fails.
 pub async fn connect_carddav_contact_providers(
     account: &AccountConfig,
-    tokens: crate::ImapTokens<'_>,
+    tokens: crate::AccountTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     connect_carddav_learning(account, tokens)
         .await
@@ -71,7 +71,7 @@ pub async fn connect_carddav_contact_providers(
 /// As [`connect_carddav_contact_providers`].
 pub async fn connect_carddav_learning(
     account: &AccountConfig,
-    tokens: crate::ImapTokens<'_>,
+    tokens: crate::AccountTokens<'_>,
 ) -> Result<DavConnected<Vec<Box<dyn ContactsProvider>>>, AccountError> {
     if let Some(start) = account.dav_starts.contacts.as_deref() {
         match connect_carddav_at(account, tokens, Some(start)).await {
@@ -103,30 +103,26 @@ const WELL_KNOWN: &str = "/.well-known/carddav";
 /// One CardDAV connect, starting at `start` when given and at the configured server otherwise.
 async fn connect_carddav_at(
     account: &AccountConfig,
-    tokens: crate::ImapTokens<'_>,
+    tokens: crate::AccountTokens<'_>,
     start: Option<&str>,
 ) -> Result<DavConnected<Vec<Box<dyn ContactsProvider>>>, AccountError> {
     // The account's own `[carddav]` endpoint, or the calendar's when it has none; Basic from
     // the stored password, or the account grant's access token where it may go.
     let endpoint = account.carddav_endpoint().ok_or(AccountError::NoCalDav)?;
-    let auth = crate::config_dav::dav_credentials(
+    let source = crate::config_dav::dav_credential_source(
         account,
         endpoint,
         mailcal_oauth::DavUse::Contacts,
         tokens,
-    )
-    .await?;
+    )?;
     let tls = account_tls(account)?;
-    let mut config = CardDavConfig::new(
+    let mut config = CardDavConfig::from_credential_source(
         // Tolerate a stored bare host the same way `connect_caldav` does, so an account
         // set up before scheme normalisation still connects.
         normalize_caldav_base_url(endpoint.base_url),
-        auth.credentials,
+        source,
         crate::user_agent(),
     );
-    if let Some(hosts) = auth.hosts {
-        config = config.with_credential_hosts(hosts);
-    }
     if let Some(start) = start {
         config = config.with_discovery_path(start);
     }
@@ -143,7 +139,15 @@ async fn connect_carddav_at(
     let discovery = CardDavProvider::connect(config.clone())
         .await
         .map_err(|err| {
-            AccountError::from_first_dav_connect(err, AccountError::CardDav).over_tls(&tls)
+            AccountError::from_first_dav_connect(
+                err,
+                AccountError::CardDav,
+                account
+                    .oauth
+                    .is_some()
+                    .then_some(mailcal_oauth::DavUse::Contacts),
+            )
+            .over_tls(&tls)
         })?;
     let principal = discovery.principal_url().map(str::to_owned);
     let none = |principal| DavConnected {

@@ -110,13 +110,28 @@ is recorded here.
    that a password does not work takes it away. On a manual form the server sits above the
    password, so correcting it after typing one is the ordinary order of events.
 
-9. **The credential is resolved per dial, and one authentication failure is worth one
-   re-dial.** An access token expires within the hour while an IMAP session does not, so a
-   config built once would authenticate for exactly as long as its first token. The engine
-   deliberately refreshes nothing itself, so the host mints a token for every dial, and a
-   `FailureClass::Authentication` on an **OAuth** account triggers exactly one re-dial with a
-   fresh one. On a **password** account it triggers none: the same secret would go back to the
-   same server, at a provider that may be counting attempts toward a lockout.
+9. **The credential is asked for per dial and per request, and one refusal is worth one
+   replacement.** An access token expires within the hour while an IMAP session or an HTTP client
+   does not, so a config or client built once would authenticate for exactly as long as its first
+   token. The engine refreshes nothing itself: it asks the account's credential source every time a
+   credential is about to go out: on every IMAP dial and SMTP submission, and on every JMAP,
+   Microsoft Graph, Google, calendar and address book request. No provider is built again because
+   its token changed; one is replaced only when its connection died. An **OAuth** account has one
+   source, its `GraphTokenSource`, an `Arc` every adapter of the account shares, under the account's
+   id as its credential subject; Gmail's IMAP and API halves are bound only when both sign in as
+   that subject. A stored password or API token is a fixed credential under a subject of its own
+   login, so two logins never sign in under one subject; one login may have a subject per use, as a
+   calendar and an address book on one DAV login do. When a server refuses a token the engine asks
+   the source once for a replacement, which refreshes before the token's stated expiry; adapters
+   refusing the same token share one refresh. A server that keeps refusing the account's tokens
+   therefore costs one refresh per refused request, which is replaced once and then fails as
+   `Authentication`, leaving the account waiting for a sign-in. A source that gives no credential
+   (its token endpoint out of reach, or no answer within the engine's deadline) fails the dial or
+   request before anything is sent, and the engine says so on the failure
+   (`ProviderError::is_credential_failure`): the connection is kept and the request is not made
+   again on a new one, which would only ask the same source again. A **password** is never
+   replaced: the same secret would go back to the same server, at a provider that may be counting
+   attempts toward a lockout.
 
 10. **An OAuth account stores no password anywhere, and its token goes only where the profile
     lets it.** The grant is stored once, at the root (`[oauth]`), and "repair this account" is a
@@ -134,14 +149,20 @@ is recorded here.
       issuer's `protected_resources` by §3.4's rules (scheme, host, port and path; a bare host
       name names an IMAP or SMTP host and never a calendar), or, when it lists none, its host has
       the issuer host's registrable domain by the public suffix list
-      (`mailcal_oauth::token_may_reach`). Checked again on every redirect discovery follows,
-      through the engine's `CredentialHosts` policy, so a `.well-known` or SRV hop cannot carry
-      the token off the issuer's hosts. That policy is handed the host alone, so there an HTTPS
-      entry must name it (`mailcal_oauth::token_may_reach_host`). The token travels over TLS only; a loopback
-      server is the one exception, for a local test server.
+      (`mailcal_oauth::token_may_reach`). Checked again for every origin discovery moves to,
+      through the `permits` of the source the calendar and address book are given, which is the
+      account's own source with this rule added and nothing else, so a `.well-known` or SRV hop
+      cannot carry the token off the issuer's hosts. An origin has no path, so there an entry
+      must name its scheme, host and port (`mailcal_oauth::token_may_reach_origin`). Whether the
+      token may travel over plaintext is the engine's rule, not this one: an address that is
+      `http://` off this device is one the grant reaches, and its connect fails as a server
+      reached only over plaintext ([`provider-oauth.md`](provider-oauth.md) rule 12), never as
+      one that needs a sign-in of its own, which a password would meet the same way.
 
     Otherwise nothing is sent and the use needs a sign-in of its own
-    (`AccountError::DavNeedsOwnSignIn`). The same rule is read before the browser opens, so a
+    (`AccountError::DavNeedsOwnSignIn`), whether the configured server or a host discovery leads
+    to fails the rule. A host discovery leads to over plaintext is a server reached only over
+    plaintext instead ([`provider-oauth.md`](provider-oauth.md) rule 12). The same rule is read before the browser opens, so a
     sign-in says which uses it will not reach first, and each becomes an account of its own,
     linked to the mailbox ([`accounts.md`](accounts.md) rule 18). A DAV server's own RFC 9728
     metadata never decides this:
@@ -241,7 +262,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | A separate calendar server signed in to at its own issuer (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
+| One replacement of a refused token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
@@ -301,8 +322,13 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   `notyahoo.example` never matches `yahoo.example`), and the stored account: an OAuth account
   round-trips with a grant and no secret on any endpoint, `with_password` is a no-op on one,
   and a password account's stored TOML is byte-for-byte what it was.
-- **Reconnect**: one re-dial on an authentication failure for an OAuth account, none for a
-  password account, and a submission still never blind-retried whichever refused it.
+- **Credential source**: an OAuth account's adapters ask its one token source, under the account's
+  id, for a token under the name it signs in as; a refused token is replaced through the shared
+  refresh and a password never is; a failed refresh is classified without the token endpoint's
+  text; the calendar's source admits only the origins the issuer's tokens are for. A Graph or
+  Gmail provider presents the token the source answers on each request, and after a `401` with a
+  Bearer challenge the replaced one, on the same client; Gmail's IMAP half is bound only when it
+  signs in as the account. A submission is still never blind-retried whichever refused it.
 - **Bindings**: everything that crosses the browser hop, because each field is checked later
   and somewhere else: a dropped `redirect_uri` is rejected on the next refresh, a dropped
   `issuer` silently stops checking RFC 9207, a dropped STARTTLS flag connects the account to a

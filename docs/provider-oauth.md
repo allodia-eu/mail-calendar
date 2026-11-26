@@ -493,6 +493,44 @@ capturing the redirect), because that is inherently platform-specific.
     *adding* an account is reported by the setup flow, which an already-added account never runs
     again. So the variant is named for the verdict (`SigninRejected`), not for a token, and each
     family maps its own typed refusal onto it at the boundary where that type still exists.
+    The engine also refuses, before sending anything, to present a credential at all (a
+    `Permanent` credential failure), and says why (`ProviderError::credential_failure`). The
+    first-connect verdicts (`AccountError::from_first_imap_login`, `from_jmap_connect`,
+    `from_first_dav_connect`) read it once, by why and by what the account signs in with
+    (`Verdict::of`):
+
+    | Why | A stored password or API token | A grant |
+    |---|---|---|
+    | `Insecure`: the account's own address is `http://` off this device | `InsecureServer` (`PlaintextAddress`) | `InsecureServer` (`PlaintextAddress`) |
+    | `LedToInsecure`: the server led the credential to plaintext from an address the engine accepts (a redirect, or a discovery step naming a plaintext address) | `InsecureServer` (`LedToPlaintext`) | `InsecureServer` (`LedToPlaintext`) |
+    | `Form`: the protocol cannot carry the credential (a Basic username holding `:`, a line break in an IMAP password, an API token a header cannot carry) | `SigninRejected` | the family's own error |
+    | `NotPermitted`: the source's policy refused the origin (the grant's issuer does not cover a host) | the family's own error | `DavNeedsOwnSignIn` on CalDAV and CardDAV ([`mail-oauth.md`](mail-oauth.md) rule 10), the family's own error on IMAP and JMAP |
+    | `Source`, `Account` | by the source's class, as any failure | by the source's class, as any failure |
+
+    A stored secret the protocol cannot carry never goes out as stored, so the person changes it
+    as they would a refused password; a grant's token is minted afresh, so it is not read as a
+    sign-in to repeat. A server reached only over plaintext is neither: no new password or
+    sign-in clears it, so it is said as such, with why, which the engine says
+    (`Insecure` or `LedToInsecure`, read once in `Verdict::of` as `InsecureCause`); the app keeps
+    no copy of the engine's rule for which addresses may carry a sign-in:
+
+    - **A plaintext address** (`http://` off this device): its https address clears it, where the
+      server has one. The account's page takes it where it edits the account's servers (a stored
+      password's own sign-in, `AccountConfig::endpoint_form`), so the servers section and the
+      notice's detail say to enter it there; any other account is added again with it.
+    - **An address the server led to plaintext from** (a redirect, or a discovery step naming a
+      plaintext address): usually only the server's operator clears it, by serving that address
+      securely, and the next retry finds that. Where the service has another secure address that
+      does not lead there, pointing the account straight at it clears it too, so the words say
+      both, and where the account's page edits its servers, that the address goes there.
+
+    Every surface says which: the setup error and the account's page
+    (`InsecureServer { insecure_cause }`), the `InsecureServer { cause, address_editable }` notice
+    for an account that did not connect at all, and the use problems `PlaintextAddress` and
+    `LedToPlaintext` for a calendar or address book beside a working mailbox
+    ([`notices.md`](notices.md)). Neither is an outage, so nothing is badged unreachable, but the
+    next retry (Refresh, or coming back online) dials the account or the use again, once, in case
+    the server or its address changed; a repair that connects takes the verdict away.
 
 13. **A sign-in abandoned in the browser must never wedge the button: a second request
     supersedes the first.** Closing the browser tab is **undetectable**: neither a loopback
@@ -842,18 +880,18 @@ sits in `App::make_meeting`, the one place every meeting service is called from.
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent
   delete), **and** submission (`submit_email` → `POST /me/sendMail`, which files the Sent copy
   itself), all outbox-mediated like IMAP/JMAP. Calendar read/sync + write also ships (see
-  [`docs/calendar.md`](calendar.md)). One deliberate asymmetry in the token-refreshing wrapper: a
+  [`docs/calendar.md`](calendar.md)). One deliberate asymmetry in the reconnecting wrapper: a
   send is never re-issued on a transport error the way the idempotent reads/edits are: a resent
   `sendMail` double-delivers, and a retryable transport error can't distinguish a lost-before-send
-  from a lost-after-send, so the wrapper drops its (possibly dead) socket and lets the **outbox**
+  from a lost-after-send, so the wrapper drops its (possibly dead) client and lets the **outbox**
   own the retry, parking an ambiguous loss for the user to confirm rather than risk a duplicate.
 - **Gmail: read/sync + mail actions + sending.** The Gmail adapter does mail folders + messages +
   message source + a received-date sync-depth window, mail edits (`edit_mail`: mark-read/flag,
   move/archive, permanent delete), **and** submission (`submit_email` → `messages.send`, which
   files the Sent copy and returns the sent id directly), plus Google Calendar read **+ write**,
-  all outbox-mediated like IMAP/JMAP/Graph. The token-refreshing wrapper carries the same
+  all outbox-mediated like IMAP/JMAP/Graph. The reconnecting wrapper carries the same
   send asymmetry as Graph's: a send is never re-issued on a transport error (a resent
-  `messages.send` double-delivers), so the wrapper drops its suspect socket and lets the outbox
+  `messages.send` double-delivers), so the wrapper drops its suspect client and lets the outbox
   own the retry. **Archive is the one verb with no Gmail folder behind it**: Gmail has no
   Archive place, archiving is the *absence* of the Inbox label, so the core resolves Archive to
   the account's `\All` mailbox (`resolve_move_target`) and the engine turns a move there into a

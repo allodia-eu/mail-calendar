@@ -8,7 +8,7 @@
 use std::sync::{Arc, mpsc};
 
 use crate::{
-    AccountCredentialStore, LogLevel, MailcalApp,
+    AccountCredentialStore, LogLevel, MailcalApp, MailcalError,
     account_registry::Registered,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
@@ -173,6 +173,23 @@ fn a_failed_add_account_leaves_no_registry_entry_behind() {
     );
 
     drop(app);
+}
+
+/// Setting up an account at a plaintext address off this device sends no sign-in, and says so in
+/// its own words rather than as a server that could not be reached or a refused sign-in.
+#[test]
+fn adding_an_account_at_a_plaintext_address_says_it_is_not_secure() {
+    let (app, _recorder) = app_with_recorder("add-account-plaintext");
+    let config_toml = "[jmap]\nemail = \"plain@example.org\"\n\
+                       base_url = \"http://mail.example.invalid\"\npassword = \"pw\"\n";
+
+    let result = app.add_account(config_toml.to_owned());
+
+    assert!(
+        matches!(result, Err(MailcalError::InsecureServer { .. })),
+        "{:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -365,4 +382,61 @@ impl AccountCredentialStore for RefusingStore {
     fn delete(&self, _account_id: String) -> Result<(), crate::CredentialStoreError> {
         Err(crate::CredentialStoreError::Store("locked".to_owned()))
     }
+}
+
+/// An OAuth IMAP account presents its token under the IMAP login, which SASL names beside it:
+/// neither the address it is shown as nor the account the issuer said the grant is for, either of
+/// which a server whose login is not the address refuses.
+#[test]
+fn an_oauth_imap_account_signs_in_under_its_imap_login() {
+    use engine_provider::{CredentialProtocol, CredentialRequest, CredentialSource, Origin};
+
+    let (app, _) = app_with_recorder("oauth-imap-sign-in-name");
+    let config_toml = "\
+[imap]
+addr = \"imap.example.net:993\"
+server_name = \"imap.example.net\"
+username = \"login-7f3a\"
+
+[oauth]
+client_id = \"client-abc\"
+refresh_token = \"refresh\"
+authorize_endpoint = \"https://auth.example.net/authorize\"
+token_endpoint = \"https://auth.example.net/token\"
+redirect_uri = \"eu.allodia.mailcal://imap-oauth\"
+scopes = [\"offline_access\"]
+signed_in_as = \"granted@example.net\"
+
+[nextcloud]
+server = \"https://cloud.example.net\"
+address = \"shown@example.net\"
+";
+    let sink = crate::token_sink::token_sink(&app.registry, &app.credential_store);
+    let prepared = crate::boot::prepare_stored_account(
+        config_toml,
+        &sink,
+        mailcal_account::CredentialOrigin::FreshSignIn,
+    )
+    .expect("the stored account prepares");
+    let crate::connected_account::ConnectedAccount::Imap {
+        config,
+        tokens: Some(tokens),
+        ..
+    } = prepared.connected
+    else {
+        panic!("an OAuth IMAP account with its token source");
+    };
+    assert_eq!(config.address(), "shown@example.net");
+    tokens.seed_access_token(
+        "AT".to_owned(),
+        time::OffsetDateTime::now_utc() + time::Duration::hours(1),
+    );
+
+    let origin = Origin::new("imaps", "imap.example.net", 993);
+    let request = CredentialRequest::new(CredentialProtocol::Imap, &origin);
+    let credential = app
+        .runtime
+        .block_on(|| tokens.credential(&request))
+        .expect("a seeded token");
+    assert_eq!(credential.username(), Some("login-7f3a"));
 }

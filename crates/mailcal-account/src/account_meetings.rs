@@ -6,37 +6,26 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_api::{Conference, ConferenceService, MeetingRequest, MeetingService};
-use engine_provider::{ProviderError, ProviderResult};
-use engine_tls::TlsClientConfig;
-use provider_caldav::{Credentials, TalkMeetings};
+use engine_provider::{CredentialSource, ProviderResult};
+use provider_caldav::TalkMeetings;
 use provider_google::{GoogleClient, MeetMeetings};
 use provider_graph::{GraphClient, MailboxPrincipal, TeamsMeetings};
 
 use crate::{AccountConfig, AccountError, GraphTokenSource, tls::tls_with};
 
-/// Teams meetings made as the signed-in user of a Microsoft account. Each call takes a current
-/// access token from the account's token source, since a Graph client holds the one it was built
-/// with and a meeting may be made hours after the account connected.
+/// What connects a new client of type `C` for the account.
+type Connect<C> = Box<dyn Fn() -> ProviderResult<C> + Send + Sync>;
+
+/// Teams meetings made as the signed-in user of a Microsoft account. Each call is made on a client
+/// of its own, which asks the account's token source for the token: a meeting may be made hours
+/// after the last one, and a connection kept that long may have died while the machine slept.
 struct AccountTeams {
-    tokens: Arc<GraphTokenSource>,
-    tls: TlsClientConfig,
+    connect: Connect<GraphClient>,
 }
 
 impl AccountTeams {
-    async fn teams(&self) -> ProviderResult<TeamsMeetings> {
-        let token = self.tokens.access_token().await.map_err(|err| match err {
-            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
-            other => ProviderError::retryable(other.to_string()),
-        })?;
-        let client = GraphClient::for_mailbox(
-            token,
-            MailboxPrincipal::Me,
-            &self.tls,
-            &self.tokens.retry(),
-            &crate::user_agent(),
-        )
-        .map_err(ProviderError::from)?;
-        Ok(TeamsMeetings::new(client))
+    fn teams(&self) -> ProviderResult<TeamsMeetings> {
+        Ok(TeamsMeetings::new((self.connect)()?))
     }
 }
 
@@ -47,11 +36,11 @@ impl MeetingService for AccountTeams {
     }
 
     async fn create_meeting(&self, request: &MeetingRequest) -> ProviderResult<Conference> {
-        self.teams().await?.create_meeting(request).await
+        self.teams()?.create_meeting(request).await
     }
 
     async fn delete_meeting(&self, meeting: &Conference) -> ProviderResult<()> {
-        self.teams().await?.delete_meeting(meeting).await
+        self.teams()?.delete_meeting(meeting).await
     }
 }
 
@@ -64,28 +53,24 @@ pub fn teams_meetings(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Arc<dyn MeetingService>, AccountError> {
     Ok(Arc::new(AccountTeams {
-        tokens,
-        tls: tls_with(&[])?,
+        connect: Box::new(crate::graph::connector(
+            tokens,
+            MailboxPrincipal::Me,
+            tls_with(&[])?,
+            GraphClient::connect_with_source,
+        )),
     }))
 }
 
-/// Meet meetings made as the signed-in user of a Google account, on a current access token for
-/// each call, as [`AccountTeams`] does.
+/// Meet meetings made as the signed-in user of a Google account, each on a client of its own, as
+/// [`AccountTeams`] does.
 struct AccountMeet {
-    tokens: Arc<GraphTokenSource>,
-    tls: TlsClientConfig,
+    connect: Connect<GoogleClient>,
 }
 
 impl AccountMeet {
-    async fn meet(&self) -> ProviderResult<MeetMeetings> {
-        let token = self.tokens.access_token().await.map_err(|err| match err {
-            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
-            other => ProviderError::retryable(other.to_string()),
-        })?;
-        let client =
-            GoogleClient::connect(token, &self.tls, &self.tokens.retry(), &crate::user_agent())
-                .map_err(ProviderError::from)?;
-        Ok(MeetMeetings::new(client))
+    fn meet(&self) -> ProviderResult<MeetMeetings> {
+        Ok(MeetMeetings::new((self.connect)()?))
     }
 }
 
@@ -96,11 +81,11 @@ impl MeetingService for AccountMeet {
     }
 
     async fn create_meeting(&self, request: &MeetingRequest) -> ProviderResult<Conference> {
-        self.meet().await?.create_meeting(request).await
+        self.meet()?.create_meeting(request).await
     }
 
     async fn delete_meeting(&self, meeting: &Conference) -> ProviderResult<()> {
-        self.meet().await?.delete_meeting(meeting).await
+        self.meet()?.delete_meeting(meeting).await
     }
 }
 
@@ -113,8 +98,11 @@ pub fn meet_meetings(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Arc<dyn MeetingService>, AccountError> {
     Ok(Arc::new(AccountMeet {
-        tokens,
-        tls: tls_with(&[])?,
+        connect: Box::new(crate::google::connector(
+            tokens,
+            tls_with(&[])?,
+            GoogleClient::connect_with_source,
+        )),
     }))
 }
 
@@ -139,21 +127,36 @@ impl core::fmt::Debug for TalkAtConnect {
     }
 }
 
+/// Where Talk is asked: the server a Nextcloud sign-in made the account at, and the source it
+/// signs in with there.
+type TalkSignIn<'a> = (&'a str, Arc<dyn CredentialSource>);
+
+/// The server a Nextcloud sign-in made the account at, and the source Talk signs in with there:
+/// the app password of the DAV endpoint that stored it, under that login's subject
+/// (`crate::config_dav`). `None` for an account no Nextcloud sign-in made.
+fn talk_source(config: &AccountConfig) -> Option<Result<TalkSignIn<'_>, AccountError>> {
+    let (login, endpoint, dav_use) = config.nextcloud_endpoint()?;
+    endpoint.password?;
+    Some(
+        crate::config_dav::dav_credential_source(config, endpoint, dav_use, None)
+            .map(|source| (login.server.as_str(), source)),
+    )
+}
+
 /// Asks `config`'s Nextcloud server whether the account can make Talk meetings there, signing in
-/// with the account's own app password. Nothing is sent for an account no Nextcloud sign-in made.
+/// with the account's own app password under the subject of the DAV login that holds it. Nothing
+/// is sent for an account no Nextcloud sign-in made.
 pub async fn talk_at_connect(config: &AccountConfig) -> TalkAtConnect {
-    let Some((login, name, password)) = config.nextcloud_app_password() else {
+    let Some(source) = talk_source(config) else {
         return TalkAtConnect::NotOffered;
     };
-    let talk = crate::tls::account_tls(config)
+    let talk = source
+        .and_then(|(server, source)| Ok((server, source, crate::tls::account_tls(config)?)))
         .map_err(|err| err.to_string())
-        .and_then(|tls| {
-            TalkMeetings::new(
-                &login.server,
-                Credentials::Basic {
-                    username: name.to_owned(),
-                    password: password.expose().to_owned(),
-                },
+        .and_then(|(server, source, tls)| {
+            TalkMeetings::from_credential_source(
+                server,
+                source,
                 &tls,
                 &crate::throttle::ungated_retry(),
                 &crate::user_agent(),

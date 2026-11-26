@@ -98,9 +98,13 @@ public sealed partial class SettingsDialog
         password.PasswordChanged += (_, _) => Follow();
         Follow();
         stack.Children.Add(save.Element);
-        var description = servers.SignInRefused
-            ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
-            : L10n.SettingsAccountServersDescription();
+        var description = servers.InsecureServer is { } cause
+            ? (cause == InsecureCause.PlaintextAddress
+                ? L10n.SettingsAccountServersPlaintextAddress()
+                : L10n.SettingsAccountServersLedToPlaintext())
+            : servers.SignInRefused
+                ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
+                : L10n.SettingsAccountServersDescription();
         return Group(L10n.SettingsAccountServersHeading(), description, stack);
     }
 

@@ -1,12 +1,11 @@
-//! Building the Google **calendar** provider a Google account syncs its agenda through, with
-//! automatic OAuth token refresh: the calendar parallel of the Gmail provider in the parent
-//! module, and the Google sibling of [`crate::graph::connect_graph_calendar_provider`].
+//! Building the Google **calendar** provider a Google account syncs its agenda through: the
+//! calendar parallel of the Gmail provider in the parent module, and the Google sibling of
+//! [`crate::graph::connect_graph_calendar_provider`].
 //!
-//! Like the mail side, the engine's [`GoogleCalendarProvider`] takes a **static** bearer token,
-//! so this wraps it in a [`RefreshingGoogleCalendarProvider`] that mints a fresh access token
-//! before each network call and delegates to a freshly built provider (reusing its warm
-//! connection pool while the token is unchanged). One provider serves every calendar of the
-//! account; the engine names the window each event fetch opens over (`docs/calendar.md` §4).
+//! One [`ReconnectingGoogleCalendarProvider`] serves every calendar of the account and forwards
+//! to a [`GoogleCalendarProvider`] on a client that asks the account's token source for the token
+//! on each request. The engine names the window each event fetch opens over
+//! (`docs/calendar.md` §4).
 //!
 //! Two things are simpler than the Graph calendar: Google is **IANA-native** (event times carry
 //! an IANA `timeZone`), so there is **no display-zone `Prefer` header** to thread through, and
@@ -14,12 +13,12 @@
 //! "connected before calendar support" re-consent case: a calendar failure is simply
 //! non-fatal (mail stays up with an empty agenda).
 //!
-//! **Reads** (`sync_calendars`/`sync_events`) are idempotent, so they get the rate-limit backoff
-//! plus the one-shot reconnect loop the mail provider uses. **Writes** (`create`/`patch`/`delete`)
-//! are single-attempt (a blind retry of a non-idempotent call could double-create) and a failed
-//! write surfaces to the app to retry.
+//! **Reads** (`sync_calendars`/`sync_events`) are idempotent, so they get the one-shot reconnect
+//! loop the mail provider uses. **Writes** (`create`/`patch`/`delete`) are single-attempt (a
+//! blind retry of a non-idempotent call could double-create) and a failed write surfaces to the
+//! app to retry; one that met a dead connection still replaces the client.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_api::{CalendarSync, CalendarWrites};
@@ -30,128 +29,53 @@ use engine_core::{
     time::Horizon,
 };
 use engine_provider::{
-    CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
-    EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError,
-    ProviderResult, ScopeSync, WriteGuard,
+    CalendarListing, CalendarUserAddresses, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
+    EventRsvp, EventWriteReceipt, Provider, ProviderResult, ScopeSync,
 };
-use engine_tls::TlsClientConfig;
 use provider_google::{GoogleCalendarProvider, GoogleClient};
 
-use super::should_reconnect;
-use crate::{AccountError, GraphTokenSource, tls::tls_with};
-
-/// What a Google series edit costs the occurrences the user changed by hand: moving the
-/// series' time destroys them, and renaming the series renames the one they had renamed.
-/// Only a rule change leaves them alone.
-///
-/// The **fallback** copy of the engine adapter's own constant, for the window before a
-/// delegate exists; see the Graph sibling for why the fallback has to be truthful.
-const GOOGLE_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
-    survives_time_change: false,
-    survives_rule_change: true,
-    clobbers_own_fields: true,
+use super::account_client;
+use crate::{
+    AccountError, GraphTokenSource,
+    shared_client::{Delegate, SharedClient},
+    tls::tls_with,
 };
 
-/// A [`Provider`] for every calendar of a Google account that refreshes its access token before
-/// every network call and delegates to a freshly built [`GoogleCalendarProvider`]. Internal; the
-/// account layer hands callers `Box<dyn Provider>` from [`connect_google_calendar_provider`].
+/// A [`Provider`] for every calendar of a Google account that forwards to a
+/// [`GoogleCalendarProvider`] and replaces its client once after a read fails on a dead
+/// connection. Internal; the account layer hands callers `Box<dyn Provider>` from
+/// [`connect_google_calendar_provider`].
 #[derive(Debug)]
-pub(crate) struct RefreshingGoogleCalendarProvider {
-    /// The shared, self-refreshing token source, shared with the account's Gmail provider so
-    /// one refresh serves both.
-    tokens: Arc<GraphTokenSource>,
-    /// Calendar read + a server-enforced write guard; Google rejects a stale `If-Match` with a
-    /// `412`, exactly like Graph.
-    capabilities: Capabilities,
-    /// The account's shared TLS policy, cloned into each rebuilt Google client.
-    tls: TlsClientConfig,
-    /// The built delegate, cached by the access token it was built with, so the reqwest
-    /// connection pool is reused; rebuilt only when the token refreshes.
-    cached: Mutex<Option<(String, Arc<GoogleCalendarProvider>)>>,
+pub(crate) struct ReconnectingGoogleCalendarProvider {
+    delegate: Delegate<GoogleClient, GoogleCalendarProvider>,
 }
 
-impl RefreshingGoogleCalendarProvider {
-    /// A refreshing calendar provider sharing `tokens` with the account's Gmail provider.
-    #[must_use]
-    pub(crate) fn new(tokens: Arc<GraphTokenSource>, tls: TlsClientConfig) -> Self {
-        Self {
-            tokens,
-            capabilities: Capabilities::none()
-                .with_calendars()
-                .with_calendar_writes(WriteGuard::Enforced, GOOGLE_OVERRIDE_SURVIVAL)
-                // Google schedules server-side (`sendUpdates`), so the answer travels by
-                // itself. As on Graph this is only the pre-delegate fallback, and it matters
-                // for the same reason: a host told otherwise would send its own iMIP reply
-                // beside the one the server already sent.
-                .with_calendar_scheduling()
-                // The engine names the window a snapshot opens over, and reads this before the
-                // first token fetch too: told the fetch is whole, it would never fetch a range.
-                .with_windowed_events(),
-            tls,
-            cached: Mutex::new(None),
-        }
-    }
-
-    /// Returns the delegate `GoogleCalendarProvider`, reusing the cached one while the access
-    /// token is unchanged and rebuilding it (and its warm connection pool) only on a refresh.
-    async fn delegate(&self) -> ProviderResult<Arc<GoogleCalendarProvider>> {
-        let token = self.tokens.access_token().await.map_err(|err| match err {
-            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
-            other => ProviderError::retryable(other.to_string()),
-        })?;
-        {
-            let cache = self
-                .cached
-                .lock()
-                .expect("google calendar delegate mutex poisoned");
-            if let Some((cached_token, provider)) = cache.as_ref()
-                && *cached_token == token
-            {
-                return Ok(Arc::clone(provider));
-            }
-        }
-        let client = GoogleClient::connect(
-            token.clone(),
-            &self.tls,
-            &self.tokens.retry(),
-            &crate::user_agent(),
-        )
-        .map_err(ProviderError::from)?;
-        let provider = Arc::new(GoogleCalendarProvider::new(client));
-        *self
-            .cached
-            .lock()
-            .expect("google calendar delegate mutex poisoned") =
-            Some((token, Arc::clone(&provider)));
-        Ok(provider)
-    }
-
-    /// Drops the cached delegate so the next [`delegate`](Self::delegate) rebuilds a fresh client
-    /// ; used after a retryable transport failure whose keep-alive socket is presumed dead.
-    fn invalidate_delegate(&self) {
-        *self
-            .cached
-            .lock()
-            .expect("google calendar delegate mutex poisoned") = None;
+impl ReconnectingGoogleCalendarProvider {
+    /// A calendar provider on `client`.
+    ///
+    /// # Errors
+    ///
+    /// When the client cannot be built.
+    pub(crate) fn new(client: Arc<SharedClient<GoogleClient>>) -> ProviderResult<Self> {
+        Ok(Self {
+            delegate: Delegate::new(client, GoogleCalendarProvider::new)?,
+        })
     }
 }
 
+/// The engine adapter's own answers, capabilities included: a server-enforced write guard
+/// (Google rejects a stale `If-Match` with a `412`), what a series edit costs the occurrences
+/// changed by hand, server-side scheduling (`sendUpdates`, so a host sends no iMIP answer of its
+/// own), and the engine naming the window a snapshot opens over.
 #[async_trait]
-impl Provider for RefreshingGoogleCalendarProvider {
+impl Provider for ReconnectingGoogleCalendarProvider {
     fn connection_info(&self) -> ConnectionInfo {
-        self.cached
-            .lock()
-            .expect("google calendar delegate mutex poisoned")
-            .as_ref()
-            .map_or_else(
-                || ConnectionInfo::new(self.capabilities),
-                |(_, provider)| provider.connection_info(),
-            )
+        self.delegate.last().connection_info()
     }
 }
 
 #[async_trait]
-impl CalendarSync for RefreshingGoogleCalendarProvider {
+impl CalendarSync for ReconnectingGoogleCalendarProvider {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::GoogleCalendarList {
             account: account.clone(),
@@ -170,19 +94,9 @@ impl CalendarSync for RefreshingGoogleCalendarProvider {
         account: &AccountId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<CalendarListing> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sync_calendars(account, cursor).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.sync_calendars(account, cursor).await })
+            .await
     }
 
     async fn sync_events(
@@ -192,37 +106,29 @@ impl CalendarSync for RefreshingGoogleCalendarProvider {
         cursor: Option<&SyncState>,
         window: Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider
-                .sync_events(account, calendar, cursor, window)
-                .await
-            {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move {
+                provider
+                    .sync_events(account, calendar, cursor, window)
+                    .await
+            })
+            .await
     }
 }
 
-impl engine_api::MailboxWrites for RefreshingGoogleCalendarProvider {}
+impl engine_api::MailboxWrites for ReconnectingGoogleCalendarProvider {}
 
 #[async_trait]
-impl CalendarWrites for RefreshingGoogleCalendarProvider {
+impl CalendarWrites for ReconnectingGoogleCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,
         draft: &EventDraft,
     ) -> ProviderResult<EventWriteReceipt> {
         // A create is non-idempotent; a blind retry could double-create, so single attempt.
-        let provider = self.delegate().await?;
-        provider.create_event(account, draft).await
+        self.delegate
+            .once(|provider| async move { provider.create_event(account, draft).await })
+            .await
     }
 
     async fn patch_event(
@@ -232,8 +138,9 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
         edit: &EventEdit,
     ) -> ProviderResult<EventWriteReceipt> {
         // `If-Match`-guarded, so a retry after a partial success risks a spurious `412`.
-        let provider = self.delegate().await?;
-        provider.patch_event(account, base, edit).await
+        self.delegate
+            .once(|provider| async move { provider.patch_event(account, base, edit).await })
+            .await
     }
 
     async fn delete_event(
@@ -242,8 +149,9 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
         base: Option<&Event>,
         deletion: &EventDeletion,
     ) -> ProviderResult<()> {
-        let provider = self.delegate().await?;
-        provider.delete_event(account, base, deletion).await
+        self.delegate
+            .once(|provider| async move { provider.delete_event(account, base, deletion).await })
+            .await
     }
 
     async fn rsvp_event(
@@ -253,24 +161,26 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
         rsvp: &EventRsvp,
     ) -> ProviderResult<EventWriteReceipt> {
         // Guarded like a patch, so a single attempt.
-        let provider = self.delegate().await?;
-        provider.rsvp_event(account, base, rsvp).await
+        self.delegate
+            .once(|provider| async move { provider.rsvp_event(account, base, rsvp).await })
+            .await
     }
 
     async fn calendar_user_addresses(
         &self,
         account: &AccountId,
     ) -> ProviderResult<CalendarUserAddresses> {
-        let provider = self.delegate().await?;
-        provider.calendar_user_addresses(account).await
+        self.delegate
+            .retrying(|provider| async move { provider.calendar_user_addresses(account).await })
+            .await
     }
 }
 
 /// Connects the Google calendar provider a Google account syncs its agenda through: **one**
-/// token-refreshing provider for every calendar of the account: the Google parallel of
+/// provider for every calendar of the account: the Google parallel of
 /// [`connect_graph_calendar_provider`](crate::connect_graph_calendar_provider). Reads
-/// `calendarList` once with a fresh token first, so a calendar the account cannot reach fails
-/// here rather than on every refresh.
+/// `calendarList` once first, so a calendar the account cannot reach fails here rather than on
+/// every pass.
 ///
 /// The caller connects this only for its non-fatal effect: a calendar failure leaves mail up
 /// with an empty agenda.
@@ -283,53 +193,102 @@ pub async fn connect_google_calendar_provider(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
-    let calendars = list_calendars(account_id, &tokens, &tls).await?;
+    // A dead grant fails here as a sign-in to repeat, rather than as a calendar list that failed.
+    tokens.access_token().await?;
+    let google = |err: engine_provider::ProviderError| AccountError::Google(err.to_string());
+    let provider = ReconnectingGoogleCalendarProvider::new(Arc::new(account_client(tokens, tls)))
+        .map_err(google)?;
+    log::debug!("google: fetching calendar list");
+    let listing = provider
+        .delegate
+        .last()
+        .sync_calendars(account_id, None)
+        .await
+        .map_err(google)?;
+    let calendars: Vec<Calendar> = match listing.sync.update {
+        SyncUpdate::Snapshot { objects, .. } => objects,
+        SyncUpdate::Delta { changed, .. } => changed,
+    };
     log::debug!(
         "google: calendar list returned {} calendar(s)",
         calendars.len()
     );
-    Ok(Box::new(RefreshingGoogleCalendarProvider::new(tokens, tls)))
-}
-
-/// Enumerates the account's calendars (a full snapshot) with a one-off client on a fresh access
-/// token: the parallel of the mail side's implicit label-list sync.
-async fn list_calendars(
-    account_id: &AccountId,
-    tokens: &Arc<GraphTokenSource>,
-    tls: &TlsClientConfig,
-) -> Result<Vec<Calendar>, AccountError> {
-    let token = tokens.access_token().await?;
-    let client = GoogleClient::connect(token, tls, &tokens.retry(), &crate::user_agent())
-        .map_err(|err| AccountError::Google(err.to_string()))?;
-    log::debug!("google: fetching calendar list");
-    let listing = GoogleCalendarProvider::new(client)
-        .sync_calendars(account_id, None)
-        .await
-        .map_err(|err| AccountError::Google(err.to_string()))?;
-    Ok(match listing.sync.update {
-        SyncUpdate::Snapshot { objects, .. } => objects,
-        SyncUpdate::Delta { changed, .. } => changed,
-    })
+    Ok(Box::new(provider))
 }
 
 #[cfg(test)]
 mod tests {
+    use engine_provider::WriteGuard;
     use mailcal_oauth::{GOOGLE_SCOPES, OAuthClient, OAuthProviderConfig};
 
-    use super::*;
-    use crate::graph::test_support::{
-        assert_calendar_reaches_the_delegate, dead_grant_token_endpoint, source_at,
+    use super::{super::client_connecting, *};
+    use crate::{
+        graph::test_support::{
+            an_invitation, assert_calendar_reaches_the_delegate, dead_grant_token_endpoint,
+            mock_token_endpoint, source_at,
+        },
+        http_fake,
     };
+
+    /// An answer to an invitation may have been applied before the connection died, so it is
+    /// sent once; the dead client is still replaced for the next request.
+    #[tokio::test]
+    async fn a_write_on_a_dead_connection_is_sent_once_and_the_client_replaced() {
+        let (endpoint, _) = mock_token_endpoint(vec![http_fake::minted(1)]);
+        let (base, received) = http_fake::serve(vec![http_fake::Reply::HangUp]);
+        let client = client_connecting(
+            source_at(endpoint, None),
+            tls_with(&[]).unwrap(),
+            move |source, tls, retry, agent| {
+                GoogleClient::with_base_and_source(source, &base, tls, retry, agent)
+            },
+        );
+        let provider = ReconnectingGoogleCalendarProvider::new(Arc::new(client)).unwrap();
+        let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
+        let (event, rsvp) = an_invitation();
+
+        provider
+            .rsvp_event(&account, &event, &rsvp)
+            .await
+            .unwrap_err();
+
+        assert_eq!(received.lock().unwrap().len(), 1, "sent once");
+        assert_eq!(provider.delegate.generation(), 1, "a new client");
+    }
+
+    /// Each request asks the account's source for the token, and one Google refused is replaced
+    /// once and the request sent again, on the same client.
+    #[tokio::test]
+    async fn each_request_presents_the_current_token_and_a_refused_one_is_replaced() {
+        let (endpoint, minted) =
+            mock_token_endpoint(vec![http_fake::minted(1), http_fake::minted(2)]);
+        let (base, received) = http_fake::serve(http_fake::refused_then(r#"{"items":[]}"#));
+        let client = client_connecting(
+            source_at(endpoint, None),
+            tls_with(&[]).unwrap(),
+            move |source, tls, retry, agent| {
+                GoogleClient::with_base_and_source(source, &base, tls, retry, agent)
+            },
+        );
+        let provider = ReconnectingGoogleCalendarProvider::new(Arc::new(client)).unwrap();
+        let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
+
+        provider.sync_calendars(&account, None).await.unwrap();
+        provider.sync_calendars(&account, None).await.unwrap();
+
+        http_fake::assert_replaced_once(&received, &minted);
+    }
 
     /// The Google sibling of the Graph wrapper's test: a calendar fetch and an answer to an
     /// invitation reach the adapter rather than the traits' unsupported defaults.
     #[tokio::test]
     async fn calendar_calls_are_forwarded_to_google() {
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = RefreshingGoogleCalendarProvider::new(
+        let provider = ReconnectingGoogleCalendarProvider::new(Arc::new(account_client(
             source_at(endpoint, None),
             tls_with(&[]).unwrap(),
-        );
+        )))
+        .unwrap();
         assert_calendar_reaches_the_delegate(&provider).await;
     }
 
@@ -343,6 +302,7 @@ mod tests {
         GraphTokenSource::from_parts(
             OAuthClient::new(provider).unwrap(),
             AccountId::try_from("alice@gmail.com@mail.google.com").unwrap(),
+            "alice@gmail.com",
             "refresh".to_owned(),
             None,
             "google",
@@ -354,8 +314,11 @@ mod tests {
     fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
         let calendar = CalendarId::try_from("alice@gmail.com").unwrap();
-        let provider =
-            RefreshingGoogleCalendarProvider::new(google_source(), tls_with(&[]).unwrap());
+        let provider = ReconnectingGoogleCalendarProvider::new(Arc::new(account_client(
+            google_source(),
+            tls_with(&[]).unwrap(),
+        )))
+        .unwrap();
         let info = provider.connection_info();
         assert!(info.capabilities.calendars());
         assert!(!info.capabilities.mail());
@@ -363,8 +326,9 @@ mod tests {
             info.capabilities.calendar_write_guard(),
             Some(WriteGuard::Enforced),
         );
-        // As on Graph, and for the same reason: `false` here would have a host send its own
-        // iMIP reply on top of the one Google's `sendUpdates` already sent.
+        // Reported before any request, as on Graph and for the same reason: `false` here would
+        // have a host send its own iMIP reply on top of the one Google's `sendUpdates` already
+        // sent.
         assert!(info.capabilities.calendar_scheduling());
         assert_eq!(
             provider.event_scope(&account, &calendar),

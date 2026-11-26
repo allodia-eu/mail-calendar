@@ -123,6 +123,7 @@ pub(crate) fn page(
                     .contacts_fall_back_to_calendar();
             AccountServers {
                 sign_in_refused: false,
+                insecure_server: None,
                 save: control(saving.is_some(), true),
                 form: saving.or(refused_servers).unwrap_or(stored),
                 contacts_fall_back_to_calendar,

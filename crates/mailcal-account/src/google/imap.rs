@@ -37,9 +37,7 @@ use provider_imap::{GmailFolder, GmailMail, ImapAccount, ImapConfig, ImapError};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_rustls::client::TlsStream;
 
-use crate::{
-    GraphTokenSource, connect_log::connect_logger, imap_credentials::OAuthCredentialSource,
-};
+use crate::{GraphTokenSource, connect_log::connect_logger};
 
 /// Gmail's IMAP server, for every Gmail and Workspace account alike.
 const GMAIL_IMAP: &str = "imap.gmail.com";
@@ -113,8 +111,6 @@ pub(crate) type GmailImap = GmailMail<TlsStream<TcpStream>>;
 /// The account's IMAP side, opened on first use and kept for the provider's life.
 #[derive(Debug)]
 pub(super) struct GmailImapSlot {
-    /// The account's address, which XOAUTH2 names beside the token.
-    address: String,
     tokens: Arc<GraphTokenSource>,
     tls: TlsClientConfig,
     state: Mutex<Side>,
@@ -158,7 +154,6 @@ impl GmailImapSlot {
             return slot;
         }
         let slot = Arc::new(Self {
-            address: address.to_owned(),
             tokens: Arc::clone(tokens),
             tls: tls.clone(),
             state: Mutex::new(Side::Unknown(0)),
@@ -182,7 +177,7 @@ impl GmailImapSlot {
             Side::Api => return Ok(None),
             Side::Unknown(refused) => *refused,
         };
-        let result = open(&self.address, &self.tokens, &self.tls).await;
+        let result = open(&self.tokens, &self.tls).await;
         let (next, answer) = decide(result, refused);
         match (&next, &answer) {
             (Side::Imap(_), _) => log::info!("gmail: reading mail over IMAP"),
@@ -213,15 +208,18 @@ impl GmailImapSlot {
     }
 
     /// Records how a mail read ended. A read that could not reach the server ([`unreached`])
-    /// counts towards [`GmailMailRoute::Unreachable`]; anything else ends the run, since the
-    /// server answered. Reads over the API count for nothing here: their outage is the account's
-    /// own.
+    /// counts towards [`GmailMailRoute::Unreachable`]; one that had no token to dial with
+    /// ([`ProviderError::is_credential_failure`]) leaves the run as it was; anything else ends
+    /// the run, since the server answered. Reads over the API count for nothing here: their
+    /// outage is the account's own.
     pub(super) fn note_read(&self, ended: Result<(), &ProviderError>) {
         let before = self.route();
         if before == GmailMailRoute::Api {
             return;
         }
         match ended {
+            // No token, so no IMAP server was asked: nothing is learnt about reaching one.
+            Err(err) if err.is_credential_failure() => {}
             Err(err) if unreached(err) => {
                 let _ = self
                     .unreached
@@ -252,6 +250,24 @@ impl GmailImapSlot {
     }
 }
 
+#[cfg(test)]
+impl GmailImapSlot {
+    /// A slot already reading over `reader`, which a test opened against a server of its own.
+    pub(super) fn opened(
+        tokens: &Arc<GraphTokenSource>,
+        tls: &TlsClientConfig,
+        reader: GmailImap,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            tokens: Arc::clone(tokens),
+            tls: tls.clone(),
+            state: Mutex::new(Side::Imap(reader)),
+            route: AtomicU8::new(GmailMailRoute::Imap as u8),
+            unreached: AtomicU8::new(0),
+        })
+    }
+}
+
 /// Whether a read that failed with `err` never reached the server: a failure that may pass, with
 /// no IMAP `NO` behind it. A refusal the server calls temporary may pass as well, but the server
 /// answered it.
@@ -264,7 +280,9 @@ fn unreached(err: &ProviderError) -> bool {
 /// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins, and
 /// what the caller is told. The session lacking what the reader needs (no Gmail
 /// extension, All Mail hidden) is final; a refused login is final only once it has repeated
-/// (IMAP turned off for the domain, after the API took the same token); anything else passes.
+/// (IMAP turned off for the domain, after the API took the same token); anything else passes. A
+/// dial that had no token to sign in with ([`ProviderError::is_credential_failure`]) asked no
+/// server, so it passes without counting, whatever the token source said about the grant.
 fn decide(
     opened: ProviderResult<Opened>,
     refused: u8,
@@ -272,6 +290,7 @@ fn decide(
     match opened {
         Ok(Opened::Reader(reader)) => (Side::Imap(reader.clone()), Ok(Some(reader))),
         Ok(Opened::NotGmail) => (Side::Api, Ok(None)),
+        Err(err) if err.is_credential_failure() => (Side::Unknown(refused), Err(err)),
         Err(err) => match err.class() {
             FailureClass::InvalidState => (Side::Api, Ok(None)),
             FailureClass::Authentication if refused + 1 >= REFUSALS_BEFORE_API => {
@@ -292,18 +311,13 @@ enum Opened {
 }
 
 /// Logs in, and proves All Mail is shown to IMAP.
-async fn open(
-    address: &str,
-    tokens: &Arc<GraphTokenSource>,
-    tls: &TlsClientConfig,
-) -> ProviderResult<Opened> {
-    let credentials = Arc::new(OAuthCredentialSource::new(
-        address.to_owned(),
-        Arc::clone(tokens),
-    ));
-    let config =
-        ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials)
-            .with_connect_observer(connect_logger("imap"));
+async fn open(tokens: &Arc<GraphTokenSource>, tls: &TlsClientConfig) -> ProviderResult<Opened> {
+    let config = ImapConfig::from_credential_source(
+        format!("{GMAIL_IMAP}:993"),
+        GMAIL_IMAP,
+        Arc::clone(tokens) as _,
+    )
+    .with_connect_observer(connect_logger("imap"));
     let account = ImapAccount::connect(&config, tls.connector()).await?;
     let Some(reader) = account.gmail() else {
         return Ok(Opened::NotGmail);

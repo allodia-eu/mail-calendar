@@ -5,8 +5,6 @@
 //! form: an account that loses a field at rest fails at the next launch rather than at the
 //! edit that caused it, which is the slowest kind of failure to trace back.
 
-use std::sync::Arc;
-
 use super::*;
 
 const SAMPLE: &str = r#"
@@ -61,7 +59,7 @@ fn parses_a_full_account_and_redacts_secrets() {
     );
 
     // Builds the engine config without SMTP-absent branching surprises.
-    let _ = config.imap_config(Arc::new(config.imap_password_credentials().unwrap()));
+    let _ = config.imap_config(crate::imap_credential_source(&config, None).unwrap());
 }
 
 #[test]
@@ -95,7 +93,7 @@ fn security_defaults_to_implicit_tls_and_parses_starttls() {
         starttls.smtp.as_ref().unwrap().security,
         ConnectionSecurity::StartTls
     );
-    let _ = starttls.imap_config(Arc::new(starttls.imap_password_credentials().unwrap()));
+    let _ = starttls.imap_config(crate::imap_credential_source(&starttls, None).unwrap());
 }
 
 #[test]
@@ -105,7 +103,7 @@ fn parses_an_imap_only_account() {
     )
     .expect("valid config");
     assert!(config.smtp.is_none() && config.caldav.is_none());
-    let _ = config.imap_config(Arc::new(config.imap_password_credentials().unwrap()));
+    let _ = config.imap_config(crate::imap_credential_source(&config, None).unwrap());
 }
 
 /// One provider serves every calendar, so a config stored when it named one still loads, and the

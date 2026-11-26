@@ -2,21 +2,16 @@
 //! memo, and the reach classification that decides whether re-presenting a refresh token is
 //! safe or is a replay. Its own file so the production type stays under the 500-line cap.
 
-use std::{
-    io::{Read, Write},
-    sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
-};
+use std::sync::{Mutex, atomic::Ordering};
 
 use super::{
     test_support::{
         dead_grant_token_endpoint, flaky_token_endpoint, mock_token_endpoint,
-        ratcheting_token_endpoint, refused_token_endpoint, source_at,
+        ratcheting_token_endpoint, refused_token_endpoint, source_at, token_endpoint,
     },
     *,
 };
+use crate::http_fake::Reply;
 
 /// The other half of the bug the single-flight was written for, and the half it missed.
 ///
@@ -265,23 +260,9 @@ async fn a_refresh_that_names_no_scope_reports_none() {
 async fn an_invalid_grant_refresh_is_a_reauth_signal() {
     let body = r#"{"error":"invalid_grant","error_description":"revoked"}"#;
     // A 200 wrapper won't do: the endpoint must be non-2xx for an error body.
-    let hits = Arc::new(AtomicUsize::new(0));
-    let hits_thread = Arc::clone(&hits);
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        if let Ok((mut stream, _)) = listener.accept() {
-            let mut buf = [0u8; 8192];
-            let _ = stream.read(&mut buf);
-            hits_thread.fetch_add(1, Ordering::SeqCst);
-            let resp = format!(
-                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
-        }
-    });
-    let source = source_at(format!("http://{addr}/token"), None);
+    let (endpoint, _hits) =
+        token_endpoint(move |_| Reply::Status("400 Bad Request", body.to_owned()));
+    let source = source_at(endpoint, None);
     let err = source.access_token().await.unwrap_err();
     assert!(matches!(err, AccountError::SigninRejected(_)));
 }
@@ -297,20 +278,9 @@ async fn an_invalid_grant_refresh_is_a_reauth_signal() {
 #[tokio::test]
 async fn an_invalid_scope_refresh_is_a_reauth_signal_too_not_something_to_retry() {
     let body = r#"{"error":"invalid_scope","error_description":"unable to issue scope Mail.Send"}"#;
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        if let Ok((mut stream, _)) = listener.accept() {
-            let mut buf = [0u8; 8192];
-            let _ = stream.read(&mut buf);
-            let resp = format!(
-                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
-        }
-    });
-    let source = source_at(format!("http://{addr}/token"), None);
+    let (endpoint, _hits) =
+        token_endpoint(move |_| Reply::Status("400 Bad Request", body.to_owned()));
+    let source = source_at(endpoint, None);
     let err = source.access_token().await.unwrap_err();
     assert!(
         matches!(err, AccountError::SigninRejected(_)),

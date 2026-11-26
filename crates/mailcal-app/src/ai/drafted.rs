@@ -2,9 +2,9 @@
 //! behind each one, so a send or a save never waits on the disk for it; and the mark a drafted
 //! composition's stored draft carries.
 
-use std::{collections::BTreeSet, io, path::Path};
+use std::{io, path::Path};
 
-use engine_api::{AccountId, Keyword, MessageIdHeader, Provider};
+use engine_api::{AccountId, MessageIdHeader, MessageMetadata, Provider};
 use mailcal_account::{
     DraftedReplies, drafted_replies_path, drafted_reply_keyword, load_drafted_replies,
     save_drafted_replies,
@@ -90,30 +90,34 @@ impl<P: Provider> App<P> {
         self.drafted_log().file.clone()
     }
 
-    /// The keywords `composition`'s stored draft carries: the drafted-reply keyword while the
-    /// composition is drafted, otherwise none. The whole set goes with every save, since a keyword
-    /// a save leaves out is taken off the stored copy.
-    pub(crate) fn draft_keywords(&self, composition: &CompositionId) -> BTreeSet<Keyword> {
+    /// The metadata `composition`'s stored draft carries: the drafted-reply keyword while the
+    /// composition is drafted, otherwise nothing. The whole of it goes with every save, since a
+    /// keyword a save leaves out is taken off the stored copy. No arrival time: the server stamps
+    /// a draft's own.
+    pub(crate) fn draft_metadata(&self, composition: &CompositionId) -> MessageMetadata {
+        let metadata = MessageMetadata::default();
         if self.composition_drafted(composition) {
-            BTreeSet::from([drafted_reply_keyword()])
+            metadata.with_keyword(drafted_reply_keyword())
         } else {
-            BTreeSet::new()
+            metadata
         }
     }
 
     /// After a save of `message_id` from `account` that asked for `asked`: a drafted-reply keyword
     /// the answer does not say was `kept` is noted in this device's log, so this device still knows
     /// the draft for what it is after a restart. `kept` is `None` for a save queued for later,
-    /// whose keywords only a sync reads back.
+    /// whose metadata only a sync reads back.
     pub(crate) fn drafted_save_settled(
         &self,
         account: &AccountId,
         message_id: &MessageIdHeader,
-        asked: &BTreeSet<Keyword>,
-        kept: Option<&BTreeSet<Keyword>>,
+        asked: &MessageMetadata,
+        kept: Option<&MessageMetadata>,
     ) {
         let keyword = drafted_reply_keyword();
-        if asked.contains(&keyword) && !kept.is_some_and(|kept| kept.contains(&keyword)) {
+        if asked.keywords.contains(&keyword)
+            && !kept.is_some_and(|kept| kept.keywords.contains(&keyword))
+        {
             log::info!(
                 "ai: the server kept no mark on a drafted reply's draft; noted on this device"
             );

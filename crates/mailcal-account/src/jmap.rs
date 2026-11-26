@@ -19,15 +19,20 @@
 //! [`AccountConfig`]: crate::AccountConfig
 //! [`MicrosoftConfig`]: crate::MicrosoftConfig
 
+use std::sync::Arc;
+
 use engine_api::EmailAddress;
 use engine_core::ids::{AccountId, IdError};
+use engine_provider::{CredentialSource, CredentialSubject, FixedCredential};
 use provider_jmap::{Credentials, JmapConfig};
 use serde::Deserialize;
 
 mod connect;
-mod refreshing;
-mod refreshing_contacts;
-mod refreshing_provider;
+#[cfg(test)]
+mod fake_server;
+mod reconnecting;
+mod reconnecting_pim;
+mod reconnecting_settings;
 mod setup;
 
 pub use connect::{
@@ -37,8 +42,13 @@ pub use connect::{
 pub use setup::{JmapSetup, build_jmap_config_toml, jmap_base_url};
 
 use crate::{
-    ConfigError, OAuthGrant, Secret, connect_log::connect_logger, throttle::account_retry,
+    AccountError, ConfigError, OAuthGrant, Secret, connect_log::connect_logger,
+    imap_credentials::NO_TOKEN_SOURCE, throttle::account_retry,
 };
+
+/// Why an account that stores no secret and no grant is not connected: a login with an empty
+/// password cannot succeed, and a provider may count it towards a lockout.
+const NO_STORED_SECRET: &str = "the account stores no password, API token or grant";
 
 /// The id-scheme tag woven into a JMAP account's [`AccountId`], so a JMAP account
 /// never collides with an IMAP or Microsoft account for the same address on the
@@ -78,8 +88,8 @@ pub struct JmapAccountConfig {
     pub token: Option<Secret>,
     /// An OAuth grant, when the account was connected by signing in with the provider
     /// rather than by pasting a secret. Mutually exclusive with `password`/`token` in
-    /// practice, and takes precedence: a fresh access token is minted from it for every
-    /// connection, so nothing long-lived is presented to the server.
+    /// practice, and takes precedence: every request presents an access token refreshed from
+    /// it, so nothing long-lived is presented to the server.
     #[serde(default)]
     pub oauth: Option<OAuthGrant>,
     /// What the account is used for, its pinned id and its links: the keys every kind shares at
@@ -137,41 +147,71 @@ impl JmapAccountConfig {
     }
 
     /// Whether this account authenticates by OAuth (a discovered browser sign-in) rather
-    /// than by a stored secret. An OAuth account mints a short-lived access token per
-    /// connection, so it takes a different connect path entirely.
+    /// than by a stored secret. An OAuth account's requests ask its token source for a
+    /// short-lived access token rather than presenting a stored secret.
     #[must_use]
     pub fn is_oauth(&self) -> bool {
         self.oauth.is_some()
     }
 
     /// Builds the engine credentials **for the stored-secret path**: a bearer token when a
-    /// pre-collapse one is stored, else HTTP Basic with the account address as the username.
-    /// Never consulted for an OAuth account, whose token comes from the token source.
-    fn credentials(&self) -> Credentials {
-        match &self.token {
-            Some(token) => Credentials::bearer(token.expose().to_owned()),
-            None => Credentials::basic(
+    /// pre-collapse one is stored, else HTTP Basic with the account address as the username and
+    /// the stored password; `None` when it stores neither. Never consulted for an OAuth account,
+    /// whose token comes from the token source.
+    fn credentials(&self) -> Option<Credentials> {
+        match (&self.token, &self.password) {
+            (Some(token), _) => Some(Credentials::bearer(token.expose().to_owned())),
+            (None, Some(password)) => Some(Credentials::basic(
                 self.email.clone(),
-                self.password.as_ref().map_or("", Secret::expose).to_owned(),
-            ),
+                password.expose().to_owned(),
+            )),
+            (None, None) => None,
         }
     }
 
-    /// Builds the engine [`JmapConfig`] for this account (base URL + credentials);
+    /// The source every request of this account asks for its credential: `tokens` itself when
+    /// the account signs in with OAuth, signing in under the subject it was built with (the
+    /// account's id, where the bindings prepare it), else its stored secret, signing in as
+    /// `account`, the subject the account's other adapters name too.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::MissingCredential`] for an OAuth account given no token source,
+    /// or an account that stores neither a secret nor a grant.
+    fn credential_source(
+        &self,
+        account: &AccountId,
+        tokens: crate::AccountTokens<'_>,
+    ) -> Result<Arc<dyn CredentialSource>, AccountError> {
+        if self.is_oauth() {
+            let tokens = tokens.ok_or(AccountError::MissingCredential(NO_TOKEN_SOURCE))?;
+            return Ok(Arc::clone(tokens) as Arc<dyn CredentialSource>);
+        }
+        let credentials = self
+            .credentials()
+            .ok_or(AccountError::MissingCredential(NO_STORED_SECRET))?;
+        Ok(Arc::new(FixedCredential::new(
+            CredentialSubject::new(account.as_str()),
+            credentials.into(),
+        )))
+    }
+
+    /// Builds the engine [`JmapConfig`] for this account (base URL + credential source);
     /// everything else is discovered from the session.
     ///
     /// `account` names whose ceiling these requests are counted against. Taken as an
     /// argument rather than re-derived here so the caller, which already holds the id, cannot
     /// end up with a *second* gate for the account it is connecting (`crate::throttle`).
-    fn engine_config(&self, tls: engine_tls::TlsClientConfig, account: &AccountId) -> JmapConfig {
-        JmapConfig::new(
-            self.base_url.clone(),
-            self.credentials(),
-            crate::user_agent(),
-        )
-        .with_tls(tls)
-        .with_retry(account_retry(account))
-        .with_connect_observer(connect_logger("jmap"))
+    fn engine_config(
+        &self,
+        source: Arc<dyn CredentialSource>,
+        tls: engine_tls::TlsClientConfig,
+        account: &AccountId,
+    ) -> JmapConfig {
+        JmapConfig::from_credential_source(self.base_url.clone(), source, crate::user_agent())
+            .with_tls(tls)
+            .with_retry(account_retry(account))
+            .with_connect_observer(connect_logger("jmap"))
     }
 
     /// Serializes this config to the `[jmap]` TOML a host stores in its OS secure
@@ -326,14 +366,14 @@ mod tests {
             token: Some(Secret::new("tok".to_owned())),
             ..basic_config()
         };
-        assert!(matches!(both.credentials(), Credentials::Bearer(_)));
+        assert!(matches!(both.credentials(), Some(Credentials::Bearer(_))));
         let parsed = load_jmap_str(&both.to_toml().unwrap()).unwrap();
         assert!(parsed.token.is_some() && parsed.password.is_none());
     }
 
     #[test]
     fn basic_credentials_use_the_email_as_username() {
-        match basic_config().credentials() {
+        match basic_config().credentials().expect("a stored password") {
             Credentials::Basic { username, password } => {
                 assert_eq!(username, "Alice@Example.com");
                 assert_eq!(password, "hunter2");

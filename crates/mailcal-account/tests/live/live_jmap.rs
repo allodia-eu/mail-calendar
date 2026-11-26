@@ -70,10 +70,8 @@ async fn jmap_account_connects_syncs_and_reads_a_body() {
         "JMAP advertises on-demand message-source fetch"
     );
     // And the width the body warm paces itself by, which the server states in its session
-    // (RFC 8620 §2 `maxConcurrentRequests`; the harness grants 4). This is the basic-auth
-    // path, so what it proves is the adapter reaching the host through `connect_one`; the
-    // OAuth path wraps the provider and has to forward the value instead, which is
-    // `delegate_info`'s job, covered by its own tests.
+    // (RFC 8620 §2 `maxConcurrentRequests`; the harness grants 4). An OAuth account connects
+    // the same plain provider over its token source, so this holds for it too.
     assert!(
         provider.connection_info().concurrent_fetches > 1,
         "the session's concurrency limit reaches the host, rather than the default of one",

@@ -27,6 +27,7 @@ impl MailcalApp {
                 .cloned()
                 .unwrap_or_else(|| account.to_owned())
         };
+        let edits_servers = |account: &str| self.registry.server_form(account).is_some();
         let questions = self.questions();
         let signing_in = self.account_work.browser.working_account();
         let facts = NoticeFacts {
@@ -35,6 +36,7 @@ impl MailcalApp {
             folder_notice: self.app.folder_notice().map(Into::into),
             provider: &provider,
             address: &address,
+            edits_servers: &edits_servers,
             questions: &questions,
             signing_in: signing_in.as_deref(),
             settings_not_saved: self.app.preferences_not_saved(),

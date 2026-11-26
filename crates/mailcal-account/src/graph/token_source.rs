@@ -5,6 +5,9 @@
 //! from the stored refresh token when the cached one is stale) on demand, and reports a
 //! rotated refresh token to the host via [`TokenSink`] to be re-persisted in the OS keystore.
 //!
+//! It is the account's [`CredentialSource`](engine_provider::CredentialSource) too: one `Arc` per
+//! account, which every adapter of the account asks for the token it presents (`credential`).
+//!
 //! It used to own the account's **concurrency gate** too, and that was wrong in a way worth
 //! remembering: the semaphore was a field here, so two cores for one account meant two
 //! ceilings of four against a mailbox that allows four in total. The bound now lives where
@@ -15,11 +18,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_core::ids::AccountId;
+use engine_provider::CredentialSubject;
 use mailcal_oauth::{GrantedScopes, OAuthClient, TokenRequestReach};
 use time::{Duration, OffsetDateTime};
 
 use crate::{AccountError, MicrosoftConfig};
 
+mod credential;
 mod failure;
 mod shared;
 
@@ -63,6 +68,10 @@ pub trait TokenSink: Send + Sync {
 pub struct GraphTokenSource {
     oauth: OAuthClient,
     pub(super) account: AccountId,
+    /// The account id, as the engine keys what is authenticated.
+    subject: CredentialSubject,
+    /// The name the account signs in as, which IMAP and SMTP SASL present beside the token.
+    username: String,
     /// Which provider family this source serves (`graph` / `google` / `jmap`): the shared
     /// type is provider-neutral, and a refresh log line that cannot say *whose* token it is
     /// answers half the question. Safe to log: it names the protocol and nothing else.
@@ -82,9 +91,9 @@ pub struct GraphTokenSource {
 
 impl core::fmt::Debug for GraphTokenSource {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // Never surface either token.
+        // Never surface a token, or the account id and sign-in name, which are addresses.
         f.debug_struct("GraphTokenSource")
-            .field("account", &self.account)
+            .field("account", &crate::account_log_handle(self.account.as_str()))
             .finish_non_exhaustive()
     }
 }
@@ -107,6 +116,7 @@ impl GraphTokenSource {
         Ok(Self::from_parts(
             oauth,
             account,
+            &config.email,
             config.refresh_token.expose().to_owned(),
             sink,
             "graph",
@@ -115,11 +125,13 @@ impl GraphTokenSource {
     }
 
     /// Builds a token source from an already-constructed [`OAuthClient`]: the seam
-    /// offline tests use to point the refresh at a mock token endpoint.
+    /// offline tests use to point the refresh at a mock token endpoint. `username` is the name
+    /// the account signs in as.
     #[must_use]
     pub fn from_parts(
         oauth: OAuthClient,
         account: AccountId,
+        username: &str,
         refresh_token: String,
         sink: Option<Arc<dyn TokenSink>>,
         provider: &'static str,
@@ -128,6 +140,8 @@ impl GraphTokenSource {
         let credential = credential_for(&account, refresh_token, origin);
         Arc::new(Self {
             oauth,
+            subject: CredentialSubject::new(account.as_str()),
+            username: username.to_owned(),
             account,
             provider,
             sink,
@@ -174,7 +188,10 @@ impl GraphTokenSource {
     /// # Errors
     ///
     /// As [`access_token`](Self::access_token).
-    pub async fn access_token_replacing(&self, refused: &str) -> Result<String, AccountError> {
+    pub(crate) async fn access_token_replacing(
+        &self,
+        refused: &str,
+    ) -> Result<String, AccountError> {
         {
             let mut state = self
                 .credential

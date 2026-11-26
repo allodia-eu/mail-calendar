@@ -70,6 +70,12 @@ impl MailcalApp {
         page.sign_in = self.sign_in_section(&entry, sign_in_refused, edits_servers, &hold);
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
+            servers.insecure_server = self
+                .app
+                .insecure_server_accounts()
+                .into_iter()
+                .find(|(account, _)| *account == account_id)
+                .map(|(_, cause)| cause.into());
         }
         page.separate_server = self.separate_section(&account_id, &hold);
         page.sharing = self.sharing_section(&account_id, &hold);

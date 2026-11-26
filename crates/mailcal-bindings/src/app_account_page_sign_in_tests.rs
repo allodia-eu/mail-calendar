@@ -55,6 +55,30 @@ fn settled(app: &MailcalApp) -> AccountPage {
     }
 }
 
+/// A server reached only over plaintext is given a secure address in the servers' own fields,
+/// so the section says why, rather than asking for a new password.
+#[test]
+fn a_server_reached_only_over_plaintext_is_said_beside_the_servers() {
+    let app = app("account-page-insecure-server");
+    let page = settled(&app);
+    assert_eq!(
+        page.servers.as_ref().expect("editable").insecure_server,
+        None
+    );
+
+    app.app.note_insecure_server(
+        &engine_api::AccountId::try_from(ID).unwrap(),
+        mailcal_account::InsecureCause::PlaintextAddress,
+    );
+    let page = settled(&app);
+    let servers = page.servers.expect("editable");
+    assert_eq!(
+        servers.insecure_server,
+        Some(crate::InsecureCause::PlaintextAddress)
+    );
+    assert!(!servers.sign_in_refused);
+}
+
 #[test]
 fn a_refused_password_is_said_beside_the_servers_that_take_the_new_one() {
     let app = app("account-page-sign-in-refused");

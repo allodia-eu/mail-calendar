@@ -105,13 +105,10 @@ async fn not_found_is_a_response_with_a_non_success_status() {
 
 #[tokio::test]
 async fn refused_connection_is_a_network_error() {
-    // Bind then drop to obtain a port nothing is listening on.
-    let addr = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap();
+    // Port 1: nothing listens there, and no other test's server can be given it, as a port a
+    // listener was bound to and dropped can be.
     let outcome = fetcher(&DetectConfig::default())
-        .get(&Url::parse(&format!("http://{addr}/config")).unwrap())
+        .get(&Url::parse("http://127.0.0.1:1/config").unwrap())
         .await;
     assert!(
         matches!(outcome, FetchOutcome::NetworkError),

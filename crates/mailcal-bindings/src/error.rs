@@ -44,6 +44,20 @@ pub enum MailcalError {
         /// What the server said, for the diagnostic log.
         reason: String,
     },
+    /// The server is reached only over plaintext, so no sign-in is sent to it: its address is
+    /// `http://` off this device, or the server led there from a secure one.
+    ///
+    /// Its own outcome so a client can say so in the person's language: neither a refused sign-in
+    /// (no new password clears it) nor an outage (no retry does). `reason` is the engine's words,
+    /// for the diagnostic log, and the display carries it alone.
+    #[error("{reason}")]
+    InsecureServer {
+        /// Why the sign-in was not sent, for the diagnostic log.
+        reason: String,
+        /// Whether the address is a plaintext one or the server led there, which decide what
+        /// clears it. Not `cause`, which a generated exception already has.
+        insecure_cause: crate::InsecureCause,
+    },
     /// The account being added is already set up: an account's id is its mailbox (login and
     /// server), not how it signs in, so a second add for the same mailbox would replace the first.
     ///

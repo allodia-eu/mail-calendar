@@ -19,7 +19,9 @@ use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 
 use crate::{
-    AccountConfig, AccountError, ImapTokens, imap_credential_source, pass_syncs,
+    AccountConfig, AccountError, AccountTokens,
+    error::SignsIn,
+    imap_credential_source, pass_syncs,
     reconnect::{ReconnectingImapProvider, Redial},
     tls::account_tls,
 };
@@ -81,7 +83,7 @@ impl ImapConnections {
     async fn connect(
         &self,
         config: &AccountConfig,
-        tokens: ImapTokens<'_>,
+        tokens: AccountTokens<'_>,
     ) -> Result<Arc<LiveImapAccount>, AccountError> {
         let _connecting = self.connecting.lock().await;
         let account = Arc::new(connect_account(config, tokens).await?);
@@ -100,7 +102,7 @@ impl ImapConnections {
     async fn current_or_connect(
         &self,
         config: &AccountConfig,
-        tokens: ImapTokens<'_>,
+        tokens: AccountTokens<'_>,
     ) -> Result<Arc<LiveImapAccount>, AccountError> {
         if let Some(account) = self.current() {
             return Ok(account);
@@ -122,14 +124,17 @@ impl ImapConnections {
 /// account's hundredth connection presents a token that is valid when it is dialled.
 async fn connect_account(
     config: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
 ) -> Result<LiveImapAccount, AccountError> {
     let tls = account_tls(config)?;
     let credentials = imap_credential_source(config, tokens)?;
     let imap = config.imap_config(credentials)?;
     LiveImapAccount::connect(&imap, tls.connector())
         .await
-        .map_err(|err| AccountError::from_first_imap_login(err).over_tls(&tls))
+        .map_err(|err| {
+            AccountError::from_first_imap_login(err, SignsIn::grant_if(config.is_oauth()))
+                .over_tls(&tls)
+        })
 }
 
 /// The store `shared` names, opened by `imap`'s login and drawing on its connections; `imap`
@@ -180,7 +185,7 @@ fn make_imap_redial(imap: Arc<LiveImapAccount>, mailbox: MailboxId) -> Redial {
 pub async fn connect_imap_mailbox(
     connections: &ImapConnections,
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
     mailbox: &str,
     shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
@@ -208,7 +213,7 @@ pub async fn connect_imap_mailbox(
 pub async fn connect_imap_watcher(
     connections: &ImapConnections,
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
     mailbox: &str,
     shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Watch>, AccountError> {
@@ -259,7 +264,7 @@ pub async fn connect_imap_watcher(
 pub async fn connect_mail_providers(
     connections: &ImapConnections,
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
     account_id: &AccountId,
     shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {

@@ -19,6 +19,9 @@ pub(crate) struct ConnectivitySnapshot {
     /// Accounts whose stored sign-in the server refuses. Such an account is absent from
     /// `unreachable_accounts`.
     pub(crate) signin_expired_accounts: Vec<String>,
+    /// Accounts whose own server is reached only over plaintext, so no sign-in is sent to it,
+    /// and why. Such an account is absent from `unreachable_accounts`.
+    pub(crate) insecure_server_accounts: Vec<(String, mailcal_account::InsecureCause)>,
     /// Calendars that did not connect on an account that did, with why (`docs/accounts.md`
     /// rule 16). An unreachable one is left out while `offline`, and an account in
     /// `signin_expired_accounts` is left out.
@@ -53,6 +56,7 @@ impl MailcalApp {
             &self.registry.facts(),
             mailcal_account::gmail_mail_route,
         );
+        snapshot.insecure_server_accounts = self.app.insecure_server_accounts();
         snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
         #[cfg(feature = "allodia-license")]
         {

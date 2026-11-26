@@ -111,7 +111,7 @@ async fn bounded_by(
 /// receives what the connect said about where the next one starts.
 pub(crate) async fn connect_caldav_contacts(
     config: &AccountConfig,
-    tokens: mailcal_account::ImapTokens<'_>,
+    tokens: mailcal_account::AccountTokens<'_>,
     used_for_mail: bool,
     learned: &std::sync::Mutex<mailcal_account::Learned>,
 ) -> Bound {

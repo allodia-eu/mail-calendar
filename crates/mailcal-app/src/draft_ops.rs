@@ -13,11 +13,12 @@
 //! classes only (`docs/logging.md`).
 
 use core::time::Duration;
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 use engine_api::{
-    AccountId, Draft, DraftPut, DrainOutcome, DrainReport, EmailAddress, Keyword, MessageIdHeader,
-    OpRejection, PendingOpId, PendingOpKind, Provider, ProviderKey, PutDraftOutcome,
+    AccountId, Draft, DraftPut, DrainOutcome, DrainReport, EmailAddress, MessageIdHeader,
+    MessageMetadata, OpRejection, PendingOpId, PendingOpKind, Provider, ProviderKey,
+    PutDraftOutcome,
 };
 use mailcal_composer::ComposerDocument;
 
@@ -147,11 +148,11 @@ impl<P: Provider> App<P> {
             return self.fail_draft(composition, "the draft could not be rendered");
         };
         let draft = self.with_composition(Some(composition), draft);
-        let keywords = self.draft_keywords(composition);
+        let metadata = self.draft_metadata(composition);
 
         // Nothing changed since the last save, so there is nothing to write. Still "saved":
         // what the user asked to keep is on the server (`docs/drafts.md`).
-        let digest = digest(&draft, &keywords);
+        let digest = digest(&draft, &metadata);
         if self.already_saved(composition, digest) {
             return self.set_draft_status(composition, DraftStatus::Saved);
         }
@@ -160,13 +161,13 @@ impl<P: Provider> App<P> {
         let replacing = self.composition_key(composition);
         let acct = self.account_ordinal(&account).await;
         match self
-            .put_draft(&account, &draft, replacing.as_ref(), &keywords)
+            .put_draft(&account, &draft, replacing.as_ref(), &metadata)
             .await
         {
             Some(Ok(saved)) => {
                 log::info!("drafts[a{acct}]: the draft is saved on the server");
-                let kept = Some(&saved.keywords);
-                self.drafted_save_settled(&account, &draft.message_id, &keywords, kept);
+                let kept = Some(&saved.kept);
+                self.drafted_save_settled(&account, &draft.message_id, &metadata, kept);
                 self.record_save(composition, saved.key, digest);
                 self.set_draft_status(composition, DraftStatus::Saved);
                 // So the Drafts folder shows what was just put in it.
@@ -178,7 +179,7 @@ impl<P: Provider> App<P> {
             // key is deliberately left alone; the drain records its own.
             Some(Err(err)) => {
                 if let Some(op) = self.queued_save(&account, &draft).await {
-                    self.drafted_save_settled(&account, &draft.message_id, &keywords, None);
+                    self.drafted_save_settled(&account, &draft.message_id, &metadata, None);
                     log::info!(
                         "drafts[a{acct}]: the save is queued as write {} until the server can be \
                          reached: {err}",
@@ -266,20 +267,20 @@ impl<P: Provider> App<P> {
         let _ = self.forget(composition);
     }
 
-    /// Saves through `account`'s first provider, asking for `keywords` on the stored copy. `None`
+    /// Saves through `account`'s first provider, asking for `metadata` on the stored copy. `None`
     /// when it has none to save through; the inner result is the engine's.
     async fn put_draft(
         &self,
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> Option<Result<PutDraftOutcome, engine_api::ApiError>> {
         let acct = self.account_handle(account).await?;
         let provider = acct.providers.first()?;
         Some(
             self.engine
-                .put_draft(provider, account, draft, replacing, keywords)
+                .put_draft(provider, account, draft, replacing, metadata)
                 .await,
         )
     }

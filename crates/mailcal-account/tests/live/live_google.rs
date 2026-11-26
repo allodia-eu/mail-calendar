@@ -1,12 +1,12 @@
 //! Gated live check that the **product** Gmail path can write, end to end against a real
 //! Google account: build a [`GoogleConfig`] from a stored refresh token, connect the
 //! account's mail provider, and drive `submit_email` + `edit_mail` **through the
-//! token-refreshing wrapper** the app actually uses.
+//! reconnecting wrapper** the app actually uses.
 //!
 //! This exists because the engine's own live tests cannot catch the bug it pins. They
 //! drive `GmailProvider` **directly**, which has always implemented `edit_mail` and
 //! `submit_email`; while the product wrapper around it
-//! (`mailcal_account::google::RefreshingGmailProvider`) advertised mail read/sync only and
+//! (`mailcal_account::google::ReconnectingGmailProvider`) advertised mail read/sync only and
 //! forwarded neither. So every archive, delete, mark-read and send on a Google account
 //! failed with `InvalidState: provider does not support mail writes`, with a fully green
 //! engine suite. A capability the wrapper does not forward is invisible to every test that
@@ -44,7 +44,7 @@ fn self_address() -> String {
 }
 
 /// A Google config built from the environment, or `None` to skip the gated test.
-fn config() -> Option<GoogleConfig> {
+pub(super) fn config() -> Option<GoogleConfig> {
     let refresh_token = std::env::var("GOOGLE_REFRESH_TOKEN")
         .ok()
         .filter(|t| !t.is_empty())?;

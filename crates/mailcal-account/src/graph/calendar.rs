@@ -1,21 +1,19 @@
 //! Building the Microsoft Graph **calendar** provider a Microsoft account syncs its agenda
-//! through, with automatic OAuth token refresh: the calendar parallel of the mail providers
-//! in the parent module.
+//! through: the calendar parallel of the mail providers in the parent module.
 //!
-//! Like the mail side, the engine's [`GraphCalendarProvider`] takes a **static** bearer token,
-//! so this wraps it in a [`RefreshingGraphCalendarProvider`] that mints a fresh access token
-//! before each network call and delegates to a freshly built provider (reusing its warm
-//! connection pool while the token is unchanged, rebuilt only when the token refreshes). One
-//! provider serves every calendar of the mailbox and carries the host's display zone, which the
-//! `Prefer: outlook.timezone` read needs (see the engine's `graph.md` → Calendar). The date range
-//! `calendarView/delta` needs is the engine's to name, on each fetch (`docs/calendar.md` §4).
+//! One [`ReconnectingGraphCalendarProvider`] serves every calendar of the mailbox and forwards to
+//! a [`GraphCalendarProvider`] on a client that asks the account's token source for the token on
+//! each request. It carries the host's display zone, which the `Prefer: outlook.timezone` read
+//! needs (see the engine's `graph.md` → Calendar). The date range `calendarView/delta` needs is
+//! the engine's to name, on each fetch (`docs/calendar.md` §4).
 //!
 //! **Reads** (`sync_calendars` / `sync_events`) are idempotent GET/delta calls, so they get the
-//! same rate-limit backoff + one-shot reconnect loop the mail providers use. **Writes**
-//! (`create` / `patch` / `delete`) are single-attempt: a blind retry of a non-idempotent `POST`
-//! could double-create, and the app surfaces a failed write for the user to retry.
+//! same one-shot reconnect loop the mail providers use. **Writes** (`create` / `patch` /
+//! `delete`) are single-attempt: a blind retry of a non-idempotent `POST` could double-create,
+//! and the app surfaces a failed write for the user to retry; one that met a dead connection
+//! still replaces the client.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_api::{CalendarSync, CalendarWrites};
@@ -26,160 +24,69 @@ use engine_core::{
     time::{Horizon, TimeZoneId},
 };
 use engine_provider::{
-    CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
-    EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError,
-    ProviderResult, ScopeSync, SharedAccount, SharedAccounts, WriteGuard,
+    CalendarListing, CalendarUserAddresses, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
+    EventRsvp, EventWriteReceipt, Provider, ProviderError, ProviderResult, ScopeSync,
+    SharedAccount,
 };
-use engine_tls::TlsClientConfig;
-use provider_graph::{GraphCalendarProvider, GraphClient, MailboxPrincipal};
+use provider_graph::{GraphCalendarProvider, GraphClient};
 
-use super::{GraphTokenSource, should_reconnect};
-use crate::{AccountError, tls::tls_with};
-
-/// What a Graph series edit costs the occurrences the user changed by hand: moving the
-/// series' time **or** changing its rule destroys every one of them.
-///
-/// The **fallback** copy of the engine adapter's own constant, for the window before a
-/// delegate exists; `connection_info` reports the delegate's once one is built, and that is
-/// the value the engine's live suite measures against the real server. A host reading
-/// capabilities before the first token fetch must not be told a Graph series edit is free.
-const GRAPH_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
-    survives_time_change: false,
-    survives_rule_change: false,
-    clobbers_own_fields: false,
+use super::{GraphTokenSource, account_client};
+use crate::{
+    AccountError,
+    shared_client::{Delegate, SharedClient},
+    tls::tls_with,
 };
 
-/// A [`Provider`] for every calendar of a Graph mailbox that refreshes its access token before
-/// every network call and delegates to a freshly built [`GraphCalendarProvider`]. Internal; the
-/// account layer hands callers `Box<dyn Provider>` from [`connect_graph_calendar_provider`],
-/// never the concrete type.
+/// A [`Provider`] for every calendar of a Graph mailbox that forwards to a
+/// [`GraphCalendarProvider`] and replaces its client once after a read fails on a dead
+/// connection. Internal; the account layer hands callers `Box<dyn Provider>` from
+/// [`connect_graph_calendar_provider`], never the concrete type.
 #[derive(Debug)]
-pub(crate) struct RefreshingGraphCalendarProvider {
-    /// The shared, self-refreshing token source, shared with the account's mail providers so
-    /// one refresh (and one per-mailbox concurrency gate) serves them all.
-    tokens: Arc<GraphTokenSource>,
-    /// The capabilities reported before the first call builds a delegate (calendar read +
-    /// server-enforced write guard); Graph rejects a stale `If-Match` with a `412`.
-    capabilities: Capabilities,
-    /// The host display zone sent as `Prefer: outlook.timezone`, so Graph returns each event's
-    /// wall clock in it and a recurring series expands DST-correctly.
-    display_zone: TimeZoneId,
-    /// The account's shared TLS policy, cloned into each rebuilt Graph client.
-    tls: TlsClientConfig,
-    /// Whose calendars: the signed-in user's, or a shared store's (`/users/{address}`).
-    principal: MailboxPrincipal,
-    /// The built delegate, cached by the access token it was built with, so its reqwest
-    /// connection pool is reused across requests; rebuilt only when the token refreshes.
-    cached: Mutex<Option<(String, Arc<GraphCalendarProvider>)>>,
+pub(crate) struct ReconnectingGraphCalendarProvider {
+    delegate: Delegate<GraphClient, GraphCalendarProvider>,
 }
 
-impl RefreshingGraphCalendarProvider {
-    /// A refreshing calendar provider sharing `tokens` (and its concurrency gate) with the
-    /// account's mail providers.
-    #[must_use]
+impl ReconnectingGraphCalendarProvider {
+    /// A calendar provider on `client`, reading event times in `display_zone`, the host's zone,
+    /// sent as `Prefer: outlook.timezone` so Graph returns each event's wall clock in it and a
+    /// recurring series expands DST-correctly.
+    ///
+    /// # Errors
+    ///
+    /// When the client cannot be built.
     pub(crate) fn new(
-        tokens: Arc<GraphTokenSource>,
+        client: Arc<SharedClient<GraphClient>>,
         display_zone: TimeZoneId,
-        tls: TlsClientConfig,
-        principal: MailboxPrincipal,
-    ) -> Self {
-        Self {
-            tokens,
-            capabilities: Capabilities::none()
-                .with_calendars()
-                .with_calendar_writes(WriteGuard::Enforced, GRAPH_OVERRIDE_SURVIVAL)
-                // Graph schedules server-side, with no opt-out a client could reach: an RSVP
-                // stored here reaches the organiser without us sending anything. Only the
-                // *fallback* set; `connection_info` reports the delegate's own once one is
-                // built, but a host that reads capabilities before the first token fetch must
-                // not be told this account needs client-side iMIP, which would have it send a
-                // second, duplicate answer.
-                .with_calendar_scheduling()
-                // The engine names the window a snapshot opens over, and reads this before the
-                // first token fetch too: told the fetch is whole, it would never fetch a range.
-                .with_windowed_events()
-                // Graph lists no shared store and answers for an address, whichever store this
-                // provider is bound to.
-                .with_shared_accounts(SharedAccounts::ByAddress),
-            display_zone,
-            tls,
-            principal,
-            cached: Mutex::new(None),
-        }
-    }
-
-    /// Returns the delegate `GraphCalendarProvider`, reusing the cached one while the access
-    /// token is unchanged and rebuilding it (and its warm connection pool) only when a refresh
-    /// produced a new token.
-    async fn delegate(&self) -> ProviderResult<Arc<GraphCalendarProvider>> {
-        let token = self.tokens.access_token().await.map_err(|err| match err {
-            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
-            other => ProviderError::retryable(other.to_string()),
-        })?;
-        {
-            let cache = self
-                .cached
-                .lock()
-                .expect("graph calendar delegate mutex poisoned");
-            if let Some((cached_token, provider)) = cache.as_ref()
-                && *cached_token == token
-            {
-                return Ok(Arc::clone(provider));
-            }
-        }
-        let client = GraphClient::for_mailbox(
-            token.clone(),
-            self.principal.clone(),
-            &self.tls,
-            &self.tokens.retry(),
-            &crate::user_agent(),
-        )
-        .map_err(ProviderError::from)?;
-        let provider = Arc::new(GraphCalendarProvider::new(
-            client,
-            self.display_zone.clone(),
-        ));
-        *self
-            .cached
-            .lock()
-            .expect("graph calendar delegate mutex poisoned") =
-            Some((token, Arc::clone(&provider)));
-        Ok(provider)
-    }
-
-    /// Drops the cached delegate so the next [`delegate`](Self::delegate) rebuilds a fresh client
-    /// ; used after a retryable transport failure whose keep-alive socket is presumed dead (the
-    /// token is unchanged, so this only rebuilds the client).
-    fn invalidate_delegate(&self) {
-        *self
-            .cached
-            .lock()
-            .expect("graph calendar delegate mutex poisoned") = None;
+    ) -> ProviderResult<Self> {
+        Ok(Self {
+            delegate: Delegate::new(client, move |client| {
+                GraphCalendarProvider::new(client, display_zone.clone())
+            })?,
+        })
     }
 }
 
+/// The engine adapter's own answers, capabilities included: it states what a Graph series edit
+/// costs the occurrences changed by hand, that Graph schedules server-side (so a host sends no
+/// iMIP answer of its own beside Graph's), and that the engine names the window a snapshot opens
+/// over.
 #[async_trait]
-impl Provider for RefreshingGraphCalendarProvider {
+impl Provider for ReconnectingGraphCalendarProvider {
     fn connection_info(&self) -> ConnectionInfo {
-        self.cached
-            .lock()
-            .expect("graph calendar delegate mutex poisoned")
-            .as_ref()
-            .map_or_else(
-                || ConnectionInfo::new(self.capabilities),
-                |(_, provider)| provider.connection_info(),
-            )
+        self.delegate.last().connection_info()
     }
 
-    /// Forwarded, because this wrapper advertises `ByAddress`: Graph checks an address with a
+    /// Forwarded, because the adapter advertises `ByAddress`: Graph checks an address with a
     /// calendar probe.
     async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
-        self.delegate().await?.resolve_shared_account(address).await
+        self.delegate
+            .retrying(|provider| async move { provider.resolve_shared_account(address).await })
+            .await
     }
 }
 
 #[async_trait]
-impl CalendarSync for RefreshingGraphCalendarProvider {
+impl CalendarSync for ReconnectingGraphCalendarProvider {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::GraphCalendarList {
             account: account.clone(),
@@ -198,19 +105,9 @@ impl CalendarSync for RefreshingGraphCalendarProvider {
         account: &AccountId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<CalendarListing> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sync_calendars(account, cursor).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.sync_calendars(account, cursor).await })
+            .await
     }
 
     async fn sync_events(
@@ -220,38 +117,30 @@ impl CalendarSync for RefreshingGraphCalendarProvider {
         cursor: Option<&SyncState>,
         window: Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider
-                .sync_events(account, calendar, cursor, window)
-                .await
-            {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move {
+                provider
+                    .sync_events(account, calendar, cursor, window)
+                    .await
+            })
+            .await
     }
 }
 
-impl engine_api::MailboxWrites for RefreshingGraphCalendarProvider {}
+impl engine_api::MailboxWrites for ReconnectingGraphCalendarProvider {}
 
 #[async_trait]
-impl CalendarWrites for RefreshingGraphCalendarProvider {
+impl CalendarWrites for ReconnectingGraphCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,
         draft: &EventDraft,
     ) -> ProviderResult<EventWriteReceipt> {
         // A create is a non-idempotent `POST`; a blind retry could double-create, so this makes a
-        // single attempt (the token is refreshed by `delegate`). A failure surfaces to the app.
-        let provider = self.delegate().await?;
-        provider.create_event(account, draft).await
+        // single attempt. A failure surfaces to the app.
+        self.delegate
+            .once(|provider| async move { provider.create_event(account, draft).await })
+            .await
     }
 
     async fn patch_event(
@@ -262,8 +151,9 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
     ) -> ProviderResult<EventWriteReceipt> {
         // `If-Match`-guarded, so a retry after a partial success risks a spurious `412`. Single
         // attempt, like `create_event`.
-        let provider = self.delegate().await?;
-        provider.patch_event(account, base, edit).await
+        self.delegate
+            .once(|provider| async move { provider.patch_event(account, base, edit).await })
+            .await
     }
 
     async fn delete_event(
@@ -272,8 +162,9 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         base: Option<&Event>,
         deletion: &EventDeletion,
     ) -> ProviderResult<()> {
-        let provider = self.delegate().await?;
-        provider.delete_event(account, base, deletion).await
+        self.delegate
+            .once(|provider| async move { provider.delete_event(account, base, deletion).await })
+            .await
     }
 
     async fn rsvp_event(
@@ -283,24 +174,25 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         rsvp: &EventRsvp,
     ) -> ProviderResult<EventWriteReceipt> {
         // Guarded like a patch, so a single attempt.
-        let provider = self.delegate().await?;
-        provider.rsvp_event(account, base, rsvp).await
+        self.delegate
+            .once(|provider| async move { provider.rsvp_event(account, base, rsvp).await })
+            .await
     }
 
     async fn calendar_user_addresses(
         &self,
         account: &AccountId,
     ) -> ProviderResult<CalendarUserAddresses> {
-        let provider = self.delegate().await?;
-        provider.calendar_user_addresses(account).await
+        self.delegate
+            .retrying(|provider| async move { provider.calendar_user_addresses(account).await })
+            .await
     }
 }
 
 /// Connects the Graph calendar provider a Microsoft account syncs its agenda through: **one**
-/// token-refreshing provider for every calendar of the mailbox, or of the shared store `shared`
-/// names, carrying the host's `display_zone`. Reads the
-/// calendar list once with a fresh token first, so a token without the calendar scope is refused
-/// here rather than on every refresh.
+/// provider for every calendar of the mailbox, or of the shared store `shared` names, carrying
+/// the host's `display_zone`. Reads the calendar list once first, so a token without the calendar
+/// scope is refused here rather than on every pass.
 ///
 /// The caller connects this only for its non-fatal effect: a calendar failure (an account whose
 /// OAuth grant predates the `Calendars.ReadWrite` scope 403s here) leaves mail up with an empty
@@ -316,41 +208,29 @@ pub async fn connect_graph_calendar_provider(
     shared: Option<&engine_core::ids::SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
-    let principal = super::principal(shared)?;
-    let calendars =
-        list_calendars(account_id, &tokens, &tls, display_zone.clone(), &principal).await?;
+    // A dead grant fails here as a sign-in to repeat, rather than as a calendar list that failed.
+    tokens.access_token().await?;
+    let client = account_client(tokens, super::principal(shared)?, tls);
+    let provider = ReconnectingGraphCalendarProvider::new(client, display_zone)
+        .map_err(|err| AccountError::Graph(err.to_string()))?;
+    let calendars = list_calendars(account_id, &provider).await?;
     log::debug!(
         "graph: calendar list returned {} calendar(s)",
         calendars.len()
     );
-    Ok(Box::new(RefreshingGraphCalendarProvider::new(
-        tokens,
-        display_zone,
-        tls,
-        principal,
-    )))
+    Ok(Box::new(provider))
 }
 
-/// Enumerates the account's calendars (a full snapshot) with a one-off client on a fresh access
-/// token: the parallel of the mail side's `list_folders`.
+/// Enumerates the account's calendars (a full snapshot) through `provider`: the parallel of the
+/// mail side's `list_folders`.
 async fn list_calendars(
     account_id: &AccountId,
-    tokens: &Arc<GraphTokenSource>,
-    tls: &TlsClientConfig,
-    display_zone: TimeZoneId,
-    principal: &MailboxPrincipal,
+    provider: &ReconnectingGraphCalendarProvider,
 ) -> Result<Vec<Calendar>, AccountError> {
-    let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(
-        token,
-        principal.clone(),
-        tls,
-        &tokens.retry(),
-        &crate::user_agent(),
-    )
-    .map_err(|err| AccountError::Graph(err.to_string()))?;
     log::debug!("graph: fetching calendar list");
-    let listing = GraphCalendarProvider::new(client, display_zone)
+    let listing = provider
+        .delegate
+        .last()
         .sync_calendars(account_id, None)
         .await
         .map_err(|err| {

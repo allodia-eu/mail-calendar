@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{action_label, detail, mark, title};
 use crate::{
-    FolderAction, FolderProblem, InvitationResponse, NoticeAction, NoticeKind, NoticeText,
-    UseProblem,
+    FolderAction, FolderProblem, InsecureCause, InvitationResponse, NoticeAction, NoticeKind,
+    NoticeText, UseProblem,
 };
 
 const CATALOG: &str = include_str!("../../../messages/en.json");
@@ -20,11 +20,14 @@ fn catalog() -> BTreeMap<String, String> {
         .collect()
 }
 
+/// The arguments `template` takes. `{app_name}` is none: the build writes the product's name in
+/// its place (`mailcal-l10n`), so the core never gives it.
 fn placeholders(template: &str) -> BTreeSet<String> {
     template
         .split('{')
         .skip(1)
         .filter_map(|rest| rest.split_once('}').map(|(name, _)| name.to_owned()))
+        .filter(|name| name != "app_name")
         .collect()
 }
 
@@ -38,6 +41,8 @@ fn every_kind() -> Vec<NoticeKind> {
     let problems = [
         UseProblem::Unreachable,
         UseProblem::SignInRefused,
+        UseProblem::PlaintextAddress,
+        UseProblem::LedToPlaintext,
         UseProblem::NeedsOwnSignIn,
         UseProblem::ServerChanged,
         UseProblem::NoneOnServer,
@@ -51,6 +56,22 @@ fn every_kind() -> Vec<NoticeKind> {
     outages
         .chain([
             NoticeKind::SignInExpired,
+            NoticeKind::InsecureServer {
+                cause: InsecureCause::PlaintextAddress,
+                address_editable: true,
+            },
+            NoticeKind::InsecureServer {
+                cause: InsecureCause::PlaintextAddress,
+                address_editable: false,
+            },
+            NoticeKind::InsecureServer {
+                cause: InsecureCause::LedToPlaintext,
+                address_editable: true,
+            },
+            NoticeKind::InsecureServer {
+                cause: InsecureCause::LedToPlaintext,
+                address_editable: false,
+            },
             NoticeKind::MailReauth,
             NoticeKind::CalendarReauth,
             NoticeKind::Unreachable,
@@ -142,13 +163,65 @@ fn an_outage_the_reply_question_and_an_unsaved_setting_have_a_detail_and_each_pr
         .collect();
     assert_eq!(
         details.len(),
-        12,
-        "five problems for each of two uses, where a reply's next time is chosen, and how long \
-         an unsaved setting holds"
+        20,
+        "seven problems for each of two uses, where a reply's next time is chosen, how long an \
+         unsaved setting holds, and what clears a server reached only over plaintext, four ways"
     );
     assert!(details.contains("notice_detail_reply_not_delivered"));
     assert!(details.contains("notice_detail_settings_not_saved"));
     assert_eq!(detail(&NoticeKind::SignInExpired), None);
+}
+
+/// No new sign-in clears a server reached only over plaintext, so its notice says what does: a
+/// secure address, given on the account's page where its servers are changed there and by adding
+/// the account again where they are not; or, where the server led there, its operator, or a
+/// secure address for the same service where it has one, given on the account's page where its
+/// servers are changed there.
+#[test]
+fn a_server_reached_only_over_plaintext_says_what_clears_it() {
+    let said = |cause, address_editable| {
+        let kind = NoticeKind::InsecureServer {
+            cause,
+            address_editable,
+        };
+        (
+            title(&kind, "anna@example.org").key,
+            detail(&kind).map(|text| text.key),
+            mark(&kind).map(|text| text.key),
+        )
+    };
+    let words = |title: &str, detail: &str| {
+        (
+            title.to_owned(),
+            Some(detail.to_owned()),
+            Some("notice_mark_insecure_server".to_owned()),
+        )
+    };
+    assert_eq!(
+        said(InsecureCause::PlaintextAddress, true),
+        words(
+            "notice_plaintext_address",
+            "notice_detail_plaintext_address_editable"
+        )
+    );
+    assert_eq!(
+        said(InsecureCause::PlaintextAddress, false),
+        words(
+            "notice_plaintext_address",
+            "notice_detail_plaintext_address"
+        )
+    );
+    assert_eq!(
+        said(InsecureCause::LedToPlaintext, true),
+        words(
+            "notice_led_to_plaintext",
+            "notice_detail_led_to_plaintext_editable"
+        )
+    );
+    assert_eq!(
+        said(InsecureCause::LedToPlaintext, false),
+        words("notice_led_to_plaintext", "notice_detail_led_to_plaintext")
+    );
 }
 
 #[test]

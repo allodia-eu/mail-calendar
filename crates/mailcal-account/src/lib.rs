@@ -23,6 +23,7 @@ mod connect_log;
 mod consent;
 mod contacts;
 mod contacts_edit;
+mod contacts_reconnect;
 mod dav_starts;
 mod delegate_info;
 /// Dev-only extra-CA trust for the local test harness; compiled out of production builds (present
@@ -37,9 +38,12 @@ mod event_detail;
 mod event_meeting;
 mod google;
 mod graph;
+#[cfg(test)]
+mod http_fake;
 mod imap;
 mod imap_auth;
 mod imap_credentials;
+mod insecure_cause;
 mod jmap;
 mod log_handle;
 mod microsoft;
@@ -49,12 +53,14 @@ mod pass_folders;
 mod preferences;
 mod reconnect;
 mod recurrence_shape;
+mod redialled;
 mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
 mod server_address;
 mod setup;
 mod setup_choices;
+mod shared_client;
 mod shared_store;
 mod signatures;
 mod stream_redial;
@@ -113,7 +119,8 @@ pub use imap::{
 pub use imap_auth::{
     ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, imap_offers_password, log_smtp_auth,
 };
-pub use imap_credentials::{ImapTokens, OAuthCredentialSource, imap_credential_source};
+pub use imap_credentials::{AccountTokens, imap_credential_source};
+pub use insecure_cause::InsecureCause;
 pub use jmap::{
     JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_provider,
     connect_jmap_contact_providers, connect_jmap_folder, connect_jmap_mail_providers,
@@ -180,7 +187,7 @@ use crate::tls::account_tls;
 /// connection/discovery fails, or no calendar collection is discovered.
 pub async fn connect_caldav(
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     connect_caldav_learning(account, tokens)
         .await
@@ -237,7 +244,7 @@ impl<T> std::fmt::Debug for DavConnected<T> {
 /// As [`connect_caldav`].
 pub async fn connect_caldav_learning(
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
 ) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     if let Some(start) = account.dav_starts.calendar.as_deref() {
         match connect_caldav_at(account, tokens, Some(start), None).await {
@@ -274,7 +281,7 @@ pub(crate) fn starts_at_a_path(base_url: &str) -> bool {
 /// As [`connect_caldav`].
 pub async fn connect_caldav_shared(
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
     handle: &engine_core::ids::SharedAccountId,
 ) -> Result<Box<dyn Provider>, AccountError> {
     connect_caldav_at(account, tokens, None, Some(handle))
@@ -286,26 +293,26 @@ pub async fn connect_caldav_shared(
 /// at the principal of the shared store `shared` names.
 async fn connect_caldav_at(
     account: &AccountConfig,
-    tokens: ImapTokens<'_>,
+    tokens: AccountTokens<'_>,
     start: Option<&str>,
     shared: Option<&engine_core::ids::SharedAccountId>,
 ) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
-    let auth =
-        config_dav::dav_credentials(account, endpoint, mailcal_oauth::DavUse::Calendars, tokens)
-            .await?;
+    let source = config_dav::dav_credential_source(
+        account,
+        endpoint,
+        mailcal_oauth::DavUse::Calendars,
+        tokens,
+    )?;
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
     let tls = account_tls(account)?;
-    let mut config = CalDavConfig::new(
+    let mut config = CalDavConfig::from_credential_source(
         // Tolerate a stored bare host (a scheme-less base URL from an earlier setup) by
         // defaulting it to https:// here too, so existing configs connect without re-entry.
         normalize_caldav_base_url(&caldav.base_url),
-        auth.credentials,
+        source,
         crate::user_agent(),
     );
-    if let Some(hosts) = auth.hosts {
-        config = config.with_credential_hosts(hosts);
-    }
     if let Some(start) = start {
         config = config.with_discovery_path(start);
     }
@@ -321,7 +328,16 @@ async fn connect_caldav_at(
         .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = CalDavProvider::connect(config)
         .await
-        .map_err(|err| AccountError::from_first_dav_connect(err, AccountError::CalDav))
+        .map_err(|err| {
+            AccountError::from_first_dav_connect(
+                err,
+                AccountError::CalDav,
+                account
+                    .oauth
+                    .is_some()
+                    .then_some(mailcal_oauth::DavUse::Calendars),
+            )
+        })
         .map_err(|err| err.over_tls(&tls))?;
     let principal = provider.principal_url().map(str::to_owned);
     Ok(DavConnected {

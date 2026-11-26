@@ -59,7 +59,7 @@ pub use register::{
     requests_dav_use, select_dav_scopes, select_scopes,
 };
 pub use resources::{
-    covering_entry, resource_covers, resource_for, token_may_reach, token_may_reach_host,
+    covering_entry, resource_covers, resource_for, token_may_reach, token_may_reach_origin,
 };
 use time::OffsetDateTime;
 pub use token::{TokenSet, exchange_code, refresh};

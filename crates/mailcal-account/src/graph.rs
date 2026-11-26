@@ -1,31 +1,31 @@
-//! Building the Microsoft Graph mail providers a Microsoft account syncs through, with
-//! automatic OAuth token refresh.
+//! Building the Microsoft Graph mail providers a Microsoft account syncs through.
 //!
-//! The engine's [`GraphProvider`] takes a **static** bearer token, but Graph access
-//! tokens live ~1 hour; far shorter than an app session. So this module wraps it in a
-//! [`RefreshingGraphProvider`] that mints a fresh access token (refreshing from the
-//! stored refresh token when the cached one is stale) **before each network call**, then
-//! delegates to a freshly built `GraphProvider`. Graph is stateless HTTP: no socket to
-//! keep alive: so rebuilding the client per call is cheap. A shared [`GraphTokenSource`]
-//! backs every folder's provider (and on-demand opens) so one refresh serves them all,
-//! and a rotated refresh token is reported to the host via [`TokenSink`] to be
-//! re-persisted in the OS keystore.
+//! Every provider of an account asks its one [`GraphTokenSource`] for the token on each request,
+//! through the engine's credential source: the source refreshes a token near its expiry, and
+//! replaces one Graph refused, single-flight, so one refresh serves every folder. A rotated
+//! refresh token is reported to the host via [`TokenSink`] to be re-persisted in the OS keystore.
+//!
+//! The folders [`connect_graph_mail_providers`] binds share one [`GraphClient`], and with it one
+//! connection pool; a folder opened on demand ([`connect_graph_folder`]), the calendar and the
+//! contact sources each connect a client of their own. Each folder's [`ReconnectingGraphProvider`]
+//! forwards to a [`GraphProvider`] on its client and replaces the client after a request fails on
+//! a dead connection.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use engine_api::{RetryConfig, UserAgent};
 use engine_core::{
-    error::FailureClass,
     ids::{AccountId, MailboxId, SharedAccountId},
     mail::Mailbox,
     sync::SyncUpdate,
     time::CalendarDate,
 };
 use engine_provider::{
-    Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
-    ReportEvidence, ReportVerdicts, SharedAccounts,
+    Capabilities, CredentialSource, IdentityControls, Provider, ProviderError, ProviderResult,
+    ReportControls, ReportEvidence, ReportVerdicts, SharedAccounts,
 };
 use engine_tls::TlsClientConfig;
-use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
+use provider_graph::{GraphClient, GraphError, GraphProvider, MailboxPrincipal};
 use time::Date;
 
 mod affiliation;
@@ -41,46 +41,47 @@ pub use contacts::connect_graph_contact_providers;
 pub(crate) use token_source::test_support;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
-use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_with};
+use crate::{
+    AccountError,
+    log_handle::account_log_handle,
+    pass_syncs,
+    shared_client::{Delegate, SharedClient},
+    tls::tls_with,
+};
 
-/// A [`Provider`] bound to one Graph mail folder that refreshes its access token before
-/// every network call and delegates to a freshly built [`GraphProvider`]. Internal; the
-/// account layer hands callers `Box<dyn Provider>` from [`connect_graph_mail_providers`]
-/// / [`connect_graph_folder`], never the concrete type.
+/// A [`Provider`] bound to one Graph mail folder that forwards to a [`GraphProvider`] on the
+/// account's shared client, and replaces that client once after a request fails on a dead
+/// connection. Internal; the account layer hands callers `Box<dyn Provider>` from
+/// [`connect_graph_mail_providers`] / [`connect_graph_folder`], never the concrete type.
 #[derive(Debug)]
-pub(crate) struct RefreshingGraphProvider {
+pub(crate) struct ReconnectingGraphProvider {
     folder: MailboxId,
-    /// Whose mailbox the folder is in: the signed-in person's own, or one shared with them.
-    principal: MailboxPrincipal,
-    tokens: Arc<GraphTokenSource>,
     capabilities: Capabilities,
-    /// The sync-depth cutoff, applied to the built delegate so the initial snapshot is
-    /// windowed to recent mail (`None` syncs the whole folder).
-    since: Option<Date>,
-    /// The account's shared TLS policy, cloned into each rebuilt Graph client.
-    tls: TlsClientConfig,
-    /// The built delegate, cached by the access token it was built with, so its reqwest
-    /// **connection pool is reused** across requests. Only rebuilt when the token refreshes
-    /// (~hourly); never per request, which would open a fresh TLS connection every time
-    /// (the connection storm that hammered Graph before this cache).
-    cached: Mutex<Option<(String, Arc<GraphProvider>)>>,
+    delegate: Delegate<GraphClient, GraphProvider>,
 }
 
-impl RefreshingGraphProvider {
-    /// Binds a refreshing provider to `folder` of `principal`'s mailbox (windowed to `since`),
-    /// sharing `tokens` with the account's other folders.
-    #[must_use]
+impl ReconnectingGraphProvider {
+    /// Binds a provider to `folder` on `client` (windowed to `since`).
+    ///
+    /// # Errors
+    ///
+    /// When the client cannot be built.
     pub(crate) fn new(
         folder: MailboxId,
-        principal: MailboxPrincipal,
-        tokens: Arc<GraphTokenSource>,
+        client: Arc<SharedClient<GraphClient>>,
         since: Option<Date>,
-        tls: TlsClientConfig,
-    ) -> Self {
-        Self {
+    ) -> ProviderResult<Self> {
+        let bound = folder.clone();
+        let delegate = Delegate::new(client, move |client| {
+            let graph = GraphProvider::new(client, bound.clone())
+                .with_keyword_names(crate::drafted_reply_keyword_names());
+            match since.and_then(calendar_date) {
+                Some(date) => graph.with_since(date),
+                None => graph,
+            }
+        })?;
+        Ok(Self {
             folder,
-            principal,
-            tokens,
             capabilities: Capabilities::none()
                 .with_mail()
                 .with_mail_writes()
@@ -116,73 +117,67 @@ impl RefreshingGraphProvider {
                 // Forwarded by this wrapper's `Provider`: a fact about the sign-in, whichever
                 // mailbox this provider is bound to.
                 .with_shared_accounts(SharedAccounts::ByAddress),
-            since,
-            tls,
-            cached: Mutex::new(None),
-        }
-    }
-
-    /// Returns the delegate `GraphProvider`, reusing the cached one while the access token
-    /// is unchanged and rebuilding it only when a refresh produced a new token: so the
-    /// underlying HTTP client (and its warm connection pool) is reused across requests.
-    async fn delegate(&self) -> ProviderResult<Arc<GraphProvider>> {
-        let token = self.tokens.access_token().await.map_err(|err| match err {
-            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
-            other => ProviderError::retryable(other.to_string()),
-        })?;
-        {
-            let cache = self.cached.lock().expect("graph delegate mutex poisoned");
-            if let Some((cached_token, provider)) = cache.as_ref()
-                && *cached_token == token
-            {
-                return Ok(Arc::clone(provider));
-            }
-        }
-        let client = GraphClient::for_mailbox(
-            token.clone(),
-            self.principal.clone(),
-            &self.tls,
-            &self.tokens.retry(),
-            &crate::user_agent(),
-        )
-        .map_err(ProviderError::from)?;
-        let mut graph = GraphProvider::new(client, self.folder.clone())
-            .with_keyword_names(crate::drafted_reply_keyword_names());
-        if let Some(date) = self.since.and_then(calendar_date) {
-            graph = graph.with_since(date);
-        }
-        let provider = Arc::new(graph);
-        *self.cached.lock().expect("graph delegate mutex poisoned") =
-            Some((token, Arc::clone(&provider)));
-        Ok(provider)
-    }
-
-    /// Drops the cached delegate so the next [`delegate`](Self::delegate) rebuilds a fresh
-    /// [`GraphClient`], and with it a fresh reqwest connection pool. Used after a retryable
-    /// transport failure, whose keep-alive socket (e.g. one the OS killed while the machine
-    /// slept) is presumed dead; the token is unchanged, so this only rebuilds the client.
-    fn invalidate_delegate(&self) {
-        *self.cached.lock().expect("graph delegate mutex poisoned") = None;
+            delegate,
+        })
     }
 }
 
-/// Whether a failed Graph call warrants dropping the cached delegate and rebuilding it: a
-/// retryable **transport** error (a stale keep-alive socket after sleep, a broken pipe) that
-/// a fresh client and connection pool may clear. Distinct from a 429, which is waited out one
-/// layer down on the same connection, and from an auth failure (never retried). Tried at
-/// most once per call. For the reads that is trivially safe (idempotent GETs), for the wrapped
-/// mutation ([`edit_mail`](RefreshingGraphProvider::edit_mail)) it is safe because a transport
-/// error on Graph's stateless HTTP means the request died at the socket (a reset keep-alive)
-/// before the server applied it, so re-dialing and re-issuing once cannot double-apply, and
-/// the edit is outbox-mediated regardless.
-///
-/// [`submit_email`](RefreshingGraphProvider::submit_email) is the exception: it uses this only
-/// to **drop** a dead delegate, never to re-issue, because a send is not idempotent (a resent
-/// `sendMail` double-delivers) and a `Retryable` transport error cannot tell a lost-before-send
-/// from a lost-after-send. See that method for why the outbox (not this wrapper) owns the
-/// retry.
-fn should_reconnect(err: &ProviderError) -> bool {
-    err.class() == FailureClass::Retryable
+/// The client every Graph provider of an account shares: requests rooted at `principal`'s
+/// mailbox, each asking `tokens` for the token.
+pub(crate) fn account_client(
+    tokens: Arc<GraphTokenSource>,
+    principal: MailboxPrincipal,
+    tls: TlsClientConfig,
+) -> Arc<SharedClient<GraphClient>> {
+    client_connecting(tokens, principal, tls, GraphClient::connect_with_source)
+}
+
+/// [`account_client`], each client connected by `connect`: Graph's root, or a test's server.
+pub(crate) fn client_connecting(
+    tokens: Arc<GraphTokenSource>,
+    principal: MailboxPrincipal,
+    tls: TlsClientConfig,
+    connect: impl Fn(
+        Arc<dyn CredentialSource>,
+        &TlsClientConfig,
+        &RetryConfig,
+        &UserAgent,
+    ) -> Result<GraphClient, GraphError>
+    + Send
+    + Sync
+    + 'static,
+) -> Arc<SharedClient<GraphClient>> {
+    Arc::new(SharedClient::new(connector(
+        tokens, principal, tls, connect,
+    )))
+}
+
+/// What builds one Graph client of the account: `connect` over `tokens`, rooted at
+/// `principal`'s mailbox.
+pub(crate) fn connector(
+    tokens: Arc<GraphTokenSource>,
+    principal: MailboxPrincipal,
+    tls: TlsClientConfig,
+    connect: impl Fn(
+        Arc<dyn CredentialSource>,
+        &TlsClientConfig,
+        &RetryConfig,
+        &UserAgent,
+    ) -> Result<GraphClient, GraphError>
+    + Send
+    + Sync
+    + 'static,
+) -> impl Fn() -> ProviderResult<GraphClient> + Send + Sync + 'static {
+    move || {
+        connect(
+            Arc::clone(&tokens) as Arc<dyn CredentialSource>,
+            &tls,
+            &tokens.retry(),
+            &crate::user_agent(),
+        )
+        .map(|client| client.with_principal(principal.clone()))
+        .map_err(ProviderError::from)
+    }
 }
 
 fn calendar_date(date: Date) -> Option<CalendarDate> {
@@ -190,8 +185,8 @@ fn calendar_date(date: Date) -> Option<CalendarDate> {
 }
 
 /// Connects the Graph mail providers a Microsoft account syncs: one per folder the account
-/// lists that [`pass_syncs`]. Enumerates the account's folders once (a fresh token), then binds a
-/// shared-token `RefreshingGraphProvider` to each folder's id: the Graph parallel of
+/// lists that [`pass_syncs`], all on one client. Enumerates the account's folders once, then
+/// binds a `ReconnectingGraphProvider` to each folder's id: the Graph parallel of
 /// [`connect_mail_providers`](crate::connect_mail_providers), and bound in full for the same
 /// reason, since an account pass syncs what is bound and nothing else. The `tokens` source
 /// carries the account's credentials and id. With `shared`, the folders are those of the mailbox
@@ -208,34 +203,32 @@ pub async fn connect_graph_mail_providers(
     shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
-    let principal = principal(shared)?;
-    let folders = list_folders(&tokens, account_id, &tls, &principal).await?;
-    let providers = folders
+    // A dead grant fails here as a sign-in to repeat, rather than as a folder list that failed.
+    tokens.access_token().await?;
+    let client = account_client(tokens, principal(shared)?, tls);
+    let folders = list_folders(&client, account_id).await?;
+    folders
         .into_iter()
         .filter(pass_syncs)
         .map(|mailbox| {
-            Box::new(RefreshingGraphProvider::new(
-                mailbox.id,
-                principal.clone(),
-                Arc::clone(&tokens),
-                since,
-                tls.clone(),
-            )) as Box<dyn Provider>
+            ReconnectingGraphProvider::new(mailbox.id, Arc::clone(&client), since)
+                .map(|provider| Box::new(provider) as Box<dyn Provider>)
+                .map_err(|err| AccountError::Graph(err.to_string()))
         })
-        .collect();
-    Ok(providers)
+        .collect()
 }
 
 /// Builds a Graph provider bound to one folder of a Microsoft account (one listed after the
-/// account connected, or opened before any pass synced it), sharing the account's `tokens`. Sync;
-/// the token is fetched lazily on the first call. The Graph parallel of
+/// account connected, or opened before any pass synced it), asking the account's `tokens`. Sync;
+/// nothing is sent before the first call. The Graph parallel of
 /// [`connect_imap_mailbox`](crate::connect_imap_mailbox). `shared` names the shared mailbox the
 /// folder belongs to.
 ///
 /// # Errors
 ///
 /// Returns [`AccountError::Mailbox`] if `mailbox_key` is not a valid folder id, and
-/// [`AccountError::Graph`] if `shared` is no handle this adapter produces.
+/// [`AccountError::Graph`] if `shared` is no handle this adapter produces or the client cannot be
+/// built.
 pub fn connect_graph_folder(
     tokens: Arc<GraphTokenSource>,
     mailbox_key: &str,
@@ -244,14 +237,10 @@ pub fn connect_graph_folder(
 ) -> Result<Box<dyn Provider>, AccountError> {
     let folder =
         MailboxId::try_from(mailbox_key).map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    let tls = tls_with(&[])?;
-    Ok(Box::new(RefreshingGraphProvider::new(
-        folder,
-        principal(shared)?,
-        tokens,
-        since,
-        tls,
-    )))
+    let client = account_client(tokens, principal(shared)?, tls_with(&[])?);
+    let provider = ReconnectingGraphProvider::new(folder, client, since)
+        .map_err(|err| AccountError::Graph(err.to_string()))?;
+    Ok(Box::new(provider))
 }
 
 /// The signed-in person's own mailbox, or the shared one `shared` names.
@@ -261,24 +250,16 @@ fn principal(shared: Option<&SharedAccountId>) -> Result<MailboxPrincipal, Accou
     })
 }
 
-/// Enumerates the account's mail folders (a full snapshot), using a one-off client with a
-/// fresh access token. The bound folder is irrelevant to the folder-list call, so any
-/// well-known alias serves to construct the probe.
+/// Enumerates the account's mail folders (a full snapshot) on the account's client. The bound
+/// folder is irrelevant to the folder-list call, so any well-known alias serves to construct the
+/// probe.
 async fn list_folders(
-    tokens: &Arc<GraphTokenSource>,
+    client: &SharedClient<GraphClient>,
     account_id: &AccountId,
-    tls: &TlsClientConfig,
-    principal: &MailboxPrincipal,
 ) -> Result<Vec<Mailbox>, AccountError> {
-    let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(
-        token,
-        principal.clone(),
-        tls,
-        &tokens.retry(),
-        &crate::user_agent(),
-    )
-    .map_err(|err| AccountError::Graph(err.to_string()))?;
+    let (_, client) = client
+        .current()
+        .map_err(|err| AccountError::Graph(err.to_string()))?;
     let inbox =
         MailboxId::try_from("inbox").map_err(|err| AccountError::Mailbox(err.to_string()))?;
     // Both lines carry the account's handle. One device holds several Microsoft accounts, this
@@ -324,20 +305,6 @@ mod tests {
         let provider =
             connect_graph_folder(source_at(endpoint, None), "drafts", None, None).unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
-    }
-
-    #[test]
-    fn a_retryable_transport_error_triggers_a_reconnect_but_a_rate_limit_or_auth_does_not() {
-        // A retryable transport failure (a stale keep-alive socket after sleep) drops the
-        // cached delegate and rebuilds a fresh client + connection pool…
-        assert!(should_reconnect(&ProviderError::retryable("broken pipe")));
-        // …while a 429 is waited out on the *same* connection one layer down, not by a
-        // reconnect, and an auth failure is never a transport reconnect (the host re-auths).
-        assert!(!should_reconnect(&ProviderError::new(
-            FailureClass::RateLimited,
-            "429",
-        )));
-        assert!(!should_reconnect(&ProviderError::authentication("401")));
     }
 
     #[test]

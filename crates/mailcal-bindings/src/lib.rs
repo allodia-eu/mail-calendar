@@ -275,8 +275,8 @@ pub use records_account_sign_in::{
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
-    AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
-    MailSyncTechnology, SignInMethod, UseProblem,
+    AccountsSnapshot, CapabilityChange, CapabilityState, InsecureCause, LinkCandidates, LinkSlot,
+    LinkedAccount, MailSyncTechnology, SignInMethod, UseProblem,
 };
 pub use records_advanced::*;
 pub use records_ai::*;
