@@ -11,7 +11,7 @@
 // The draft is untrusted model output: `drafttext.ts` builds it as elements and text nodes, and no
 // part of it is ever parsed as markup.
 
-import { caretInto, documentOf, windowOf } from "./dom";
+import { caretInto, documentOf, emptyLine, windowOf } from "./dom";
 import { draftBlocks } from "./drafttext";
 import type { History } from "./history";
 
@@ -164,12 +164,14 @@ export function installReplyDraft(
   };
 }
 
-/// Puts `blocks` in place of everything above the signature and the quote, and the caret at the
-/// end of the last, so the person picks up where the draft stops.
+/// Puts `blocks` in place of everything above the signature and the quote, set apart from them by
+/// a blank line as a reply opens, and the caret at the end of the last block, so the person picks
+/// up where the draft stops.
 function replaceLead(editor: HTMLElement, blocks: HTMLElement[]): void {
   const boundary = leadBoundary(editor);
   while (editor.firstChild && editor.firstChild !== boundary) editor.removeChild(editor.firstChild);
   for (const block of blocks) editor.insertBefore(block, boundary);
+  if (boundary && blocks.length > 0) editor.insertBefore(emptyLine(documentOf(editor)), boundary);
   const last = blocks.at(-1);
   if (last) caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
 }

@@ -4,7 +4,7 @@
 // renderings ride on the container's dataset, so flipping the style is a re-render here rather
 // than a round-trip to the core.
 
-import { caretInto, documentOf, focusEditor } from "./dom";
+import { caretInto, documentOf, emptyLine, focusEditor } from "./dom";
 import { plainText } from "./plain_text";
 import type { Block, QuoteAttribution, QuoteHeader, QuoteStyle, QuoteValue } from "./types";
 
@@ -106,7 +106,9 @@ export function quoteContainer(doc: Document, quote: Partial<QuoteValue>): HTMLE
     const plain = doc.createElement("div");
     plain.className = "aq-plain";
     plain.style.whiteSpace = "pre-wrap";
-    plain.textContent = quote.body_plain || "";
+    // In `\n` alone: this wrapper is sent as written, and a CRLF kept from the original's MIME part
+    // would carry a `\r` into the message's HTML.
+    plain.textContent = (quote.body_plain || "").replace(/\r\n?/g, "\n");
     body.appendChild(plain);
   }
   container.appendChild(body);
@@ -126,6 +128,9 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
   if (initialText) lead.textContent = initialText;
   else lead.appendChild(doc.createElement("br"));
   editor.appendChild(lead);
+  // A blank line between the reply and the original: a real line, so the message is spaced as
+  // the editor shows it.
+  editor.appendChild(emptyLine(doc));
   editor.appendChild(quoteContainer(doc, seed));
 
   // The caret goes in the lead paragraph, above the quote; at its end when it was pre-filled, so

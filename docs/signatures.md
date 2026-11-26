@@ -24,7 +24,9 @@ library, the assignment, and the security gates; each client renders them and fo
     to happen.
 - **Seeded, then editable.** The composer opens with the resolved signature already in the body,
   where the user may trim or extend it before sending: Outlook's model, not Apple Mail's untouchable
-  block.
+  block. It is set apart by a **real blank line** above it, and from a quote below it by another,
+  which the user may delete; the editor draws no spacing of its own around the signature or the
+  quote, so the message is spaced exactly as the composer shows it.
 - **It follows the sender.** Changing the composer's **From** account re-resolves the signature, so a
   work signature never goes out under a personal address. This is the failure the setting exists to
   prevent, so it is automatic rather than a reminder.
@@ -239,6 +241,15 @@ puts the caret inside it for every click in the large blank area underneath. The
 their message *into* their signature, and the next swap replaces that region and takes their text
 with it: silent data loss from the most natural click in the composer. The shared editor intercepts
 it (only when a signature is present, so behaviour without one is unchanged).
+
+**Enter never splits the signature region.** A signature authored in Settings holds its first line
+as bare text, so the region itself is the block around the caret, and an engine's Enter splits that
+block and copies its class onto the new line, so every line typed after it would go out as one more
+signature under its own `-- `. The shared editor answers Enter there itself: at the very start of the
+region it opens a line of the message above it, and anywhere else in such a
+line, a selection there included, it splits the line inside the region (`region_lines.ts`, which does the same for a quoted body,
+whose second half `quoteBlock` would otherwise not send). The region's markup is not otherwise
+touched, so a reopened draft is the document it was saved from.
 
 ## Known gaps
 

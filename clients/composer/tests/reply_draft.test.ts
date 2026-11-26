@@ -38,7 +38,9 @@ describe("a drafted reply", () => {
   test("replaces the lead and leaves the signature and the quote where they are", () => {
     const d = drafting(`<p>typed by hand</p>${SIGNATURE}${QUOTE}`);
     expect(d.draft.setDraft(seed(1, "Hi Anna,\n\nYes, Friday works."))).toBe(true);
-    expect(d.html()).toBe(`<div>Hi Anna,</div><div><br></div><div>Yes, Friday works.</div>${SIGNATURE}${QUOTE}`);
+    expect(d.html()).toBe(
+      `<div>Hi Anna,</div><div><br></div><div>Yes, Friday works.</div><div><br></div>${SIGNATURE}${QUOTE}`,
+    );
   });
 
   test("stops at the composer's own signature, not the one quoted inside the original", () => {
@@ -46,7 +48,7 @@ describe("a drafted reply", () => {
     d.draft.setDraft(seed(1, "Fine by me."));
     expect(d.editor.firstElementChild?.textContent).toBe("Fine by me.");
     expect(d.editor.querySelector(".allodia-quote .allodia-signature")?.textContent).toBe("Anna");
-    expect(d.editor.children.length).toBe(2);
+    expect(d.editor.children.length).toBe(3);
   });
 
   test("leaves the caret at its end, in the last list item when it ends with a list", () => {
@@ -59,6 +61,7 @@ describe("a drafted reply", () => {
     const d = drafting(`${SIGNATURE}${QUOTE}`);
     d.draft.setDraft(seed(1, "Hi Anna,\nYes."));
     expect(documentBlocks(d.editor).map((block) => Object.keys(block)[0])).toEqual([
+      "Paragraph",
       "Paragraph",
       "Paragraph",
       "Signature",

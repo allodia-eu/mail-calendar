@@ -1,6 +1,6 @@
 // The sender's signature region, and the body-only seams the Settings signature editor uses.
 
-import { caretInto, documentOf, focusEditor } from "./dom";
+import { caretInto, documentOf, emptyLine, focusEditor, isBlank } from "./dom";
 import { plainText } from "./plain_text";
 import type { Block, SignatureValue } from "./types";
 
@@ -54,7 +54,13 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
   let container = composerSignature(editor);
 
   if (!signature?.body_html) {
-    container?.remove();
+    if (container) {
+      // The blank line between the signature and a quote goes with it, so switching it off and on
+      // again leaves the reply as it was.
+      const next = container.nextElementSibling;
+      if (isBlankLine(next) && next!.nextElementSibling?.classList.contains("allodia-quote")) next!.remove();
+      container.remove();
+    }
     return;
   }
 
@@ -63,15 +69,14 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
     const quote = editor.querySelector(".allodia-quote");
     if (quote) editor.insertBefore(container, quote);
     else editor.appendChild(container);
-    // A new message opens with an empty editor, so the signature would land as its FIRST element,
-    // and `focusComposerBody` puts the caret in the first element, which would drop the user inside
-    // their own signature with nowhere above it to write. Give them the empty line the composer
-    // would otherwise have had.
-    if (!container.previousElementSibling) {
-      const lead = doc.createElement("div");
-      lead.appendChild(doc.createElement("br"));
-      editor.insertBefore(lead, container);
-    }
+    // Set apart by a blank line above it, and from a quote below it. Real lines rather than a
+    // margin of the editor's own, so the message is spaced as the editor shows it.
+    if (!isBlankLine(container.previousElementSibling)) container.before(emptyLine(doc));
+    if (quote) container.after(emptyLine(doc));
+    // `focusComposerBody` puts the caret in the first element. A new message opens empty, so that
+    // would be the blank line, with the signature right under the person's first words; they get a
+    // line of their own above it.
+    if (container.previousElementSibling === editor.firstElementChild) editor.prepend(emptyLine(doc));
     return;
   }
   fillSignature(container, signature);
@@ -86,8 +91,32 @@ export function signatureContainer(doc: Document, signature: SignatureValue): HT
   return container;
 }
 
+/// An empty line of the message, as `emptyLine` makes one: not a region, and holding nothing.
+function isBlankLine(element: Element | null): boolean {
+  return !!element && element.tagName === "DIV" && !element.className && isBlank(element);
+}
+
 function fillSignature(container: HTMLElement, signature: SignatureValue): void {
   container.innerHTML = signature.body_html;
+}
+
+/// Enter with the caret at the very start of this message's signature opens an empty line of the
+/// message above the region, rather than inside it, so what is typed there is the message and not
+/// the signature. The caret stays where it was, as Enter leaves it anywhere.
+/// Returns whether it did; anywhere else Enter is the engine's.
+export function openLineAboveSignature(editor: HTMLElement): boolean {
+  const signature = composerSignature(editor);
+  const selection = documentOf(editor).defaultView?.getSelection();
+  if (!signature || !selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+  const caret = selection.getRangeAt(0);
+  if (!signature.contains(caret.startContainer)) return false;
+  const before = documentOf(editor).createRange();
+  before.setStart(signature, 0);
+  before.setEnd(caret.startContainer, caret.startOffset);
+  // White space between the signature's blocks is markup, not a word before the caret.
+  if (!/^[\t\n\f\r ]*$/.test(before.toString()) || before.cloneContents().querySelector("img, br")) return false;
+  signature.before(emptyLine(documentOf(editor)));
+  return true;
 }
 
 /// Routes a click in the editor's empty area **below everything** to the MESSAGE, never the

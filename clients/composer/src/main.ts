@@ -28,10 +28,12 @@ import {
   type QuoteSeed,
 } from "./quote";
 import { installImageResize } from "./resize";
+import { splitRegionLine } from "./region_lines";
 import { installRevisionCounter } from "./revision";
 import { setScheme } from "./scheme";
 import { type BodySeed, focusComposerBody, setComposerBody, setComposerDocument, setPlainText } from "./seeds";
 import {
+  openLineAboveSignature,
   routeClickBelowSignature,
   setComposerSignature,
   setSignatureBody,
@@ -167,6 +169,13 @@ editor.addEventListener("keydown", (event) => {
   if (indentSelection(editor, event.shiftKey)) return;
   if (moveToAdjacentCell(editor, event.shiftKey)) return;
   if (!event.shiftKey) execCommand("insertText", "\t");
+});
+
+// Read off `beforeinput` rather than the key, so a new line asked for any other way (a soft
+// keyboard's return, dictation) is placed the same.
+editor.addEventListener("beforeinput", (event) => {
+  if (event.inputType !== "insertParagraph") return;
+  if (openLineAboveSignature(editor) || splitRegionLine(editor)) event.preventDefault();
 });
 
 editor.addEventListener("mousedown", (event) => {
