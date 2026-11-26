@@ -23,7 +23,7 @@ pub(super) fn current(app: Option<&Arc<MailcalApp>>) -> MessageScheme {
 }
 
 /// The rule itself, apart from where its inputs come from.
-pub(super) fn of(app_dark: bool, dark_messages: bool) -> MessageScheme {
+pub(crate) fn of(app_dark: bool, dark_messages: bool) -> MessageScheme {
     if app_dark && dark_messages {
         MessageScheme::Dark
     } else {

@@ -14,6 +14,7 @@ mod host_request;
 mod link;
 mod list;
 mod mailto;
+mod page;
 mod paragraph;
 mod quote;
 mod render;
@@ -28,12 +29,17 @@ pub use color::TextColor;
 pub use file_meta::{safe_file_name, safe_media_type};
 pub use font::{FontFamily, FontSize};
 pub use host_request::{
-    CaretSpan, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LeadText, LinkAnswer,
-    LinkRequest, MessageScroll, ReplyDraftReport, answer_script, link_address, parse_host_request,
+    BackgroundChoice, CaretSpan, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LeadText,
+    LinkAnswer, LinkRequest, MAX_COLOURS_REQUEST_LEN, MessageScroll, ReplyDraftReport,
+    answer_script, link_address, parse_host_request,
 };
 pub use link::LinkUrl;
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
+pub use page::{
+    ColourPiece, ColoursRequest, ComposerPage, PageScheme, composer_page, page_colours,
+    page_preload_script, page_script,
+};
 pub use paragraph::{Align, Heading, Paragraph, Rule};
 pub use quote::{Quote, QuoteAttribution, QuoteHeader, QuoteStyle};
 pub use render::render;

@@ -52,11 +52,14 @@ describe("the stylesheet", () => {
     }
   });
 
-  // The page is the message as sent, so it must not move with the app.
-  test("keeps the page light", () => {
+  // The page follows the page the core names (`page.ts`), never the app: a light-dark pair would
+  // draw it dark in a dark app whose reader keeps messages light.
+  test("draws the page in the page's scheme, light until one is named", () => {
     expect(stylesheet).toMatch(/\.editor\s*\{[^}]*color-scheme:\s*light;/);
-    for (const name of ["--page", "--text", "--muted", "--border"]) {
+    expect(stylesheet).toMatch(/:root\[data-page="dark"\] \.editor\s*\{\s*color-scheme:\s*dark;/);
+    for (const name of ["--page", "--text", "--page-link", "--quote-rule", "--table-rule"]) {
       expect(tokens).toMatch(new RegExp(`${name}:\\s*#[0-9a-f]{6};`));
     }
+    expect(tokens).toMatch(/--header-rule:\s*rgb\(181, 196, 223\);/);
   });
 });

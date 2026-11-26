@@ -96,8 +96,11 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
             px: scroll.px,
             end: scroll.end,
         },
-        // The core's, not the client's: handed on with `composer_reply_draft_report`.
-        HostRequestKind::ReplyDraft(_) => return None,
+        // The core's, not the client's: handed on with `composer_reply_draft_report`,
+        // `composer_colours_answer_script` and `composer_background_choice`.
+        HostRequestKind::ReplyDraft(_)
+        | HostRequestKind::Colours(_)
+        | HostRequestKind::Background(_) => return None,
     })
 }
 
@@ -150,12 +153,15 @@ pub fn composer_link_answer_script(id: u64, answer: ComposerLinkAnswer) -> Strin
 /// It also asks for the framed mode's [`ComposerHostRequest::Caret`] and
 /// [`ComposerHostRequest::Scroll`], which the editor sends only once `useFramedComposer()` has
 /// switched that mode on, and for the reply-draft report, which a client hands to
-/// `MailcalApp::composer_reply_draft_report`. A notice left out of this list is one the editor
-/// never sends.
+/// `MailcalApp::composer_reply_draft_report`. It names the colours request and the toolbar's
+/// background choice too, which the editor sends only once a host has put it on a page with
+/// `composer_page_script`. A notice left out of this list is one the editor never sends.
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"caret\",\"scroll\",\"reply_draft\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"caret\",\"scroll\",\"reply_draft\",\"colours\",\
+     \"background\"]);"
+        .to_owned()
 }
 
 /// The same, for a host that also keeps the body's undo state, because its platform asks whether
@@ -165,7 +171,8 @@ pub fn composer_host_requests_script() -> String {
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_with_history_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"history\",\"caret\",\"scroll\",\"reply_draft\"]);"
+    "window.setComposerHostRequests([\"link\",\"history\",\"caret\",\"scroll\",\"reply_draft\",\
+     \"colours\",\"background\"]);"
         .to_owned()
 }
 
@@ -185,7 +192,14 @@ mod tests {
             composer_host_requests_script(),
             composer_host_requests_with_history_script(),
         ] {
-            for kind in ["link", "caret", "scroll", "reply_draft"] {
+            for kind in [
+                "link",
+                "caret",
+                "scroll",
+                "reply_draft",
+                "colours",
+                "background",
+            ] {
                 assert!(
                     script.contains(&format!("\"{kind}\"")),
                     "{script} leaves out {kind}"

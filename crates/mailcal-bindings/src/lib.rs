@@ -82,6 +82,7 @@ mod composer_host;
 mod composer_importance;
 mod composer_layout;
 mod composer_open;
+mod composer_page;
 mod connected_account;
 mod connection_log;
 mod connectivity_facts;
@@ -229,6 +230,7 @@ pub use composer_open::{
     ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, ComposerState, MovedComposer,
     MovedSignature, QuoteSource,
 };
+pub use composer_page::*;
 pub(crate) use connected_account::ConnectedAccount;
 pub(crate) use connectivity_facts::{ConnectivitySnapshot, UseOutage};
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};

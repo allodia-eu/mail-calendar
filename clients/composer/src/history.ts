@@ -64,6 +64,9 @@ export interface Steps {
 export interface History {
   undo(): boolean;
   redo(): boolean;
+  /// Runs every undo and redo inside `wrap`: the page puts its colours back as written around one
+  /// (`page.ts`), since an attribute the step restores was recorded as written.
+  around(wrap: <T>(change: () => T) => T): void;
   /// Whether there is a step to take back and one to put back, for a host that draws Undo and Redo
   /// in a menu of its own and has to say whether each can be chosen.
   steps(): Steps;
@@ -77,6 +80,10 @@ export interface History {
   /// Runs a change the host makes from its own controls (a From change swapping the signature, the
   /// quote style), which is not the user's to undo from the body. The history keeps what it had.
   outside<T>(change: () => T): T;
+  /// Runs a change of the page's own (`page.ts`): the colours it shows, which are not the message.
+  /// Never a step, and unlike `outside` it leaves the step being typed open, since the page makes
+  /// one around an edit as it happens.
+  unseen<T>(change: () => T): T;
   /// Runs a change that replaces the body: a draft reopened, a quote seeded. The history starts
   /// over after it, because nothing before it is in the message any more.
   restart<T>(change: () => T): T;
@@ -121,6 +128,8 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
   let pressed = false;
   /// Set while the host changes the body, whose mutations are never a step.
   let quiet = false;
+  /// What an undo or a redo runs inside (`History.around`).
+  let around: <T>(change: () => T) => T = (change) => change();
   let listener: ((steps: Steps) => void) | null = null;
   /// What `listener` was last told.
   let told: Steps | null = null;
@@ -313,8 +322,11 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
   doc.addEventListener("pointercancel", release, true);
 
   const history: History = {
-    undo: () => move(undone, redone),
-    redo: () => move(redone, undone),
+    undo: () => around(() => move(undone, redone)),
+    redo: () => around(() => move(redone, undone)),
+    around(wrap) {
+      around = wrap;
+    },
     steps() {
       flush();
       return { undo: undone.length > 0, redo: redone.length > 0 };
@@ -333,6 +345,16 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     },
     outside: (change) => unrecorded(change, false),
     restart: (change) => unrecorded(change, true),
+    unseen(change) {
+      flush();
+      quiet = true;
+      try {
+        return change();
+      } finally {
+        observer.takeRecords();
+        quiet = false;
+      }
+    },
     step(tag, change) {
       flush();
       const before = undone.at(-1);

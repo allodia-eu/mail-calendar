@@ -20,7 +20,7 @@ mod header;
 mod importance;
 mod overflow;
 mod print;
-mod scheme;
+pub(super) mod scheme;
 
 use self::{
     attachments::{attachment_row, save_all_button},

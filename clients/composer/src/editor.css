@@ -1,6 +1,7 @@
 /* Two palettes. The chrome (toolbar, popovers) follows the app's appearance, so in a dark app it
-   reads as part of the window. The page is the message as its recipient will see it, so it stays
-   light in both: a colour picked on it is the colour that is sent.
+   reads as part of the window. The page is the message as the reading view will show it once it
+   is sent, so it follows the reading view's scheme rather than the app's: the core names it
+   through `setComposerPage` (`page.ts`), and its colours below are the light page until it does.
 
    Which one the chrome takes is the root's `color-scheme`, and every chrome colour is a
    `light-dark()` pair that resolves against it. The host names the app's scheme through
@@ -10,11 +11,15 @@
 :root {
   color-scheme: light dark;
 
-  /* The page. */
-  --border: #d8dde3;
-  --text: #152330;
-  --muted: #5f6b73;
+  /* The page: the reading view's light canvas, and the lines the core's renderer draws. */
   --page: #ffffff;
+  --text: #1a1a1a;
+  --page-link: #2864d6;
+  --quote-rule: #cccccc;
+  --header-rule: rgb(181, 196, 223);
+  --table-rule: #d8dde3;
+  /* What is drawn on the page but never sent: the placeholder, the picture handles. */
+  --muted: color-mix(in srgb, var(--text) 55%, var(--page));
   --page-accent: #16598d;
 
   /* The chrome: light, dark. */
@@ -76,7 +81,8 @@ body {
 
 /* The toolbar and its controls are in `toolbar.css`. */
 
-/* The page keeps the light scheme in a dark host, caret, selection and spelling marks included. */
+/* The page takes its own scheme, not the app's, caret, selection and spelling marks included: a
+   dark page in a dark app, and a light one wherever the reader keeps messages light. */
 .editor {
   flex: 1;
   min-height: 180px;
@@ -87,6 +93,10 @@ body {
   color: var(--text);
   outline: none;
   word-break: break-word;
+}
+
+:root[data-page="dark"] .editor {
+  color-scheme: dark;
 }
 
 .editor:empty::before {
@@ -122,8 +132,8 @@ body.framed .editor {
   padding-right: 0;
 }
 
-/* In a dark app the message is still the light page it will be sent as, so it is a light sheet on
-   the dark column and keeps its own margin rather than running its text to its edge. */
+/* In a dark app the message is a sheet on the column, light or dark as the reading view would draw
+   it, and keeps its own margin rather than running its text to its edge. */
 :root[data-scheme="dark"] body.framed .editor {
   padding-left: 14px;
   padding-right: 14px;
@@ -254,10 +264,10 @@ p {
   margin: 10px 0;
 }
 
-/* The reading view's link colour (`mailcal-app`'s base sheet); a bookmark with no target is no
+/* The reading view's link colour (`setComposerPage`); a bookmark with no target is no
    link. The underline is drawn here only: `elementMarks` does not read it as a mark. */
 .editor a[href] {
-  color: #2864d6;
+  color: var(--page-link);
   text-decoration: underline;
 }
 
@@ -286,7 +296,7 @@ th {
   min-width: 48px;
   min-height: 28px;
   padding: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--table-rule);
   vertical-align: top;
 }
 
@@ -318,12 +328,12 @@ pre {
    its attribution has spacing of its own: the renderer writes none, and the blank line a reply
    opens with above the quote is a real one (`quote.ts`). */
 .allodia-quote[data-quote-style="LineAndHeader"] {
-  border-top: 1pt solid rgb(181, 196, 223);
+  border-top: 1pt solid var(--header-rule);
   padding-top: 3pt;
 }
 
+/* The attribution is sent as plain text in the page's own ink, so it is drawn in it here. */
 .aq-attr {
-  color: var(--muted);
   white-space: pre-wrap;
 }
 
@@ -334,7 +344,7 @@ pre {
 .allodia-quote[data-quote-style="Indented"] .aq-body {
   margin: 0 0 0 0.8ex;
   padding-left: 1ex;
-  border-left: 2px solid #cccccc;
+  border-left: 2px solid var(--quote-rule);
 }
 
 /* The sender's signature has no rule here. Editable like any other body content (seeded, then

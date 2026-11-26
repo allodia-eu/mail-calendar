@@ -74,6 +74,8 @@ internal static class ComposerLabels
         ["linkApply"] = L10n.EditorLinkApply(),
         ["linkRemove"] = L10n.EditorLinkRemove(),
         ["moreFormatting"] = L10n.EditorMoreFormatting(),
+        ["lightBackground"] = L10n.ReadingShowLightBackground(),
+        ["darkBackground"] = L10n.ReadingShowDarkBackground(),
     };
 
     /// <summary>The call the hosts inject once the bundle has parsed. The serializer is what makes

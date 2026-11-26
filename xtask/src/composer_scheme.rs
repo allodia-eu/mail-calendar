@@ -31,6 +31,18 @@ const SITES: &[Site] = &[
         what: "the hook every host calls",
     },
     Site {
+        client: "bundle",
+        file: "clients/composer/src/main.ts",
+        needle: "window.setComposerPage =",
+        what: "the hook a host puts the message on its page through",
+    },
+    Site {
+        client: "bundle",
+        file: "clients/composer/src/main.ts",
+        needle: "preset.composerPage",
+        what: "the page a host hands over before the document runs",
+    },
+    Site {
         client: "android",
         file: "clients/android/app/src/main/java/eu/allodia/mailcal/EditorWebView.kt",
         needle: "window.setComposerScheme(",
@@ -71,6 +83,39 @@ const SITES: &[Site] = &[
         file: "clients/linux/src/ui/composer_scheme.rs",
         needle: "window.setComposerScheme(",
         what: "the script both editors send",
+    },
+    // The page the message is written on (`docs/reading-dark-mode.md`, rule 10): named in the same
+    // script, and moved by the dark-messages preference as well as by the app's scheme.
+    Site {
+        client: "linux",
+        file: "clients/linux/src/ui/composer_scheme.rs",
+        needle: "composer_page_script(",
+        what: "the page both editors are put on",
+    },
+    Site {
+        client: "linux",
+        file: "clients/linux/src/ui/composer_scheme.rs",
+        needle: "composer_page_preload_script(",
+        what: "the page both editors open on, before the first frame",
+    },
+    // A load replaces every script the view had, so the preload travels with the load itself.
+    Site {
+        client: "linux",
+        file: "clients/linux/src/ui/composer.rs",
+        needle: "load_editor(EDITOR_HTML, &super::composer_scheme::preload())",
+        what: "the composer's page before its first frame",
+    },
+    Site {
+        client: "linux",
+        file: "clients/linux/src/ui/settings/signature_editor.rs",
+        needle: "load_editor(EDITOR_HTML, &super::super::composer_scheme::preload())",
+        what: "the signature editor's page before its first frame",
+    },
+    Site {
+        client: "linux",
+        file: "clients/linux/src/ui/update_pull.rs",
+        needle: "composer_scheme::follow_dark_messages(",
+        what: "the page following the dark-messages preference",
     },
     Site {
         client: "linux",

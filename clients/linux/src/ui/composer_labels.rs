@@ -54,6 +54,8 @@ pub(super) fn editor_labels() -> Value {
         ("linkApply", l10n::editor_link_apply()),
         ("linkRemove", l10n::editor_link_remove()),
         ("moreFormatting", l10n::editor_more_formatting()),
+        ("lightBackground", l10n::reading_show_light_background()),
+        ("darkBackground", l10n::reading_show_dark_background()),
     ];
     // A heading's name carries its level, so the catalog answers it with an owned string.
     let headings = [

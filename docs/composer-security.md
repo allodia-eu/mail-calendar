@@ -102,7 +102,15 @@ port:
    `reply_draft`, a notice of whether the text above the signature and the quote is empty, a
    drafted reply untouched or written, whether the draft is in, and which of its gaps are left by
    their place in its list, which carries no content and which a client hands to the core unread,
-   through `composer_reply_draft_report` ([`ai.md`](ai.md), rules 21 to 23)). The core parses every message
+   through `composer_reply_draft_report` ([`ai.md`](ai.md), rules 21 to 23); `colours`, the
+   colour values, style attributes and style sheets of the message, answered by the core through
+   `composer_colours_answer_script` with the value each is shown as and nothing else, which a
+   client runs unread; and `background`, the page the toolbar's sun or moon asked for, which a
+   client hands to `composer_background_choice` ([`reading-dark-mode.md`](reading-dark-mode.md),
+   rules 10 to 14)). A colours request may weigh up to `MAX_COLOURS_REQUEST_LEN`, since a
+   forwarded newsletter's sheets alone pass the general limit; every other request keeps it. The
+   answer is written into the editor's own stylesheet only when it is a colour, and into the
+   message only where the value as written stood. The core parses every message
    (`parse_composer_host_request`) and refuses anything outside that vocabulary, an unknown field
    included, before a client acts on it, and the host answers through the script the core builds.
    A host turns the channel on only where it answers (`setComposerHostRequests`); everywhere else
@@ -430,7 +438,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Reading body not left loaded behind the composer | the reading view is out of the view tree while composing | composer is a separate screen | `ReadingView.SuspendBody()` unloads the message document; it re-renders on return | `ReadingPane::suspend` replaces the message with an empty filtered document; it re-renders on return |
 | Local editor assets only | load packaged bundle with an app-owned base URL | load packaged `android_asset` bundle | load packaged app asset / virtual host mapping | shared `clients/composer/dist/editor.html` is compiled with `include_str!` and loaded in memory |
 | JS only for composer | separate composer `WKWebView`; never used by reading view | separate composer `WebView`; reading view keeps JS off | separate composer `WebView2`; reading view keeps JS off | separate composer `WebView` has JS on; dedicated reading `WebView` keeps it off |
-| Narrow bridge (Gate 2) | one named `WKScriptMessageHandler`, `composerHost` (`ComposerHostChannel`), on the composer's and the signature editor's views; every message parsed by the core; the only host announcing `history`, which `EditorUndoManager` answers the Edit menu and UIKit's undo from | one injected object, `composerHost`, with a single `@JavascriptInterface` method (`ComposerHostChannel`) that hands each parsed request to the main thread | no host objects; `WebMessageReceived` is on only where a host sets `HostRequested` (the composer, not the signature editor), and every message is parsed by the core | fresh `UserContentManager` with one script-message handler, `composerHost` (`composer_host::install`), and no host objects; every message parsed by the core |
+| Narrow bridge (Gate 2) | one named `WKScriptMessageHandler`, `composerHost` (`ComposerHostChannel`), on the composer's and the signature editor's views; every message parsed by the core; the only host announcing `history`, which `EditorUndoManager` answers the Edit menu and UIKit's undo from | one injected object, `composerHost`, with a single `@JavascriptInterface` method (`ComposerHostChannel`) that hands each parsed request to the main thread | no host objects; `WebMessageReceived` is on only where a host sets `HostRequested` (the composer, not the signature editor), and every message is parsed by the core | fresh `UserContentManager` with one script-message handler, `composerHost` (`composer_host::install`), and no host objects; every message parsed by the core; the only host answering `colours` and hearing `background`, both handed to the core unread |
 | No network egress | `WKContentRuleList` blocks remote loads | `shouldInterceptRequest` blocks remote loads | `WebResourceRequested` returns 403 for remote loads | native `UserContentFilter` blocks every `http(s)` request |
 | Navigation blocked | navigation delegate cancels every non-initial navigation | `shouldOverrideUrlLoading` returns true | `NavigationStarting` cancels non-initial navigation | `decide-policy` permits only the expected initial `about:blank` load |
 | New windows blocked | no popup-opening `WKUIDelegate` path | no popup path; navigation cancelled | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |

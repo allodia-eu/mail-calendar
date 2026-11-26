@@ -6,6 +6,7 @@ import { buildLinkMenu } from "./link_menu";
 import { indentSelection } from "./lists";
 import { type Labels } from "./labels";
 import { installOverflow } from "./toolbar_overflow";
+import { asWritten } from "./page";
 import { indentLines, insertRule, setAlign, setHeading } from "./paragraphs";
 import {
   cellAtCaret,
@@ -415,6 +416,6 @@ function buildAlignMenu(
 /// is the same selection-splitting problem the mark commands have, and the engines do it correctly.
 function legacy(editor: HTMLElement, command: string): void {
   editor.focus({ preventScroll: true });
-  (documentOf(editor) as Document & { execCommand?: (c: string, ui?: boolean) => boolean })
-    .execCommand?.(command, false);
+  const doc = documentOf(editor) as Document & { execCommand?: (c: string, ui?: boolean) => boolean };
+  asWritten(doc, () => doc.execCommand?.(command, false));
 }

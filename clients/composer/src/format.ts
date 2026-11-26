@@ -14,6 +14,7 @@
 
 import { documentOf, focusEditor, rangeTouches, rangeWithin } from "./dom";
 import { normalizeColor, normalizeFontElements, stampFont, stampSize } from "./marks";
+import { asWritten } from "./page";
 import { familyCss, nearestLegacyLevel } from "./typography";
 import type { FontSize } from "./types";
 
@@ -24,7 +25,7 @@ type Legacy = Document & {
 function exec(editor: HTMLElement, command: string, value?: string): boolean {
   focusEditor(editor);
   const doc = documentOf(editor) as Legacy;
-  return doc.execCommand?.(command, false, value) ?? false;
+  return asWritten(doc, () => doc.execCommand?.(command, false, value) ?? false);
 }
 
 /// Asks the engine to express marks as inline CSS rather than legacy presentational elements, so a
@@ -123,22 +124,27 @@ export function applyFontFamily(editor: HTMLElement, font: string | null): void 
 export type ColorKind = "color" | "highlight";
 
 /// Paints the selection. `null` clears the mark instead of painting a new one.
+///
+/// The command and the stamp run as one edit on the colours as written (`asWritten`): the stamp
+/// reads the colour the command wrote, which a dark page would otherwise already be showing moved.
 export function applyColor(editor: HTMLElement, kind: ColorKind, color: string | null): void {
   const normalized = normalizeColor(color);
   if (!normalized) {
     clearColor(editor, kind);
     return;
   }
-  preferCss(editor);
-  if (kind === "color") {
-    exec(editor, "foreColor", normalized);
-  } else if (!exec(editor, "hiliteColor", normalized)) {
-    // Blink implements the highlight as `backColor` when `styleWithCSS` is off, and some engines
-    // report `hiliteColor` unsupported outright.
-    exec(editor, "backColor", normalized);
-  }
-  normalizeFontElements(editor, null);
-  stampColor(editor, kind, normalized);
+  asWritten(documentOf(editor), () => {
+    preferCss(editor);
+    if (kind === "color") {
+      exec(editor, "foreColor", normalized);
+    } else if (!exec(editor, "hiliteColor", normalized)) {
+      // Blink implements the highlight as `backColor` when `styleWithCSS` is off, and some engines
+      // report `hiliteColor` unsupported outright.
+      exec(editor, "backColor", normalized);
+    }
+    normalizeFontElements(editor, null);
+    stampColor(editor, kind, normalized);
+  });
 }
 
 /// Stamps `data-color`/`data-highlight` on the spans the command just painted, so the mark is read
@@ -162,8 +168,10 @@ function stampColor(editor: HTMLElement, kind: ColorKind, color: string): void {
 /// `execCommand` exists to do and which has no command for *removing* one mark. Selecting the run
 /// and clearing it does the right thing, which is how the control is used.
 export function clearColor(editor: HTMLElement, kind: ColorKind): void {
-  if (kind === "color") clearMark(editor, "data-color", "color");
-  else clearMark(editor, "data-highlight", "backgroundColor");
+  asWritten(documentOf(editor), () => {
+    if (kind === "color") clearMark(editor, "data-color", "color");
+    else clearMark(editor, "data-highlight", "backgroundColor");
+  });
 }
 
 /// Removes one mark, stamped as `attribute` and drawn as `property`, from the elements the

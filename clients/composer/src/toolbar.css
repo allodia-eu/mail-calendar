@@ -152,3 +152,9 @@ body.native-chrome .toolbar-more {
 .toolbar-overflow > .sep:first-child {
   display: none;
 }
+
+/* The page's sun or moon: what pressing it does, so a sun on a dark page and a moon on a light. */
+#page-background[data-page="dark"] .moon,
+#page-background:not([data-page="dark"]) .sun {
+  display: none;
+}

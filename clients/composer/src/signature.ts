@@ -1,6 +1,7 @@
 // The sender's signature region, and the body-only seams the Settings signature editor uses.
 
 import { caretInto, documentOf, emptyLine, focusEditor, isBlank } from "./dom";
+import { writtenHtml } from "./page_regions";
 import { plainText } from "./plain_text";
 import type { Block, SignatureValue } from "./types";
 
@@ -27,7 +28,7 @@ export function composerSignature(editor: HTMLElement): HTMLElement | null {
 export function signatureBlock(container: HTMLElement): Block {
   return {
     Signature: {
-      body_html: container.innerHTML,
+      body_html: writtenHtml(container),
       body_plain: plainText(container),
     },
   };
@@ -177,5 +178,5 @@ export function setSignatureBody(editor: HTMLElement, html: unknown, placeholder
 /// respects the line structure the user can see: `textContent` would run a three-line signature
 /// into one.
 export function signatureBody(editor: HTMLElement): SignatureValue {
-  return { body_html: editor.innerHTML, body_plain: editor.innerText };
+  return { body_html: writtenHtml(editor), body_plain: editor.innerText };
 }
