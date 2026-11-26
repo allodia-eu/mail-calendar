@@ -92,6 +92,8 @@ internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObje
     put("linkApply", L10n.editor_link_apply(ctx))
     put("linkRemove", L10n.editor_link_remove(ctx))
     put("moreFormatting", L10n.editor_more_formatting(ctx))
+    put("lightBackground", L10n.reading_show_light_background(ctx))
+    put("darkBackground", L10n.reading_show_dark_background(ctx))
 }.toString()
 
 // The exact JS the host injects once the editor bundle has parsed and its `window.*` hooks exist,

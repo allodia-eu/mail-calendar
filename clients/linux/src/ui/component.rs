@@ -63,6 +63,11 @@ impl SimpleComponent for AppWindow {
                 AppInput::Booted(booted) => {
                     let held = opening.take_held();
                     let mut model = Box::new(AppModel::open(booted, sender.input_sender()));
+                    if let Some(app) = &model.app {
+                        super::composer_scheme::follow_dark_messages(
+                            app.display_settings().dark_message_background,
+                        );
+                    }
                     #[cfg(any(debug_assertions, feature = "dev-harness"))]
                     {
                         model.apply_debug_open_hook();

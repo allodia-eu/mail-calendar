@@ -11,6 +11,18 @@ use crate::{
     validate::{ComposerResult, validate},
 };
 
+/// The colour of the indented quote's left border.
+pub(crate) const QUOTE_RULE: &str = "#cccccc";
+
+/// The colour of the line a line-and-header quote is divided off by.
+pub(crate) const HEADER_RULE: &str = "rgb(181, 196, 223)";
+
+/// The colour of a table's cell borders.
+///
+/// The three are written into the styles below as well, which
+/// `the_light_page_is_the_sent_message_as_written` holds them to.
+pub(crate) const TABLE_RULE: &str = "#d8dde3";
+
 /// The indented quote's left border, inlined because mail clients drop `<head>`/`<style>`
 /// (the same reason tables carry inline borders).
 const INDENTED_QUOTE_STYLE: &str =
@@ -38,7 +50,7 @@ const SIGNATURE_OPEN: &str = "<div class=\"allodia-signature\">";
 
 /// The opening of the line-and-header quote's HTML divider: a top border with `3pt` top
 /// padding (not an `<hr>`), wrapping the header block. Closed with `</div></div>` after the
-/// headers. The blue-grey (`rgb(181, 196, 223)`) and the border-not-rule shape are deliberate
+/// headers. The blue-grey ([`HEADER_RULE`]) and the border-not-rule shape are deliberate
 /// interop: it is byte-for-byte what Outlook emits, so a reply threading back into an Outlook
 /// mailbox is divided exactly where that reader expects.
 const HEADER_DIVIDER_OPEN: &str =
@@ -135,9 +147,7 @@ fn render_block_html(
             for row in &table.rows {
                 out.push_str("<tr>");
                 for cell in &row.cells {
-                    out.push_str(
-                        "<td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\">",
-                    );
+                    out.push_str(TABLE_CELL_OPEN);
                     render_inlines_html(&cell.content, out, attachments);
                     out.push_str("</td>");
                 }
@@ -147,6 +157,10 @@ fn render_block_html(
         }
     }
 }
+
+/// A table cell's opening tag: its border ([`TABLE_RULE`]) and padding are inline on every cell.
+const TABLE_CELL_OPEN: &str =
+    "<td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\">";
 
 /// The spacing a paragraph is set apart by, stated inline: the editor draws a `<p>` with it, and
 /// Word, which every Windows Outlook renders with, gives a bare `<p>` 14pt above and below.

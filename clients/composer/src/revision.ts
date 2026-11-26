@@ -13,7 +13,7 @@
 ///
 /// The number itself means nothing (it is not an undo depth), and it never goes down. What a host
 /// reads it for is the one question "has anything changed since I last looked".
-export function installRevisionCounter(editor: HTMLElement): () => number {
+export function installRevisionCounter(editor: HTMLElement): Revision {
   let revision = 0;
   const observer = new (windowOf(editor).MutationObserver)(() => {
     revision += 1;
@@ -24,8 +24,23 @@ export function installRevisionCounter(editor: HTMLElement): () => number {
     characterData: true,
     attributes: true,
   });
-  return () => revision;
+  const read = () => revision;
+  return Object.assign(read, {
+    quietly(change: () => void) {
+      // An edit the observer has not delivered yet still counts.
+      if (observer.takeRecords().length > 0) revision += 1;
+      try {
+        change();
+      } finally {
+        observer.takeRecords();
+      }
+    },
+  });
 }
+
+/// How many changes there have been, and a way to make one that is not a change to the message:
+/// the page showing its colours for a new scheme (`page.ts`), which sends nothing different.
+export type Revision = (() => number) & { quietly(change: () => void): void };
 
 /// The window the editor lives in, rather than the global one, so a test drives an isolated DOM.
 function windowOf(node: HTMLElement): Window & typeof globalThis {

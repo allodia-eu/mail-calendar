@@ -3,7 +3,9 @@
 **Scope.** What a message's body looks like while the app is dark: which page it is drawn on, how
 its own colours are moved to suit that page, and the control that sends it back to the page it was
 written for. It binds every client that draws a reading view, its separate reading windows included
-([`reading-window.md`](reading-window.md)). The composer editor is not covered and stays light.
+([`reading-window.md`](reading-window.md)), and every client that hosts the shared editor, the
+composer and the signature editor alike, whose message is written on the page it will be read on
+(rules 10 to 14).
 
 **Principle.** A dark app with a white rectangle in the middle of it is the app disagreeing with
 itself, so a message follows the app. But a sender wrote for a white page, and no transform reads
@@ -109,7 +111,60 @@ background, or text baked into a picture, can sit badly on a dark page; so can a
 element that frames a background picture further down. No client solves these, and this one does
 not pretend to: the toggle is the answer, which is why it is on the row rather than in a menu.
 
+## Writing in a dark app
+
+The composer shows its message as the reading view will show it once it is sent. A writer who sees
+one page while writing and another when reading the message back, in their Sent folder or in a
+reply, has been shown two different messages.
+
+10. **A message is written on the page it will be read on.** The editor's page is dark exactly when
+    a reading view's would be (rule 1), on the same canvas (rule 5), with every colour moved by the
+    same transform (rule 4). The decision is rule 1's and is the client's to make as it makes it for
+    a reading view; the page and each moved colour are the core's. The page is there from the
+    editor's first frame, as the reading view's canvas is (rule 5): a client hands it to the web
+    view before the editor's document runs (`composer_page_preload_script`, a script injected at
+    the document's start, beside the app's own scheme), names it again with
+    `composer_page_script(scheme)` once the document has loaded and whenever the scheme changes,
+    and the editor asks how
+    each colour in its message looks on it (the `colours` request, answered by
+    `composer_colours_answer_script`, which the client runs as it is). The editor applies answers
+    and decides nothing. The lines the core's renderer draws itself (an indented quote's rule, the
+    line-and-header divider, a table's borders) are on the page from the start, moved as the reading
+    view moves them; `the_page_shows_each_piece_as_the_reading_view_draws_the_sent_message` holds
+    the editor's pieces to the reading view's dark render of the sent message.
+
+11. **What is sent is what was written.** The page changes what is drawn, never what the editor
+    hands out to be saved, sent or stored. A colour the writer picks is kept as a stamp and shown
+    moved by a stylesheet of the page's own, so a colour picked on a dark page is sent as picked and
+    shown as a reader in a dark app will see it. A quoted original and a signature are markup kept
+    as it arrived, whose colours can be anywhere and `!important`, so they are moved in place, the
+    value as written kept beside the value shown, and every path that takes their markup out of
+    the editor puts the written value back (`writtenHtml`). A region's plain text is its words and
+    never its style sheets, so a moved sheet cannot reach the `text/plain` part either.
+
+12. **An edit runs on the colours as written.** An engine writes the computed style of what it
+    works on into new markup: the content a deletion across two paragraphs moves, the typing style
+    Enter carries to the next line, the selection a copy or a cut puts on the clipboard, and on a
+    dark page that is the colour shown. For the length of every such edit, an undo and a redo
+    included, the page is the light one with every moved colour put back, and it returns before
+    anything is painted, so what the engine writes is what it writes on a light page. A character
+    typed at a caret, one deleted inside the text it sits in, and an input method's composition
+    carry no style and are left alone.
+
+13. **The page's own changes are not edits.** Showing a colour moved, or putting it back, is never a
+    step of the undo history, does not end the step being typed, and does not count as a change to
+    the draft ([`undo.md`](undo.md), [`drafts.md`](drafts.md)).
+
+14. **A third door to the one preference.** The editor's toolbar carries the sun or moon of rule 3,
+    with its glyphs and names, drawn only while the app is dark and only by a client that names the
+    page. Pressing it sets the dark-messages preference (rule 2) through
+    `composer_background_choice`, and every open message and editor follows. It is the last control
+    on the row, so a narrow composer keeps it behind ⋯
+    ([`composer-layout.md`](composer-layout.md), rule 7).
+
 ## Per-platform
+
+Legend: ✅ shipped · ⬜ planned · — not applicable.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
@@ -120,3 +175,8 @@ not pretend to: the toggle is the answer, which is why it is on the row rather t
 | Re-renders live on an appearance or preference change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A scheme change keeps the reader's place | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Reading windows follow | ✅ | — | ✅ | — | ✅ |
+| The composer writes on the reading page (rules 10 to 13) | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The editor's page is right from its first frame | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The signature editor writes on it too | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Sun/moon on the editor's toolbar, dark app only (rule 14) | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The editor follows an appearance or preference change live | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |

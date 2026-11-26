@@ -30,6 +30,8 @@ export function plainText(element: Element): string {
     if (node.nodeType !== 1) return;
     const element = node as Element;
     const tag = element.tagName;
+    // A quoted original keeps its sender's style sheets, whose text is no part of what it says.
+    if (UNSAID.has(tag)) return;
     if (tag === "BR") {
       lines.push({ text: "", pre: false });
       return;
@@ -62,6 +64,9 @@ interface Line {
   text: string;
   pre: boolean;
 }
+
+/// Elements whose text is markup's, not the message's.
+const UNSAID = new Set(["STYLE", "SCRIPT", "TEMPLATE", "TITLE", "NOSCRIPT"]);
 
 /// Whether `element` lays its text out as written: a `<pre>`, or `white-space: pre`, `pre-wrap` or
 /// `pre-line` stated inline, which is how every client's editor writes it and the only way markup

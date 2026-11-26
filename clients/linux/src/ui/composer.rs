@@ -290,7 +290,7 @@ impl ComposerPane {
                 }
             }) as Rc<dyn Fn(String)>
         });
-        super::composer_host::install(web.widget(), Some(&column), report);
+        super::composer_host::install(web.widget(), Some(&column), report, app.cloned());
         install_drop_target(column.widget(), take_files(PictureAnswer::Ask));
         toolbar.set_content(Some(column.widget()));
         self.root.append(&toolbar);
@@ -352,7 +352,7 @@ impl ComposerPane {
                     || {},
                 );
             });
-        web.load(EDITOR_HTML, false);
+        web.load_editor(EDITOR_HTML, &super::composer_scheme::preload());
         self.hint.replace(Some(hint));
         self.error.replace(Some(error));
         self.send.replace(Some(send_button));

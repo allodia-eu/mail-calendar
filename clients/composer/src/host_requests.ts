@@ -9,6 +9,7 @@
 // travels the same way, to a host that named it, and nothing answers it.
 
 import type { Steps } from "./history";
+import type { ColourPiece, PageScheme } from "./page";
 import type { ReplyDraftReport } from "./reply_draft";
 
 /// `mailcal_composer::LinkRequest`.
@@ -24,6 +25,8 @@ export type LinkAnswer = { apply: { text: string; address: string } } | "remove"
 /// Each request kind, with what it carries and what it is answered with.
 interface Vocabulary {
   link: { request: LinkRequest; answer: LinkAnswer };
+  /// `mailcal_composer::ColoursRequest`, answered by the core (`page.ts`).
+  colours: { request: { scheme: PageScheme; pieces: ColourPiece[] }; answer: (string | null)[] };
 }
 
 export type HostRequestKind = keyof Vocabulary;
@@ -36,6 +39,8 @@ interface Notices {
   caret: { top: number; bottom: number };
   scroll: { px: number; end: number };
   reply_draft: ReplyDraftReport;
+  /// `mailcal_composer::BackgroundChoice`: the page the toolbar's sun or moon asked for.
+  background: { scheme: PageScheme };
 }
 
 export type HostNoticeKind = keyof Notices;
@@ -46,6 +51,8 @@ const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = [
   "caret",
   "scroll",
   "reply_draft",
+  "colours",
+  "background",
 ];
 
 type Post = (message: string) => void;
@@ -91,6 +98,11 @@ export class HostRequests {
     return this.answered.has(kind) && channelOf(this.win) !== null;
   }
 
+  /// Whether a notice of `kind` reaches the host, for a control that exists only to send one.
+  hears(kind: HostNoticeKind): boolean {
+    return this.answered.has(kind) && channelOf(this.win) !== null;
+  }
+
   /// Sends one request and resolves with the host's answer, or `null` when it cannot be sent or
   /// the answer is not one this kind takes.
   request<K extends HostRequestKind>(
@@ -131,6 +143,10 @@ function answerOf<K extends HostRequestKind>(kind: K, value: unknown): Vocabular
     if (apply && typeof apply.text === "string" && typeof apply.address === "string") {
       return { apply: { text: apply.text, address: apply.address } };
     }
+  }
+  if (kind === "colours" && Array.isArray(answer)) {
+    const colours = answer.map((entry) => (typeof entry === "string" ? entry : null));
+    return colours as Vocabulary[K]["answer"];
   }
   return null;
 }

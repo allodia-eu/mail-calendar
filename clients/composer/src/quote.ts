@@ -5,6 +5,7 @@
 // than a round-trip to the core.
 
 import { caretInto, documentOf, emptyLine, focusEditor } from "./dom";
+import { writtenHtml } from "./page_regions";
 import { plainText } from "./plain_text";
 import type { Block, QuoteAttribution, QuoteHeader, QuoteStyle, QuoteValue } from "./types";
 
@@ -40,7 +41,7 @@ export function quoteBlock(container: HTMLElement): Block {
         line: container.dataset.quoteLine || "",
         headers: readHeaders(container.dataset.quoteHeaders),
       },
-      body_html: body ? body.innerHTML : "",
+      body_html: body ? writtenHtml(body) : "",
       body_plain: body ? plainText(body) : "",
     },
   };

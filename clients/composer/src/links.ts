@@ -15,6 +15,7 @@ import {
   restoreSelection,
   type SavedSelection,
 } from "./dom";
+import { asWritten } from "./page";
 import { isTelephoneSubscriber, withoutNumberSpaces } from "./tel";
 
 /// `engine_html::link::LINK_SCHEMES`: the schemes a sent link may carry.
@@ -144,7 +145,7 @@ function wrapRange(editor: HTMLElement, range: Range, href: string): void {
   const doc = documentOf(editor) as Document & {
     execCommand?: (command: string, showUi?: boolean, value?: string) => boolean;
   };
-  if (doc.execCommand?.("createLink", false, href)) return;
+  if (asWritten(doc, () => doc.execCommand?.("createLink", false, href))) return;
   const link = doc.createElement("a");
   link.setAttribute("href", href);
   link.appendChild(range.extractContents());

@@ -115,7 +115,7 @@ pub(super) fn open(
     content.append(&body_label);
 
     let web = SecureWebView::new(DocumentKind::Composer, ctx.sender.clone());
-    super::super::composer_host::install(web.widget(), None, None);
+    super::super::composer_host::install(web.widget(), None, None, Some(Arc::clone(&ctx.app)));
     super::super::composer_scheme::follow(web.widget());
     // WebKit does not put its document on the accessibility bus here, so the host frame carries
     // the name; the same reason the composer labels the box around its editor rather than the
@@ -149,7 +149,7 @@ pub(super) fn open(
     view.set_content(Some(&content));
     ctx.navigation.add_named(&view, Some(EDITOR));
     ctx.navigation.set_visible_child_name(EDITOR);
-    web.load(EDITOR_HTML, false);
+    web.load_editor(EDITOR_HTML, &super::super::composer_scheme::preload());
 
     let editor = Rc::new(Editor {
         app: Arc::clone(&ctx.app),

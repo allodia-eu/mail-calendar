@@ -165,6 +165,16 @@ impl SecureWebView {
         }
     }
 
+    /// Loads the shared editor's document with `preload` run at its start, before the editor's own
+    /// script, so the editor's first frame is drawn on what it says (`composer_scheme::preload`).
+    /// A load replaces every script the view had, so the preload goes with the load and nowhere
+    /// else.
+    pub(crate) fn load_editor(&self, document: &str, preload: &UserScript) {
+        if self.claim(document, false) {
+            self.hand_over(document, false, Some(preload), false);
+        }
+    }
+
     /// Records `document` as the one this view is showing, unless it already is (or the view
     /// cannot load at all), and says whether the caller should go on and load it.
     fn claim(&self, document: &str, allow_remote_images: bool) -> bool {

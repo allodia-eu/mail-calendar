@@ -68,6 +68,10 @@ impl AppModel {
             Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
             Surface::Settings => {
+                // Dark messages moves the page every open editor writes on.
+                super::composer_scheme::follow_dark_messages(
+                    app.display_settings().dark_message_background,
+                );
                 // An account added or removed changes the signature slots listed.
                 self.signatures_read = self.signatures_read.wrapping_add(1);
                 self.writing_style_read = self.writing_style_read.wrapping_add(1);

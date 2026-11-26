@@ -27,6 +27,8 @@ import {
   setComposerQuoteStyle,
   type QuoteSeed,
 } from "./quote";
+import { asWritten, installPage } from "./page";
+import { installPageToggle } from "./page_toggle";
 import { installImageResize } from "./resize";
 import { splitRegionLine } from "./region_lines";
 import { installRevisionCounter } from "./revision";
@@ -67,6 +69,29 @@ const framed = installFramed(editor, {
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
 const replyDraft = installReplyDraft(editor, history, (report) => hostRequests.tell("reply_draft", report));
+// After the history and the revision counter, so an edit reaches both before the page answers it.
+const page = installPage(
+  editor,
+  (scheme, pieces) => hostRequests.request("colours", { scheme, pieces }),
+  (change) => history.unseen(() => revision.quietly(change)),
+  () => pageToggle.update(),
+);
+history.around((change) => page.asWritten(change));
+const pageToggle = installPageToggle(
+  toolbarRoot,
+  () => page.scheme(),
+  () => doc.documentElement.dataset.scheme === "dark",
+  () => hostRequests.hears("background"),
+  () => labels,
+  (scheme) => hostRequests.tell("background", { scheme }),
+  () => toolbar.fit(),
+);
+// The app's scheme and the page a host handed this document before it ran
+// (`composer_page_preload_script`), so the first frame is drawn on them rather than on the light
+// page and the system's scheme the stylesheet starts on.
+const preset = window as Window & { composerScheme?: unknown; composerPage?: unknown };
+if (preset.composerScheme !== undefined) setScheme(doc.documentElement, preset.composerScheme);
+if (preset.composerPage !== undefined) page.set(preset.composerPage);
 
 // Paste. Formatted text keeps what the document can hold of its formatting (`paste.ts`), and wins
 // over a picture beside it, which is a rendering of that text (`pasteContent`). A picture on its
@@ -101,7 +126,7 @@ function insertHtml(html: string): boolean {
 function execCommand(command: string, value: string): boolean {
   const exec = (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean })
     .execCommand;
-  return exec?.call(doc, command, false, value) ?? false;
+  return asWritten(doc, () => exec?.call(doc, command, false, value) ?? false);
 }
 
 // A drop is refused HERE and handled by the host, which is what lets a dropped file become a real
@@ -206,6 +231,7 @@ declare global {
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
     setComposerScheme: (scheme: unknown) => void;
+    setComposerPage: (page: unknown) => void;
     setComposerHostRequests: (kinds: unknown) => void;
     answerComposerRequest: (id: unknown, answer: unknown) => void;
     composerDocument: () => string;
@@ -252,8 +278,11 @@ window.setComposerSignature = (signature) =>
       setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature)),
     ),
   );
-window.setSignatureBody = (html, placeholder) =>
+window.setSignatureBody = (html, placeholder) => {
+  // The whole editor is the signature, kept as written.
+  page.setWhole(true);
   history.restart(() => setSignatureBody(editor, html, placeholder));
+};
 window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // The HOST decides where the caret opens, never this document. A composer opens in the body or in
 // its empty To field (docs/contacts.md §4), and only the host knows which; so the bundle focuses
@@ -297,16 +326,24 @@ window.setComposerHostRequests = (kinds) => {
   history.watch((steps) => hostRequests.tell("history", steps));
   framed.resend();
   replyDraft.resend();
+  pageToggle.update();
 };
 window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 
 window.setComposerLabels = (incoming) => {
   labels = mergeLabels(labels, incoming);
   toolbar.applyLabels(labels);
+  pageToggle.update();
 };
 
 /// The app's light or dark, which the chrome follows (`scheme.ts`).
-window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
+window.setComposerScheme = (scheme) => {
+  setScheme(doc.documentElement, scheme);
+  pageToggle.update();
+};
+
+/// The page the message is written on, as the core builds it (`page.ts`).
+window.setComposerPage = (value) => page.set(value);
 
 /// Inserts an image at the caret as a self-contained `data:` URI: which is what a signature stores
 /// (one file, no side-car blobs to lose) and NOT what the composer's `addComposerInlineImage` does

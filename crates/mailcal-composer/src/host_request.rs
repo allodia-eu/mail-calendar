@@ -12,11 +12,19 @@ use core::fmt;
 use engine_html::link::without_number_spaces;
 use serde::{Deserialize, Serialize};
 
-use crate::LinkUrl;
+use crate::{
+    LinkUrl,
+    page::{ColoursRequest, PageScheme},
+};
 
 /// The longest request accepted, in bytes. A link request carries the selected words, which can be
 /// the whole message; the dialog shows a field, not a document.
 const MAX_REQUEST_LEN: usize = 64 * 1024;
+
+/// The longest colours request accepted, in bytes. It carries the colour attributes and style
+/// sheets of a quoted original, and a forwarded newsletter's sheets alone can pass the general
+/// limit. The editor sends them in batches under this.
+pub const MAX_COLOURS_REQUEST_LEN: usize = 1024 * 1024;
 
 /// One request from the editor, with the id its answer must carry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +51,20 @@ pub enum HostRequestKind {
     /// What the reply above the signature and the quote holds, for a drafted reply
     /// (`docs/ai.md`, rules 21 to 23). A notice, handed to the core rather than read by a client.
     ReplyDraft(ReplyDraftReport),
+    /// How each piece of the message looks on the page it is written on
+    /// (`docs/reading-dark-mode.md`, "Writing in a dark app"). The core answers it, not a client.
+    Colours(ColoursRequest),
+    /// The person pressed the toolbar's sun or moon: the page they asked for. A notice the host
+    /// acts on by setting the one dark-messages preference (`docs/reading-dark-mode.md`, rule 2).
+    Background(BackgroundChoice),
+}
+
+/// The page the person asked for with the toolbar's sun or moon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BackgroundChoice {
+    /// The page they asked for.
+    pub scheme: PageScheme,
 }
 
 /// What the text above the signature and the quote holds.
@@ -139,10 +161,13 @@ struct Envelope {
 /// Reads one message from the editor, or `None` when it is not a request this product knows.
 #[must_use]
 pub fn parse_host_request(message: &str) -> Option<HostRequest> {
-    if message.len() > MAX_REQUEST_LEN {
+    if message.len() > MAX_COLOURS_REQUEST_LEN {
         return None;
     }
     let envelope: Envelope = serde_json::from_str(message).ok()?;
+    if message.len() > MAX_REQUEST_LEN && !matches!(envelope.request, HostRequestKind::Colours(_)) {
+        return None;
+    }
     if let HostRequestKind::Caret(caret) = &envelope.request
         && caret.bottom < caret.top
     {
@@ -192,6 +217,9 @@ impl fmt::Debug for LinkAnswer {
 pub enum HostAnswer {
     /// The answer to [`HostRequestKind::Link`].
     Link(LinkAnswer),
+    /// The answer to [`HostRequestKind::Colours`]: one entry per piece, in its order, `None` where
+    /// the piece is shown as written.
+    Colours(Vec<Option<String>>),
 }
 
 /// The script a host runs in the editor to deliver `answer` to request `id`.

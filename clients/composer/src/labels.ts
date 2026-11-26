@@ -58,6 +58,8 @@ export interface Labels {
   linkApply: string;
   linkRemove: string;
   moreFormatting: string;
+  lightBackground: string;
+  darkBackground: string;
 }
 
 export const DEFAULT_LABELS: Labels = {
@@ -109,6 +111,8 @@ export const DEFAULT_LABELS: Labels = {
   linkApply: "Apply",
   linkRemove: "Remove link",
   moreFormatting: "More formatting",
+  lightBackground: "Show messages with a light background",
+  darkBackground: "Show messages with a dark background",
 };
 
 /// Merges a host's (possibly partial, possibly JSON-encoded) label set over the defaults, dropping

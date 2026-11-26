@@ -3,13 +3,17 @@
 //! (`parse_composer_host_request`), which knows the whole vocabulary, so anything acted on here is
 //! a request the product has a type for; an answer goes back through the script the core builds.
 
-use std::rc::{Rc, Weak};
+use std::{
+    rc::{Rc, Weak},
+    sync::Arc,
+};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
 use mailcal_bindings::{
-    ComposerHostRequest, ComposerLinkAnswer, composer_host_channel, composer_host_requests_script,
-    composer_link_address, composer_link_answer_script, parse_composer_host_request,
+    ComposerHostRequest, ComposerLinkAnswer, MailcalApp, composer_colours_answer_script,
+    composer_host_channel, composer_host_requests_script, composer_link_address,
+    composer_link_answer_script, parse_composer_host_request,
 };
 use webkit6::{WebView, prelude::*};
 
@@ -27,10 +31,13 @@ const RESPONSE_APPLY: &str = "apply";
 /// far its message is scrolled (`docs/composer-layout.md`); the signature editor has none, and its
 /// page never sends either. `report` is handed every message as it came, for the core's own
 /// reading of it: Draft a reply's report, which the parse here leaves out (`docs/ai.md` rule 22).
+/// `app` takes the page the toolbar's sun or moon asks for (`docs/reading-dark-mode.md`); the
+/// colours the page shows are answered by the core with no app at all.
 pub(crate) fn install(
     view: &WebView,
     column: Option<&Rc<ComposerColumn>>,
     report: Option<Rc<dyn Fn(String)>>,
+    app: Option<Arc<MailcalApp>>,
 ) {
     let Some(manager) = view.user_content_manager() else {
         return;
@@ -49,6 +56,17 @@ pub(crate) fn install(
         let message = value.to_str().to_string();
         if let Some(report) = &report {
             report(message.clone());
+        }
+        if let Some(answer) = composer_colours_answer_script(message.clone()) {
+            view.evaluate_javascript(&answer, None, None, None::<&gio::Cancellable>, |_| {});
+            return;
+        }
+        // The preference's Settings signal names the page back to every editor.
+        if app
+            .as_ref()
+            .is_some_and(|app| app.composer_background_choice(message.clone()))
+        {
+            return;
         }
         let Some(request) = parse_composer_host_request(message) else {
             return;

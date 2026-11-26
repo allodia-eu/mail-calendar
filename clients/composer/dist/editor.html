@@ -23,8 +23,9 @@
   <title>Composer</title>
   <style>
     /* Two palettes. The chrome (toolbar, popovers) follows the app's appearance, so in a dark app it
-       reads as part of the window. The page is the message as its recipient will see it, so it stays
-       light in both: a colour picked on it is the colour that is sent.
+       reads as part of the window. The page is the message as the reading view will show it once it
+       is sent, so it follows the reading view's scheme rather than the app's: the core names it
+       through `setComposerPage` (`page.ts`), and its colours below are the light page until it does.
 
        Which one the chrome takes is the root's `color-scheme`, and every chrome colour is a
        `light-dark()` pair that resolves against it. The host names the app's scheme through
@@ -34,11 +35,15 @@
     :root {
       color-scheme: light dark;
 
-      /* The page. */
-      --border: #d8dde3;
-      --text: #152330;
-      --muted: #5f6b73;
+      /* The page: the reading view's light canvas, and the lines the core's renderer draws. */
       --page: #ffffff;
+      --text: #1a1a1a;
+      --page-link: #2864d6;
+      --quote-rule: #cccccc;
+      --header-rule: rgb(181, 196, 223);
+      --table-rule: #d8dde3;
+      /* What is drawn on the page but never sent: the placeholder, the picture handles. */
+      --muted: color-mix(in srgb, var(--text) 55%, var(--page));
       --page-accent: #16598d;
 
       /* The chrome: light, dark. */
@@ -100,7 +105,8 @@
 
     /* The toolbar and its controls are in `toolbar.css`. */
 
-    /* The page keeps the light scheme in a dark host, caret, selection and spelling marks included. */
+    /* The page takes its own scheme, not the app's, caret, selection and spelling marks included: a
+       dark page in a dark app, and a light one wherever the reader keeps messages light. */
     .editor {
       flex: 1;
       min-height: 180px;
@@ -111,6 +117,10 @@
       color: var(--text);
       outline: none;
       word-break: break-word;
+    }
+
+    :root[data-page="dark"] .editor {
+      color-scheme: dark;
     }
 
     .editor:empty::before {
@@ -146,8 +156,8 @@
       padding-right: 0;
     }
 
-    /* In a dark app the message is still the light page it will be sent as, so it is a light sheet on
-       the dark column and keeps its own margin rather than running its text to its edge. */
+    /* In a dark app the message is a sheet on the column, light or dark as the reading view would draw
+       it, and keeps its own margin rather than running its text to its edge. */
     :root[data-scheme="dark"] body.framed .editor {
       padding-left: 14px;
       padding-right: 14px;
@@ -278,10 +288,10 @@
       margin: 10px 0;
     }
 
-    /* The reading view's link colour (`mailcal-app`'s base sheet); a bookmark with no target is no
+    /* The reading view's link colour (`setComposerPage`); a bookmark with no target is no
        link. The underline is drawn here only: `elementMarks` does not read it as a mark. */
     .editor a[href] {
-      color: #2864d6;
+      color: var(--page-link);
       text-decoration: underline;
     }
 
@@ -310,7 +320,7 @@
       min-width: 48px;
       min-height: 28px;
       padding: 6px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--table-rule);
       vertical-align: top;
     }
 
@@ -342,12 +352,12 @@
        its attribution has spacing of its own: the renderer writes none, and the blank line a reply
        opens with above the quote is a real one (`quote.ts`). */
     .allodia-quote[data-quote-style="LineAndHeader"] {
-      border-top: 1pt solid rgb(181, 196, 223);
+      border-top: 1pt solid var(--header-rule);
       padding-top: 3pt;
     }
 
+    /* The attribution is sent as plain text in the page's own ink, so it is drawn in it here. */
     .aq-attr {
-      color: var(--muted);
       white-space: pre-wrap;
     }
 
@@ -358,7 +368,7 @@
     .allodia-quote[data-quote-style="Indented"] .aq-body {
       margin: 0 0 0 0.8ex;
       padding-left: 1ex;
-      border-left: 2px solid #cccccc;
+      border-left: 2px solid var(--quote-rule);
     }
 
     /* The sender's signature has no rule here. Editable like any other body content (seeded, then
@@ -570,6 +580,12 @@
     }
 
     .toolbar-overflow > .sep:first-child {
+      display: none;
+    }
+
+    /* The page's sun or moon: what pressing it does, so a sun on a dark page and a moon on a light. */
+    #page-background[data-page="dark"] .moon,
+    #page-background:not([data-page="dark"]) .sun {
       display: none;
     }
 
@@ -846,6 +862,14 @@
 
     <button type="button" id="rule" title="Horizontal line">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h13"/></svg>
+    </button>
+
+    <!-- The page's sun or moon, drawn only in a dark app (`page_toggle.ts`). Its glyph is what
+         pressing it does: a sun on a dark page, a moon on a light one. -->
+    <span class="sep" id="page-background-sep" hidden></span>
+    <button type="button" id="page-background" hidden>
+      <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M3.2 12.8l1.3-1.3M11.5 4.5l1.3-1.3"/></svg>
+      <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 10.2A5.6 5.6 0 0 1 5.8 2.8a5.6 5.6 0 1 0 7.4 7.4z"/></svg>
     </button>
 
     <!-- The controls a desktop row has no room for (`toolbar_overflow.ts`). -->
@@ -1293,6 +1317,432 @@
     return style.spaced ? "p" : "div";
   }
 
+  // src/page_regions.ts
+  var WRITTEN_MARKUP = ".allodia-quote .aq-body, .allodia-signature";
+  var writtenName = (name) => `data-written-${name}`;
+  var shownName = (name) => `data-shown-${name}`;
+  function namesOf(element) {
+    if (element.tagName === "STYLE")
+      return ["sheet"];
+    const names = ["style", "bgcolor"];
+    if (element.tagName === "FONT")
+      names.push("color");
+    return names;
+  }
+  function current(element, name) {
+    return name === "sheet" ? element.textContent : element.getAttribute(name);
+  }
+  function put(element, name, value) {
+    if (current(element, name) === value)
+      return;
+    if (name === "sheet")
+      element.textContent = value ?? "";
+    else if (value === null)
+      element.removeAttribute(name);
+    else
+      element.setAttribute(name, value);
+  }
+  function asWritten(element, name) {
+    const now = current(element, name);
+    const written = element.getAttribute(writtenName(name));
+    const shown = element.getAttribute(shownName(name));
+    if (written === null || shown === null || now === null)
+      return now;
+    if (now === shown)
+      return written;
+    return name === "style" ? mergeStyle(element, now, shown, written) : now;
+  }
+  function mergeStyle(element, now, shown, written) {
+    const doc = element.ownerDocument;
+    const declarations = (css) => {
+      const scratch = doc.createElement("span");
+      scratch.setAttribute("style", css);
+      return scratch.style;
+    };
+    const result = declarations(now);
+    const before = declarations(shown);
+    const original = declarations(written);
+    for (const property of Array.from(before)) {
+      if (result.getPropertyValue(property) === before.getPropertyValue(property) && result.getPropertyPriority(property) === before.getPropertyPriority(property)) {
+        result.setProperty(property, original.getPropertyValue(property), original.getPropertyPriority(property));
+      }
+    }
+    return result.cssText;
+  }
+  function pieceOf(element, name, value) {
+    if (name === "sheet")
+      return { sheet: value };
+    return { attribute: { element: element.tagName.toLowerCase(), attribute: name, value } };
+  }
+  function regionElements(editor, whole) {
+    if (whole)
+      return Array.from(editor.querySelectorAll("*"));
+    return Array.from(editor.querySelectorAll(`:is(${WRITTEN_MARKUP}) *`));
+  }
+  function planRegions(editor, whole, answered) {
+    const plan = { writes: [], missing: [] };
+    for (const element of regionElements(editor, whole)) {
+      for (const name of namesOf(element)) {
+        const written = asWritten(element, name);
+        const kept = element.getAttribute(writtenName(name));
+        const shown = element.getAttribute(shownName(name));
+        if (written === null) {
+          if (kept !== null || shown !== null)
+            plan.writes.push(() => forget(element, name));
+          continue;
+        }
+        const piece = pieceOf(element, name, written);
+        const answer = answered(piece);
+        if (answer === undefined) {
+          plan.missing.push(piece);
+          continue;
+        }
+        const target = answer ?? written;
+        if (target === written) {
+          if (current(element, name) !== written || kept !== null || shown !== null) {
+            plan.writes.push(() => {
+              put(element, name, written);
+              forget(element, name);
+            });
+          }
+        } else if (current(element, name) !== target || kept !== written || shown !== target) {
+          plan.writes.push(() => {
+            put(element, name, target);
+            element.setAttribute(writtenName(name), written);
+            element.setAttribute(shownName(name), target);
+          });
+        }
+      }
+    }
+    return plan;
+  }
+  var SHOWN = "[data-written-style], [data-written-bgcolor], [data-written-color], [data-written-sheet]";
+  function showsRegions(editor) {
+    return editor.querySelector(SHOWN) !== null;
+  }
+  function restoreRegions(editor) {
+    for (const element of Array.from(editor.querySelectorAll(SHOWN))) {
+      for (const name of namesOf(element)) {
+        if (!element.hasAttribute(writtenName(name)))
+          continue;
+        put(element, name, asWritten(element, name));
+        forget(element, name);
+      }
+    }
+  }
+  function forget(element, name) {
+    element.removeAttribute(writtenName(name));
+    element.removeAttribute(shownName(name));
+  }
+  function writtenHtml(container) {
+    if (!container.querySelector(SHOWN)) {
+      return container.innerHTML;
+    }
+    const copy = container.cloneNode(true);
+    for (const element of Array.from(copy.querySelectorAll("*"))) {
+      for (const name of namesOf(element)) {
+        if (element.hasAttribute(writtenName(name)))
+          put(element, name, asWritten(element, name));
+        forget(element, name);
+      }
+    }
+    return copy.innerHTML;
+  }
+  function touchesRegions(records, editor, whole) {
+    if (whole)
+      return records.some((record) => record.type !== "characterData");
+    const Element = windowOf(editor).Element;
+    return records.some((record) => {
+      const target = record.target instanceof Element ? record.target : record.target.parentElement;
+      if (target?.closest(WRITTEN_MARKUP))
+        return record.type !== "characterData" || target.tagName === "STYLE";
+      if (record.type !== "childList")
+        return false;
+      return Array.from(record.addedNodes).some((node) => node instanceof Element && (node.matches(WRITTEN_MARKUP) || node.querySelector(WRITTEN_MARKUP) !== null));
+    });
+  }
+
+  // src/page.ts
+  var MAX_BATCH_BYTES = 1000 * 1024;
+  var ANSWER_MS = 5000;
+  var PROPERTIES = {
+    background: "--page",
+    text: "--text",
+    link: "--page-link",
+    quote_rule: "--quote-rule",
+    header_rule: "--header-rule",
+    table_rule: "--table-rule"
+  };
+  var COLOUR = /^(#[0-9a-f]{6}|rgba?\([0-9., ]+\))$/;
+  var STAMP = /^#[0-9a-f]{6}$/;
+  function installPage(editor, ask, quietly, onScheme = () => {}) {
+    const doc = editor.ownerDocument;
+    const root = doc.documentElement;
+    const sheet = doc.createElement("style");
+    sheet.id = "page-colours";
+    doc.head.appendChild(sheet);
+    let scheme = null;
+    let colours = null;
+    let whole = false;
+    const answers = new Map;
+    const asked = new Set;
+    const keyOf = (page, piece) => `${page}\x00${JSON.stringify(piece)}`;
+    const answered = (piece) => scheme ? answers.get(keyOf(scheme, piece)) : null;
+    const win = windowOf(editor);
+    const encoder = new win.TextEncoder;
+    const send = (page, sent) => {
+      const late = new Promise((resolve) => win.setTimeout(() => resolve(null), ANSWER_MS));
+      Promise.race([ask(page, sent), late]).then((reply) => {
+        if (!reply || reply.length !== sent.length) {
+          for (const piece of sent)
+            asked.delete(keyOf(page, piece));
+          return;
+        }
+        sent.forEach((piece, at) => {
+          const value = reply[at];
+          answers.set(keyOf(page, piece), typeof value === "string" ? value : null);
+        });
+        if (scheme === page)
+          show();
+      });
+    };
+    let queued = [];
+    let flushing = false;
+    const flush = () => {
+      flushing = false;
+      if (!scheme)
+        return;
+      const page = scheme;
+      let batch = [];
+      let bytes = 0;
+      for (const piece of queued) {
+        const key = keyOf(page, piece);
+        if (asked.has(key))
+          continue;
+        const weight = encoder.encode(key).length;
+        if (weight > MAX_BATCH_BYTES)
+          continue;
+        asked.add(key);
+        if (bytes + weight > MAX_BATCH_BYTES) {
+          send(page, batch);
+          batch = [];
+          bytes = 0;
+        }
+        batch.push(piece);
+        bytes += weight;
+      }
+      queued = [];
+      if (batch.length > 0)
+        send(page, batch);
+    };
+    const request = (pieces) => {
+      queued.push(...pieces);
+      if (flushing)
+        return;
+      flushing = true;
+      win.setTimeout(flush, 0);
+    };
+    const runRules = (missing) => {
+      const rules = [];
+      const stamped = (attribute, property, piece) => {
+        const values = new Set;
+        for (const element of Array.from(editor.querySelectorAll(`[${attribute}]`))) {
+          const value = element.getAttribute(attribute) ?? "";
+          if (STAMP.test(value))
+            values.add(value);
+        }
+        for (const value of values) {
+          const answer = answered(piece(value));
+          if (answer === undefined)
+            missing.push(piece(value));
+          else if (answer !== null && COLOUR.test(answer)) {
+            rules.push(`.editor [${attribute}="${value}"]{${property}:${answer}!important}`);
+          }
+        }
+      };
+      stamped("data-color", "color", (value) => ({ ink: value }));
+      stamped("data-highlight", "background-color", (value) => ({ fill: value }));
+      return rules.join(`
+`);
+    };
+    const show = (regions = true) => {
+      if (!scheme || written > 0)
+        return;
+      const missing = [];
+      const rules = runRules(missing);
+      if (sheet.textContent !== rules)
+        sheet.textContent = rules;
+      if (regions) {
+        const plan = planRegions(editor, whole, (piece) => answered(piece));
+        missing.push(...plan.missing);
+        if (plan.writes.length > 0) {
+          quietly(() => {
+            for (const write of plan.writes)
+              write();
+          });
+          observer.takeRecords();
+        }
+      }
+      if (missing.length > 0)
+        request(missing);
+    };
+    const Observer = windowOf(editor).MutationObserver;
+    const observer = new Observer((records) => {
+      if (!scheme)
+        return;
+      const regions = touchesRegions(records, editor, whole);
+      const runs = records.some((record) => record.type === "childList" || record.attributeName?.startsWith("data-") === true);
+      if (regions || runs)
+        show(regions);
+    });
+    const paint = () => {
+      if (!scheme || !colours)
+        return;
+      root.dataset.page = scheme;
+      for (const [field, property] of Object.entries(PROPERTIES)) {
+        root.style.setProperty(property, colours[field]);
+      }
+    };
+    let written = 0;
+    const shows = () => scheme === "dark" || showsRegions(editor);
+    const enter = () => {
+      written += 1;
+      if (written > 1)
+        return;
+      if (showsRegions(editor)) {
+        quietly(() => restoreRegions(editor));
+        observer.takeRecords();
+      }
+      if (scheme !== "dark")
+        return;
+      sheet.textContent = "";
+      delete root.dataset.page;
+      for (const property of Object.values(PROPERTIES))
+        root.style.removeProperty(property);
+    };
+    const leave = () => {
+      if (written === 0)
+        return;
+      written -= 1;
+      if (written > 0)
+        return;
+      paint();
+      show();
+    };
+    const asWritten = (edit) => {
+      enter();
+      try {
+        return edit();
+      } finally {
+        leave();
+      }
+    };
+    let watching = false;
+    const watch = () => {
+      if (watching)
+        return;
+      watching = true;
+      observer.observe(editor, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["style", "bgcolor", "color", "data-color", "data-highlight"]
+      });
+      editor.addEventListener("beforeinput", (event) => {
+        if (!shows() || event.defaultPrevented || !carriesStyle(event, win))
+          return;
+        enter();
+        let left = false;
+        const done = () => {
+          if (left)
+            return;
+          left = true;
+          leave();
+        };
+        editor.addEventListener("input", done, { once: true });
+        win.setTimeout(done, 0);
+      });
+      for (const type of ["copy", "cut"]) {
+        editor.addEventListener(type, () => {
+          if (!shows())
+            return;
+          enter();
+          win.setTimeout(leave, 0);
+        });
+      }
+    };
+    const page = {
+      set(value) {
+        const named = pageOf(value);
+        if (!named)
+          return;
+        watch();
+        colours = named.colours;
+        const changed = scheme !== named.scheme;
+        scheme = named.scheme;
+        if (written === 0)
+          paint();
+        show();
+        if (changed)
+          onScheme(named.scheme);
+      },
+      scheme: () => scheme,
+      setWhole(value) {
+        whole = value;
+        show();
+      },
+      asWritten
+    };
+    pages.set(doc, page);
+    return page;
+  }
+  var pages = new WeakMap;
+  function asWritten2(doc, edit) {
+    const page = pages.get(doc);
+    return page ? page.asWritten(edit) : edit();
+  }
+  function carriesStyle(event, win) {
+    const type = event.inputType;
+    if (type === "insertCompositionText")
+      return false;
+    const selection = win.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed)
+      return true;
+    if (type === "insertText")
+      return false;
+    const node = selection.anchorNode;
+    const offset = selection.anchorOffset;
+    if (node?.nodeType !== 3)
+      return true;
+    if (type === "deleteContentBackward")
+      return offset === 0;
+    if (type === "deleteContentForward")
+      return offset >= (node.nodeValue ?? "").length;
+    return true;
+  }
+  function pageOf(value) {
+    let source = value;
+    if (typeof source === "string") {
+      try {
+        source = JSON.parse(source);
+      } catch {
+        return null;
+      }
+    }
+    const record = source;
+    if (!record || record.scheme !== "light" && record.scheme !== "dark")
+      return null;
+    const colours = {};
+    for (const field of Object.keys(PROPERTIES)) {
+      const colour = record[field];
+      if (typeof colour !== "string" || !COLOUR.test(colour))
+        return null;
+      colours[field] = colour;
+    }
+    return { scheme: record.scheme, colours };
+  }
+
   // src/tel.ts
   var NUMBER = /^[0-9().-]*[0-9][0-9().-]*$/;
   var LOCAL_NUMBER = /^[0-9a-f().-]*[0-9a-f][0-9a-f().-]*$/i;
@@ -1428,7 +1878,7 @@
   }
   function wrapRange(editor, range, href) {
     const doc = documentOf(editor);
-    if (doc.execCommand?.("createLink", false, href))
+    if (asWritten2(doc, () => doc.execCommand?.("createLink", false, href)))
       return;
     const link = doc.createElement("a");
     link.setAttribute("href", href);
@@ -1692,6 +2142,8 @@
         return;
       const element = node;
       const tag = element.tagName;
+      if (UNSAID.has(tag))
+        return;
       if (tag === "BR") {
         lines.push({ text: "", pre: false });
         return;
@@ -1722,6 +2174,7 @@
     return out.join(`
 `);
   }
+  var UNSAID = new Set(["STYLE", "SCRIPT", "TEMPLATE", "TITLE", "NOSCRIPT"]);
   function isPreformatted(element) {
     if (element.tagName === "PRE")
       return true;
@@ -1749,7 +2202,7 @@
           line: container.dataset.quoteLine || "",
           headers: readHeaders(container.dataset.quoteHeaders)
         },
-        body_html: body ? body.innerHTML : "",
+        body_html: body ? writtenHtml(body) : "",
         body_plain: body ? plainText(body) : ""
       }
     };
@@ -1845,7 +2298,7 @@
   function signatureBlock(container) {
     return {
       Signature: {
-        body_html: container.innerHTML,
+        body_html: writtenHtml(container),
         body_plain: plainText(container)
       }
     };
@@ -1933,7 +2386,7 @@
     focusEditor(editor);
   }
   function signatureBody(editor) {
-    return { body_html: editor.innerHTML, body_plain: editor.innerText };
+    return { body_html: writtenHtml(editor), body_plain: editor.innerText };
   }
 
   // src/document.ts
@@ -2203,7 +2656,7 @@
   function exec(editor, command, value) {
     focusEditor(editor);
     const doc = documentOf(editor);
-    return doc.execCommand?.(command, false, value) ?? false;
+    return asWritten2(doc, () => doc.execCommand?.(command, false, value) ?? false);
   }
   function preferCss(editor) {
     exec(editor, "styleWithCSS", "true");
@@ -2276,14 +2729,16 @@
       clearColor(editor, kind);
       return;
     }
-    preferCss(editor);
-    if (kind === "color") {
-      exec(editor, "foreColor", normalized);
-    } else if (!exec(editor, "hiliteColor", normalized)) {
-      exec(editor, "backColor", normalized);
-    }
-    normalizeFontElements(editor, null);
-    stampColor(editor, kind, normalized);
+    asWritten2(documentOf(editor), () => {
+      preferCss(editor);
+      if (kind === "color") {
+        exec(editor, "foreColor", normalized);
+      } else if (!exec(editor, "hiliteColor", normalized)) {
+        exec(editor, "backColor", normalized);
+      }
+      normalizeFontElements(editor, null);
+      stampColor(editor, kind, normalized);
+    });
   }
   function stampColor(editor, kind, color) {
     const property = kind === "color" ? "color" : "background-color";
@@ -2296,10 +2751,12 @@
     }
   }
   function clearColor(editor, kind) {
-    if (kind === "color")
-      clearMark(editor, "data-color", "color");
-    else
-      clearMark(editor, "data-highlight", "backgroundColor");
+    asWritten2(documentOf(editor), () => {
+      if (kind === "color")
+        clearMark(editor, "data-color", "color");
+      else
+        clearMark(editor, "data-highlight", "backgroundColor");
+    });
   }
   function clearMark(editor, attribute, property) {
     const range = rangeWithin(editor);
@@ -2522,7 +2979,9 @@
     "history",
     "caret",
     "scroll",
-    "reply_draft"
+    "reply_draft",
+    "colours",
+    "background"
   ];
   function channelOf(win) {
     const scope = win;
@@ -2557,6 +3016,9 @@
       }
     }
     answers(kind) {
+      return this.answered.has(kind) && channelOf(this.win) !== null;
+    }
+    hears(kind) {
       return this.answered.has(kind) && channelOf(this.win) !== null;
     }
     request(kind, payload) {
@@ -2594,6 +3056,10 @@
         return { apply: { text: apply.text, address: apply.address } };
       }
     }
+    if (kind === "colours" && Array.isArray(answer)) {
+      const colours = answer.map((entry) => typeof entry === "string" ? entry : null);
+      return colours;
+    }
     return null;
   }
 
@@ -2623,6 +3089,7 @@
     let press = 0;
     let pressed = false;
     let quiet = false;
+    let around = (change) => change();
     let listener = null;
     let told = null;
     const marks = new Map;
@@ -2795,8 +3262,11 @@
     doc.addEventListener("pointerup", release, true);
     doc.addEventListener("pointercancel", release, true);
     const history = {
-      undo: () => move(undone, redone),
-      redo: () => move(redone, undone),
+      undo: () => around(() => move(undone, redone)),
+      redo: () => around(() => move(redone, undone)),
+      around(wrap) {
+        around = wrap;
+      },
       steps() {
         flush();
         return { undo: undone.length > 0, redo: redone.length > 0 };
@@ -2816,6 +3286,16 @@
       },
       outside: (change) => unrecorded(change, false),
       restart: (change) => unrecorded(change, true),
+      unseen(change) {
+        flush();
+        quiet = true;
+        try {
+          return change();
+        } finally {
+          observer.takeRecords();
+          quiet = false;
+        }
+      },
       step(tag, change) {
         flush();
         const before = undone.at(-1);
@@ -3059,7 +3539,9 @@
     linkAddress: "Address",
     linkApply: "Apply",
     linkRemove: "Remove link",
-    moreFormatting: "More formatting"
+    moreFormatting: "More formatting",
+    lightBackground: "Show messages with a light background",
+    darkBackground: "Show messages with a dark background"
   };
   function mergeLabels(current, incoming) {
     const source = typeof incoming === "string" ? safeParse(incoming) : incoming ?? {};
@@ -4032,6 +4514,35 @@
     return { serial: raw.serial, text: raw.text, gaps, insert: raw.insert !== false };
   }
 
+  // src/page_toggle.ts
+  function installPageToggle(root, page, appDark, heard, labels, choose, fit) {
+    const doc = root.ownerDocument;
+    const button = doc.getElementById("page-background");
+    const separator = doc.getElementById("page-background-sep");
+    if (!button || !separator)
+      return { update() {} };
+    button.addEventListener("click", () => {
+      const scheme = page();
+      if (scheme)
+        choose(scheme === "dark" ? "light" : "dark");
+    });
+    return {
+      update() {
+        const scheme = page();
+        const shown = scheme !== null && appDark() && heard();
+        const label = scheme === "dark" ? labels().lightBackground : labels().darkBackground;
+        button.title = label;
+        button.setAttribute("aria-label", label);
+        button.dataset.page = scheme ?? "light";
+        if (button.hidden === !shown)
+          return;
+        button.hidden = !shown;
+        separator.hidden = !shown;
+        fit();
+      }
+    };
+  }
+
   // src/resize.ts
   var MIN_WIDTH_PX = 24;
   var GRIP_REACH_PX = 24;
@@ -4316,7 +4827,18 @@
       characterData: true,
       attributes: true
     });
-    return () => revision;
+    const read = () => revision;
+    return Object.assign(read, {
+      quietly(change) {
+        if (observer.takeRecords().length > 0)
+          revision += 1;
+        try {
+          change();
+        } finally {
+          observer.takeRecords();
+        }
+      }
+    });
   }
   function windowOf2(node) {
     return node.ownerDocument.defaultView;
@@ -5472,7 +5994,8 @@
   }
   function legacy(editor, command) {
     editor.focus({ preventScroll: true });
-    documentOf(editor).execCommand?.(command, false);
+    const doc = documentOf(editor);
+    asWritten2(doc, () => doc.execCommand?.(command, false));
   }
 
   // src/main.ts
@@ -5498,6 +6021,14 @@
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
   var replyDraft = installReplyDraft(editor, history, (report) => hostRequests.tell("reply_draft", report));
+  var page = installPage(editor, (scheme, pieces) => hostRequests.request("colours", { scheme, pieces }), (change) => history.unseen(() => revision.quietly(change)), () => pageToggle.update());
+  history.around((change) => page.asWritten(change));
+  var pageToggle = installPageToggle(toolbarRoot, () => page.scheme(), () => doc.documentElement.dataset.scheme === "dark", () => hostRequests.hears("background"), () => labels, (scheme) => hostRequests.tell("background", { scheme }), () => toolbar.fit());
+  var preset = window;
+  if (preset.composerScheme !== undefined)
+    setScheme(doc.documentElement, preset.composerScheme);
+  if (preset.composerPage !== undefined)
+    page.set(preset.composerPage);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
     const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly(), attachments);
@@ -5518,7 +6049,7 @@
   }
   function execCommand(command, value) {
     const exec = doc.execCommand;
-    return exec?.call(doc, command, false, value) ?? false;
+    return asWritten2(doc, () => exec?.call(doc, command, false, value) ?? false);
   }
   editor.addEventListener("dragover", (event) => event.preventDefault());
   editor.addEventListener("drop", (event) => event.preventDefault());
@@ -5598,7 +6129,10 @@
   window.setComposerQuoteStyle = (style) => history.outside(() => setComposerQuoteStyle(editor, style));
   window.completeComposerQuoteAttribution = (attribution) => history.outside(() => completeComposerQuoteAttribution(editor, parsed(attribution) ?? {}));
   window.setComposerSignature = (signature) => replyDraft.loaded(() => history.outside(() => setComposerSignature(editor, signature == null ? null : parsed(signature))));
-  window.setSignatureBody = (html, placeholder) => history.restart(() => setSignatureBody(editor, html, placeholder));
+  window.setSignatureBody = (html, placeholder) => {
+    page.setWhole(true);
+    history.restart(() => setSignatureBody(editor, html, placeholder));
+  };
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => replyDraft.loaded(() => history.restart(() => setPlainText(editor, text)));
@@ -5619,13 +6153,19 @@
     history.watch((steps) => hostRequests.tell("history", steps));
     framed.resend();
     replyDraft.resend();
+    pageToggle.update();
   };
   window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {
     labels = mergeLabels(labels, incoming);
     toolbar.applyLabels(labels);
+    pageToggle.update();
   };
-  window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
+  window.setComposerScheme = (scheme) => {
+    setScheme(doc.documentElement, scheme);
+    pageToggle.update();
+  };
+  window.setComposerPage = (value) => page.set(value);
   window.insertSignatureImage = (image) => {
     const data = (image ? parsed(image) : {}) ?? {};
     const given = String(data.data_url ?? "");

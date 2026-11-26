@@ -12,6 +12,7 @@ mod inline_images;
 mod links;
 mod lists;
 mod mailto;
+mod page;
 mod paragraphs;
 mod quotes;
 mod rendered_fixture;
