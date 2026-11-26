@@ -1155,6 +1155,8 @@ project stops compiling, which is the alarm working.*
   has no Android twin: a drag running off the end of a week into the next, a re-anchor that moves the
   grid by exactly nothing, a pinch reaching back past the week's first day; the test **says so in a
   comment**, so a reader can tell a deliberate divergence from a drift.
+- **`CalendarDragTests`** and **`CalendarDragGestureTests`**: the drag (§10), the arithmetic and
+  the arbitration, ported from Android's and Apple's by name.
 - **`CalendarWheelTests`**: the trackpad, and the rubber-band. A slow pan is delivered as a handful of
   small notches and then the wheel simply *stops*, which is all a touchpad ever does; the assertion is
   that the strip is **exactly where it was left**, through the silence that used to be read as a lift.
@@ -1595,7 +1597,7 @@ calendar, and it stops being true the moment a fifth transport arrives.
 |---|---|
 | Which gesture begins a drag | It is the platform's input, not the calendar's: see below |
 | Where the resize grab zones are, and when they apply at all | Points, and a function of the zoom |
-| That the delta snaps to **15 minutes** | Shared by rule, held in each client (`DRAG_SNAP_MINUTES` / `dragSnapMinutes`) |
+| That the delta snaps to **15 minutes** | Shared by rule, held in each client (`DRAG_SNAP_MINUTES` / `dragSnapMinutes` / `DragSnapMinutes`) |
 | That a **create** is the union of an hour band and the finger | Shared by rule, same place: see below |
 | Whether the preview stays inside its day | A picture, and it must not lie about the write |
 | That the block may be drawn **between** snap steps, while the readout is not | Shared by rule, same place: see below |
@@ -1604,7 +1606,10 @@ calendar, and it stops being true the moment a fifth transport arrives.
 On a **desktop** a click-drag creates and moves, and there is no drag-to-pan, because a desktop
 *scrolls* a calendar: the wheel and the trackpad already move both axes (§12 note ⁷). On a **phone or
 tablet** a plain drag is the only way to pan, so it stays a pan and a **long press** is what takes
-hold of an event.
+hold of an event. **Windows** has both inputs on one device, so the pointer decides: a mouse's or a
+touchpad's click-drag creates and moves, while a finger or a pen pans and takes hold only after
+resting for 0.4s, iOS's long press. A mouse moves a pixel or two while clicking, so a drag on an
+event that changes nothing is the click it was, and opens the event.
 
 Three rules bind whatever the gesture is:
 
@@ -1797,9 +1802,9 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | **Answer a meeting** from its event (Accept · Maybe · Decline), for the whole meeting (§4) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A **new** event opens with the caret in its title ¹¹ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Write affordances gated on `can_write`: a read-only row offers no delete; "New event" disabled without a writable calendar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Drag-to-create**: draw a slot out on empty grid, opening the editor prefilled ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| **Drag to move · resize** an event, gated on `can_move` (your own appointments and the meetings you organise) ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| A drag on a **repeating** event asks *This event · All events* ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| **Drag-to-create**: draw a slot out on empty grid, opening the editor prefilled ¹⁰ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Drag to move · resize** an event, gated on `can_move` (your own appointments and the meetings you organise) ¹⁰ | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| A drag on a **repeating** event asks *This event · All events* ¹⁰ | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | A repeat rule **summarised in full**: every second Tuesday, until 3 June, rather than one word ¹³ | ✅ (structure) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Writing** a repeat rule: set one, change one, stop the repeat ¹³ ¹⁶ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A **delete** on a repeating event asks *This event · All events* ¹³ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -1944,9 +1949,14 @@ the drag never delivers a value and no slot begins. A real finger always jitters
 `idb ui swipe --delta 1 --duration <long>`: small enough steps that the first stay inside the long
 press's 12pt tolerance for its 0.4s, then keep going, because `idb ui tap --duration` does not.
 
-**Windows ships nothing.** Its precision-touchpad pointer stack is the one the drag was not written
-against: a pan arrives as phase-less wheel messages (§6), with no begin or end to own. Linux draws and
-settles a create drag; move and resize remain absent: see "Known gaps".
+**Windows creates, moves and resizes.** The press is decided by the single gesture owner that pans
+and pinches (§6), so the hold is one more of its modes rather than a recogniser of its own, timed by
+the frame clock the surface already runs while a contact is held. `CalendarDragTests` holds the
+arithmetic, case for case and name for name with Android's and Apple's, and Linux's create cases;
+`CalendarDragGestureTests` holds the arbitration: a mouse click stays a click, a mouse drag never
+pans, a swipe never becomes a hold, and two fingers resting before a pinch are not one.
+
+**Linux draws and settles a create drag**; move and resize remain absent: see "Known gaps".
 
 ¹¹ **The opening caret.** §11 owns the rule. Held by `EventEditorFocusTest` on Android, both halves,
 and it fails when the request is dropped, and driven against the harness on 2026-08-23 on the
@@ -2203,14 +2213,11 @@ Stated, not buried.
   opens under the series' name, on every client and on every surface: the grid draws the series'
   title on every block too, so nothing on screen disagrees with anything else. Closing it is an
   engine change first.
-- **Dragging is shipped on macOS, iOS/iPadOS, Android and Linux, which has create only.** §10 is
-  the contract; what is *not* done:
-  - **Windows has no drag; Linux has no move or resize.** Both are hard cases rather than leftovers.
-    Windows hands a precision touchpad's pan to the app as **phase-less wheel messages** (§6), so
-    "the pointer is holding an event" has no begin or end to hang a drag off: the touchscreen would
-    work today and the touchpad would not, and shipping half of it is worse than shipping none.
-    Linux's click-drag starts only on empty space; event blocks remain clicks until their move/resize
-    ownership and repeating-event question are implemented.
+- **Dragging is shipped on macOS, iOS/iPadOS, Android and Windows, and on Linux, which has create
+  only.** §10 is the contract; what is *not* done:
+  - **Linux has no move or resize.** Its click-drag starts only on empty space; an event block
+    remains a click until its move/resize ownership and the repeating-event question are
+    implemented there.
   - **All-day bars cannot be dragged**, on any platform. The banner is a second geometry with its own
     rule (an **exclusive** end date, §1), and a bar that moves by whole days is a different gesture
     from a block that moves by minutes. Left out rather than approximated.

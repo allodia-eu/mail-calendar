@@ -62,7 +62,10 @@ internal sealed record BlockPaint(
     /// </remarks>
     bool Awaiting,
     /// <summary>The event has a video meeting: the camera in the block's corner (docs/conferencing.md).</summary>
-    bool Meeting)
+    bool Meeting,
+    /// <summary>What a drag takes hold of, or <c>null</c> when this block may not be dragged
+    /// (<see cref="CalendarDrag.Movable"/>).</summary>
+    CalendarDragSubject? Movable = null)
 {
     /// <summary>One occurrence of a series, which earns the repeat glyph in the block's corner.</summary>
     internal bool Repeats => IsOccurrence(OccurrenceStart);
@@ -207,7 +210,8 @@ internal static class CalendarPaint
                 seg.Event,
                 seg.OccurrenceStart,
                 awaiting,
-                seg.HasConference));
+                seg.HasConference,
+                CalendarDrag.Movable(seg)));
         }
 
         var bands = new List<BandPaint>(page.AllDay.Length);

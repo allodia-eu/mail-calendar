@@ -90,6 +90,9 @@ public sealed partial class CalendarView : UserControl
         };
         _grid.ZoomSettled = OnZoomSettled;
         _grid.OpenEvent = OnOpenEvent;
+        _grid.NewEventHex = NewEventHex;
+        _grid.CreateAt = OnCreateAt;
+        _grid.MoveDropped = OnMoveDropped;
         _month.DayPicked = OnMonthDayPicked;
         _month.EventPicked = OnOpenEvent;
     }

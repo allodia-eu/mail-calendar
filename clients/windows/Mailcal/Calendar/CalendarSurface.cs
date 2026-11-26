@@ -137,7 +137,10 @@ internal sealed partial class CalendarSurface : UserControl
             () => Viewport(),
             TouchSlop,
             onZoomSettled: OnZoomSettled,
-            onTap: OnTap);
+            onTap: OnTap)
+        {
+            Drag = this,
+        };
 
         Content = _panel;
 

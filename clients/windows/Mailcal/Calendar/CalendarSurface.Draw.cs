@@ -302,6 +302,8 @@ internal sealed partial class CalendarSurface
             contentTop: m.ContentTop,
             weekNumber: Current.WeekNumber);
 
+        DrawDrag(ds, m);
+
         TrimPages();
         UpdatePeriodTitle(m);
         UpdateLoadingPill(m);

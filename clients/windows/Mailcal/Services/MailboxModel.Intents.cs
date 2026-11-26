@@ -365,6 +365,16 @@ public sealed partial class MailboxModel
         _app?.Dispatch(new Intent.Events(new EventIntent.Respond(account, key, response, replySubject)));
     }
 
+    /// <summary>Move or resize a calendar event by the delta a drag on the grid made, in the
+    /// event's own wall clock (docs/calendar.md §10). The core re-checks that it may.</summary>
+    internal void MoveEvent(CalendarMoveArgs args)
+    {
+        Log.Info($"cal: drag an event edge={args.Edge} days={args.Days} minutes={args.Minutes} " +
+            $"occurrence={args.Occurrence is not null}");
+        _app?.Dispatch(new Intent.Events(new EventIntent.Move(
+            args.Account, args.Key, args.Edge, args.Days, args.Minutes, args.Occurrence)));
+    }
+
     /// <summary>Delete a calendar event by its owning account + provider key, then refresh the
     /// agenda. <paramref name="occurrence"/> names a single occurrence of a repeating event,
     /// the token the surface that drew it carried; <c>null</c> removes the whole series.</summary>

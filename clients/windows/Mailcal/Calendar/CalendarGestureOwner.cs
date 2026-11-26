@@ -35,6 +35,13 @@ internal enum GestureMode
 
     /// <summary>Two fingers, genuinely spreading.</summary>
     Zoom,
+
+    /// <summary>A new slot drawn out on empty grid, or an event moved or resized (docs/calendar.md §10).</summary>
+    Drag,
+
+    /// <summary>A mouse drag on nothing that can be dragged. A desktop scrolls a calendar with the wheel, so a
+    /// mouse drag never pans (§10): it does nothing, and its release is not a click.</summary>
+    Inert,
 }
 
 /// <summary>
@@ -134,6 +141,12 @@ internal sealed partial class CalendarGestureOwner(
             _downX = p.X;
             _downY = p.Y;
             _hasSpreadStart = false;
+            BeginPress(p);
+        }
+        else
+        {
+            // Two fingers are never a press-and-hold, whatever they do next.
+            _holdSpent = true;
         }
         _pointers[p.Id] = p;
         SnapshotPrevious();
@@ -152,6 +165,17 @@ internal sealed partial class CalendarGestureOwner(
         // is captured BEFORE this event lands on top of it.
         SnapshotPrevious();
         _pointers[p.Id] = p;
+
+        // A drag owns the gesture outright: a second finger is a hand steadying itself, not a pinch,
+        // and only the finger holding the drag moves it.
+        if (_mode is GestureMode.Drag or GestureMode.Inert)
+        {
+            if (_mode == GestureMode.Drag && p.Id == _dragId)
+            {
+                Drag?.Move(p.X, p.Y);
+            }
+            return;
+        }
 
         var metrics = state.Metrics(viewport());
         var pressed = Pressed();
@@ -202,7 +226,12 @@ internal sealed partial class CalendarGestureOwner(
             _travelY += dy;
             // One axis, decided once. The hours and the days are separate scrolls to the user's hand,
             // and a drag that did both at once would turn the week while they were reading down a day.
-            if (MathF.Abs(_travelX) > touchSlop || MathF.Abs(_travelY) > touchSlop)
+            // A mouse never pans (§10): it drags, or does nothing.
+            if (_mouse)
+            {
+                DecideMouse(p);
+            }
+            else if (MathF.Abs(_travelX) > touchSlop || MathF.Abs(_travelY) > touchSlop)
             {
                 _mode = MathF.Abs(_travelX) > MathF.Abs(_travelY)
                     ? GestureMode.PanDays
@@ -217,6 +246,9 @@ internal sealed partial class CalendarGestureOwner(
                 break;
             case GestureMode.PanHours:
                 state.PanY(dy, metrics);
+                break;
+            case GestureMode.Drag:
+                Drag?.Move(p.X, p.Y);
                 break;
             default:
                 break;
@@ -252,6 +284,15 @@ internal sealed partial class CalendarGestureOwner(
             case GestureMode.PanDays:
                 driver.FlingStrip(vx);
                 break;
+            case GestureMode.Drag:
+                // A press that moved nothing on an event is a click on it, as if it had never moved.
+                if (Drag?.Finish() == false)
+                {
+                    onTap(_downX, _downY);
+                }
+                break;
+            case GestureMode.Inert:
+                break;
             default:
                 // Never moved: a tap.
                 onTap(_downX, _downY);
@@ -276,7 +317,12 @@ internal sealed partial class CalendarGestureOwner(
         _pointerCount = 0;
         var wasZooming = _mode == GestureMode.Zoom;
         var wasPanning = _mode == GestureMode.PanDays;
+        var wasDragging = _mode == GestureMode.Drag;
         _mode = GestureMode.Undecided;
+        if (wasDragging)
+        {
+            Drag?.Cancel();
+        }
         if (wasZooming)
         {
             onZoomSettled();

@@ -58,8 +58,12 @@ internal sealed partial class CalendarGestureOwner
     /// <summary>How long the current kind of wheel gesture waits before it is called over.</summary>
     private float SettleSeconds => _wheelZoomed ? ZoomSettleSeconds : PanSettleSeconds;
 
-    /// <summary>Whether a wheel gesture is still open, and so still needs ticking to be able to end.</summary>
-    internal bool NeedsTick => _wheelIdle < SettleSeconds;
+    /// <summary>Whether a wheel gesture is still open, or a finger resting may yet become a hold: either
+    /// needs ticking to be able to end.</summary>
+    internal bool NeedsTick => WheelOpenForTick || HoldPending;
+
+    /// <summary>Whether the wheel's idle timer is still running.</summary>
+    private bool WheelOpenForTick => _wheelIdle < SettleSeconds;
 
     /// <summary>
     /// One wheel notch, from a mouse, or from a precision touchpad's digested two-finger gesture.
@@ -123,7 +127,8 @@ internal sealed partial class CalendarGestureOwner
     /// </remarks>
     internal void Tick(float dt)
     {
-        if (!NeedsTick)
+        TickHold(dt);
+        if (!WheelOpenForTick)
         {
             return;
         }

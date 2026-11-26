@@ -25,19 +25,38 @@ internal sealed partial class CalendarSurface
 {
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e) => Guarded(e, () =>
     {
+        var point = e.GetCurrentPoint(_panel);
+        // A mouse's other buttons draw nothing and, a desktop scrolling with its wheel, pan nothing.
+        if (IsMouse(e) && !point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
         // Capture may be refused (another element already owns it, or a spurious re-press), only
         // track the ones we actually hold, or the release side leaks the opposite way.
         if (_panel.CapturePointer(e.Pointer))
         {
             _captured.Add(e.Pointer.PointerId);
         }
-        _owner.PointerDown(Sample(e, e.GetCurrentPoint(_panel)));
+        _owner.PointerDown(Sample(e, point));
     });
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!_captured.Contains(e.Pointer.PointerId))
         {
+            if (IsMouse(e))
+            {
+                try
+                {
+                    var at = e.GetCurrentPoint(_panel).Position;
+                    Hover((float)at.X, (float)at.Y);
+                }
+                catch (Exception ex)
+                {
+                    // A cursor is not worth the app: an unhandled fault in a pointer handler ends it.
+                    Log.Info($"cal: hover faulted ({ex.GetType().Name})");
+                }
+            }
             return;
         }
         Guarded(e, () =>
@@ -47,8 +66,7 @@ internal sealed partial class CalendarSurface
             // silently becomes a slow drag, and a week that does not turn.
             foreach (var p in e.GetIntermediatePoints(_panel))
             {
-                _owner.PointerMoved(new PointerSample(
-                    e.Pointer.PointerId, (float)p.Position.X, (float)p.Position.Y, p.Timestamp / 1000d));
+                _owner.PointerMoved(Sample(e, p));
             }
         });
     }
@@ -143,7 +161,11 @@ internal sealed partial class CalendarSurface
     }
 
     private static PointerSample Sample(PointerRoutedEventArgs e, Microsoft.UI.Input.PointerPoint p) =>
-        new(e.Pointer.PointerId, (float)p.Position.X, (float)p.Position.Y, p.Timestamp / 1000d);
+        new(e.Pointer.PointerId, (float)p.Position.X, (float)p.Position.Y, p.Timestamp / 1000d, IsMouse(e));
+
+    private static bool IsMouse(PointerRoutedEventArgs e) =>
+        e.Pointer.PointerDeviceType is Microsoft.UI.Input.PointerDeviceType.Mouse
+            or Microsoft.UI.Input.PointerDeviceType.Touchpad;
 
     private void ReleaseCapture(Pointer pointer)
     {
