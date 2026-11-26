@@ -25,6 +25,15 @@ internal class ComposerPageHost(val darkMessages: Boolean, val choose: (String) 
  */
 internal val LocalComposerPage = compositionLocalOf<ComposerPageHost?> { null }
 
+/**
+ * Leaves the WebView without a canvas of its own. Android's WebView draws white until a document
+ * has painted, which in a dark app is a light first frame however early the page is named; the
+ * app's own surface shows through instead, until the editor draws its page.
+ */
+internal fun WebView.drawNoCanvasOfItsOwn() {
+    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+}
+
 // What the editor reads before its document runs: the app's scheme for its chrome, and the page.
 internal fun composerPreloadScript(appDark: Boolean, page: ComposerPageHost?): String {
     val chrome = "window.composerScheme = \"${if (appDark) "dark" else "light"}\";"

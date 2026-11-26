@@ -268,6 +268,7 @@ internal fun ComposerEditorView(
             .graphicsLayer { clip = true },
         factory = { context ->
             makeEditor(context).apply {
+                drawNoCanvasOfItsOwn()
                 installComposerHost(linkHost)
                 linkHost.onPageMessage = { message -> answerComposerPage(message, currentPage.value) }
                 configureComposerWebView(

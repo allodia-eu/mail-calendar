@@ -205,6 +205,7 @@ internal fun SignatureEditorDialog(
                             modifier = Modifier.fillMaxSize(),
                             factory = { context ->
                                 WebView(context).apply {
+                                    drawNoCanvasOfItsOwn()
                                     installComposerHost(linkHost)
                                     linkHost.onPageMessage = { message ->
                                         answerComposerPage(message, currentPage.value)
