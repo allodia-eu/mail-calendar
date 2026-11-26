@@ -58,6 +58,8 @@ public sealed partial class SettingsDialog
             "calendar" => RefreshDefaultCalendars,
             // The assistant server binding or refusing its endpoint, and a reset starting or ending.
             "advanced" => RefreshAdvanced,
+            // The new-mail switch follows the core's choice.
+            "notifications" => RefreshNotifications,
             _ => null,
         };
         follow?.Invoke();

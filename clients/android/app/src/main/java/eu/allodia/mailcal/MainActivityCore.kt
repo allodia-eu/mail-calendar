@@ -124,6 +124,10 @@ internal fun MainActivity.connect(
                 // a turn first (docs/provider-oauth.md rule 5).
                 if (devMode == DEV_LINKED) DevLinkedCredentialStore else SecureStoreCredentialStore(activity),
             )
+            // The notifications choice an older install kept on its own, handed to the core before
+            // any pass of this core can announce mail. Only into the real store: a dev account's
+            // isolated one is not where the person's choice belongs.
+            if (dataSubdir == null) NotificationsChoiceImport.run(activity) { connected.setPreference(it) }
             // The DNS setup uses, so a calendar server found through an SRV record can be looked
             // for again when it stops answering. Until it is set, the core does not look again.
             connected.setDnsResolver(AndroidMxResolver(activity))
@@ -148,6 +152,7 @@ internal fun MainActivity.connect(
                 activity.swipeSettings = connected.swipeSettings()
                 activity.sendAccountSetting = connected.sendAccountSetting()
                 activity.advancedPage = connected.advancedPage()
+                activity.notificationsPage = connected.notificationsPage()
                 activity.displaySettings = connected.displaySettings()
                 activity.signatures = connected.signaturesPage()
                 activity.pullWritingStyle(connected)
@@ -242,6 +247,7 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.swipeSettings = connected.swipeSettings()
             activity.sendAccountSetting = connected.sendAccountSetting()
             activity.advancedPage = connected.advancedPage()
+            activity.notificationsPage = connected.notificationsPage()
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signaturesPage()
             activity.pullWritingStyle(connected)

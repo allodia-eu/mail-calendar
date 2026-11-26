@@ -40,6 +40,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             swipeSettings = app.swipeSettings()
             sendAccountSetting = app.sendAccountSetting()
             advancedPage = app.advancedPage()
+            notificationsPage = app.notificationsPage()
             val display = app.displaySettings()
             // The painted appearance follows a change to the stored one, and only a change: the
             // launch read the stored one already, and a debug override holds until a pick.

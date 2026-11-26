@@ -88,6 +88,7 @@ public func handleBackgroundRefresh() async {
                 // the whole grant, which is how a real JMAP account died.
                 credentialStore: KeychainCredentialStore()
             )
+            NotificationChoiceImport.run(on: core)
             return BackgroundPass(running: core)
         } catch {
             FileLog.shared.append(
@@ -102,9 +103,8 @@ public func handleBackgroundRefresh() async {
     // The pass read every Inbox's count from its server, and nothing else will update the icon
     // until the app is opened again (docs/app-badge.md).
     await AppBadge.write(pass.unifiedUnread)
-    if NotificationPrefs.enabled {
-        await MailNotifier.notifyNewMail(pass.outcome)
-    }
+    // While new-mail notifications are off the core returns no new mail, so this posts nothing.
+    await MailNotifier.notifyNewMail(pass.outcome)
 }
 
 /// What one background pass found: the new mail to announce, and the unread count it left the

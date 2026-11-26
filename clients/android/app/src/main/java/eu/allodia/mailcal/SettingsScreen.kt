@@ -51,6 +51,7 @@ import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.NewEventCalendars
+import uniffi.mailcal_bindings.NotificationsPage
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SendAccountSetting
@@ -98,6 +99,9 @@ internal fun SettingsScreen(
     onSetSwipeRight: (SwipeActionKind) -> Unit,
     // Signatures, the library (write once, reuse on any account) and each account's two slots.
     signatures: SignaturesUi,
+    // Notifications, the core's page: whether a pass announces new mail.
+    notifications: NotificationsPage,
+    onSetNewMailNotifications: (Boolean) -> Unit,
     // About, read once by the caller: it is a call into the cdylib (SettingsAbout.kt).
     about: AboutInfo,
     // Privacy
@@ -231,6 +235,8 @@ internal fun SettingsScreen(
                     onSetSwipeLeft = onSetSwipeLeft,
                     onSetSwipeRight = onSetSwipeRight,
                     signatures = signatures,
+                    notifications = notifications,
+                    onSetNewMailNotifications = onSetNewMailNotifications,
                     about = about,
                     analyticsEnabled = analyticsEnabled,
                     onSetAnalytics = onSetAnalytics,

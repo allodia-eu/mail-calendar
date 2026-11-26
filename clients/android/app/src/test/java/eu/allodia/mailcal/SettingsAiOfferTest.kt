@@ -94,6 +94,8 @@ class SettingsAiOfferTest {
                     onSetSwipeLeft = {},
                     onSetSwipeRight = {},
                     signatures = testSignaturesUi(),
+                    notifications = NOTIFICATIONS_ON,
+                    onSetNewMailNotifications = {},
                     analyticsEnabled = false,
                     onSetAnalytics = {},
                     analyticsPayloadPreview = { "{}" },

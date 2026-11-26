@@ -30,6 +30,9 @@ impl MailcalApp {
                 self.runtime
                     .block_on(|| app.set_dark_message_background(dark));
             }
+            PreferenceIntent::SetNewMailNotifications { on } => {
+                self.runtime.block_on(|| app.set_new_mail_notifications(on));
+            }
             PreferenceIntent::SetCalendarVisibleHours { hours } => {
                 self.runtime
                     .block_on(|| app.set_calendar_visible_hours(hours));

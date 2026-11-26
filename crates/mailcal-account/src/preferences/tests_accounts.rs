@@ -6,6 +6,7 @@
 //! file loads as), to keep both under the 500-line limit.
 
 use super::*;
+use crate::signatures::{SignatureId, SignatureSlot};
 
 #[test]
 fn an_older_preferences_file_without_signature_assignments_defaults_to_empty() {

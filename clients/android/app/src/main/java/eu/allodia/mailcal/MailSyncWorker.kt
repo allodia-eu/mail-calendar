@@ -112,6 +112,7 @@ class MailSyncWorker(context: Context, params: WorkerParameters) :
                 // grant, which is exactly how a real JMAP account died.
                 SecureStoreCredentialStore(context),
             ).use { core ->
+                NotificationsChoiceImport.run(context) { core.setPreference(it) }
                 postFrom(context, core.runBackgroundSync(BUDGET_SECONDS))
             }
             Result.success()
@@ -126,16 +127,15 @@ class MailSyncWorker(context: Context, params: WorkerParameters) :
         }
     }
 
-    /// Raises new-mail notifications from a pass's outcome, honouring the user's toggle.
+    /// Raises new-mail notifications from a pass's outcome. While the person has them off, the
+    /// core returns no new mail, so everything the outcome holds is posted.
     private fun postFrom(context: Context, outcome: BackgroundSyncOutcome) {
         val newMessages = outcome.accounts.sumOf { it.newCount.toInt() }
         logPass(
             "complete: ${outcome.accounts.size} account(s) with new mail, " +
                 "$newMessages new message(s)" + if (outcome.timedOut) " (budget timed out)" else "",
         )
-        if (NotificationPrefs.enabled(context)) {
-            MailNotifier.notifyNewMail(context, outcome)
-        }
+        MailNotifier.notifyNewMail(context, outcome)
     }
 
     /// Records one background-pass lifecycle line to BOTH Logcat and the rotating file log (the

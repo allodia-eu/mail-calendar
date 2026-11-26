@@ -25,12 +25,13 @@ internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Inten
 // says where its Back goes instead.
 @Composable
 internal fun MainActivity.SettingsTabContent(instance: MailcalApp, onLeave: (() -> Unit)? = null) {
-    // All five are pulled in the same step that sets the core, so none is null here.
+    // All six are pulled in the same step that sets the core, so none is null here.
     val display = displaySettings ?: return
     val quotes = quoteSettings ?: return
     val swipes = swipeSettings ?: return
     val sendAccount = sendAccountSetting ?: return
     val advanced = advancedPage ?: return
+    val notifications = notificationsPage ?: return
     SettingsScreen(
                             about = aboutInfo(AboutPlatform.ANDROID),
                             // General, time zone.
@@ -91,6 +92,12 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp, onLeave: (() 
                                 nameRefusal = ::signatureNameRefusal,
                                 imageRefusal = { type, size -> signatureImageRefusal(type, size.toULong()) },
                             ),
+                            // Notifications, the core's page, read again on SETTINGS, which the
+                            // change raises.
+                            notifications = notifications,
+                            onSetNewMailNotifications = {
+                                instance.setPreference(PreferenceIntent.SetNewMailNotifications(it))
+                            },
                             // Privacy, withdraw (or belatedly give) the usage-statistics consent.
                             analyticsEnabled = analyticsConsent?.enabled == true,
                             onSetAnalytics = { instance.setPreference(PreferenceIntent.SetAnalyticsConsent(it)) },

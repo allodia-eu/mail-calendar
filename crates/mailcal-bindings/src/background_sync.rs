@@ -98,8 +98,25 @@ impl From<AppBackgroundNewMail> for BackgroundSyncOutcome {
     }
 }
 
+/// Settings → Notifications, as far as the core decides it. Whether the platform lets the app
+/// post at all is the host's to read and draw beside it.
+#[derive(uniffi::Record)]
+pub struct NotificationsPage {
+    /// Whether new mail is announced. Off, a pass returns no new mail and still marks it seen,
+    /// so turning it on again never announces what arrived meanwhile. Changed by
+    /// `PreferenceIntent::SetNewMailNotifications`.
+    pub new_mail: bool,
+}
+
 #[uniffi::export]
 impl MailcalApp {
+    /// Settings → Notifications. Pull after a `Surface::Settings` signal.
+    pub fn notifications_page(&self) -> NotificationsPage {
+        NotificationsPage {
+            new_mail: self.app.new_mail_notifications(),
+        }
+    }
+
     /// Reports newly-arrived inbound Inbox mail already synced by the desktop live runtime,
     /// without starting another network pass. A desktop host calls this after a mailbox-surface
     /// change and posts the returned local notifications. The same persisted high-water marks as
@@ -163,8 +180,9 @@ impl MailcalApp {
 
     /// Runs one **bounded** sync pass across every account and returns the newly-arrived
     /// inbound Inbox mail since the previous pass, for the host to raise a local notification
-    /// per message. Blocks until the pass finishes or `budget_seconds` elapses (clamped to a
-    /// sane band), so the host can then post its notifications and mark its OS task complete.
+    /// per message; none while new-mail notifications are off. Blocks until the pass finishes or
+    /// `budget_seconds` elapses (clamped to a sane band), so the host can then post its
+    /// notifications and mark its OS task complete.
     ///
     /// Reuses the same refresh the live runtime does, so it is safe whether the app is warm
     /// (its live watches/poll are up) or a cold headless worker. See `docs/background-sync.md`.
@@ -177,3 +195,7 @@ impl MailcalApp {
             .into()
     }
 }
+
+#[cfg(test)]
+#[path = "tests_notifications.rs"]
+mod tests;

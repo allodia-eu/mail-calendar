@@ -302,6 +302,8 @@ final class MailboxModel {
     /// signal and once at connect): the assistant access panel, `nil` where this host set no
     /// endpoint (iOS), then the reset and what the last one came to.
     var advancedPage = AdvancedPage.empty
+    /// Settings → Notifications as the core holds it, read with the other preferences.
+    var notificationsPage = NotificationsPage(newMail: true)
     /// A draft an assistant asked to open in the composer, unsent. Set by `AgentComposerBridge`
     /// on the main actor; the shell watches it, opens the composer, and clears it.
     var pendingAgentDraft: AgentDraftRequest?

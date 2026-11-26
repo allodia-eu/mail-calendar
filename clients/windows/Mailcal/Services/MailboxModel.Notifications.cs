@@ -1,5 +1,6 @@
-// New-mail notifications: the scan that feeds them and the state that keeps it from piling up.
-// Split into its own partial to keep MailboxModel.cs under the 500-line limit.
+// New-mail notifications: the core's on/off choice, the scan that feeds them and the state that
+// keeps it from piling up. Split into its own partial to keep MailboxModel.cs under the 500-line
+// limit.
 //
 // There is no second timer here, and that is the design (docs/background-sync.md). The desktop's
 // live runtime, standing IMAP IDLE watches and the poll each account is configured for, already
@@ -29,18 +30,38 @@ public sealed partial class MailboxModel
 
     private NewMailScan _newMailScan = NewMailScan.Idle;
 
+    /// <summary>Settings → Notifications as the core decides it, or <c>null</c> before the core is
+    /// up. Read from memory, so the UI thread may ask it on every Settings signal.</summary>
+    internal NotificationsPage? Notifications => _app?.NotificationsPage();
+
+    /// <summary>Turns new-mail notifications on or off. The core holds the choice before this
+    /// returns and signals Settings.</summary>
+    internal void SetNewMailNotifications(bool on)
+    {
+        Log.Info($"settings: set new-mail notifications={on}");
+        DispatchPreference(new PreferenceIntent.SetNewMailNotifications(on));
+    }
+
+    // Carries a choice kept beside the other preference files into the core. Called before the
+    // first scan can run, so a person who had turned notifications off is not notified by it.
+    private static void ImportNotificationsChoice(MailcalApp app)
+    {
+        var path = NotificationsImport.FileIn(AppPaths.PrefsDir);
+        if (NotificationsImport.Run(path, intent => app.Dispatch(new Intent.Preferences(intent))))
+        {
+            Log.Info("settings: new-mail notifications carried over as off");
+        }
+    }
+
     /// <summary>
     /// Reports whatever inbound Inbox mail the live runtime has just committed, and raises a
-    /// notification per message when the user has them on.
+    /// notification per message the core returns.
     /// </summary>
     /// <remarks>
     /// The core withholds mail that arrived before this session started, so the catch-up sync a
     /// launch begins with is marked seen rather than announced, and seeds a brand-new account
-    /// instead of notifying its whole existing inbox.
-    /// <para>
-    /// The toggle gates POSTING only. The scan runs either way, so the high-water marks keep
-    /// advancing while notifications are off and turning them back on never floods.
-    /// </para>
+    /// instead of notifying its whole existing inbox. While notifications are off it returns no
+    /// mail and still advances its marks, so turning them back on never floods.
     /// </remarks>
     private void CollectNewMail()
     {
@@ -79,7 +100,7 @@ public sealed partial class MailboxModel
     // below picks it up, rather than starting a second scan over the first.
     private void FinishNewMailScan(BackgroundSyncOutcome? outcome)
     {
-        if (outcome is not null && NotificationPrefs.Enabled())
+        if (outcome is not null)
         {
             NewMailNotifier.Post(NewMailNotices.For(
                 outcome, L10n.NotificationUnknownSender(), L10n.NotificationMoreMessages));

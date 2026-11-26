@@ -29,8 +29,8 @@ extension MailboxModel {
         let deviceInfo = DeviceFacts.current()
         Task {
             let opened = await Task.detached {
-                Result {
-                    try MailcalApp.newAccounts(
+                Result<MailcalApp, any Error> {
+                    let app = try MailcalApp.newAccounts(
                         observer: observer,
                         logger: CoreLogger(),
                         // INFO by default keeps the rotating file log useful over a long window;
@@ -50,6 +50,10 @@ extension MailboxModel {
                         // afterwards" early enough to install one (docs/provider-oauth.md rule 5).
                         credentialStore: KeychainCredentialStore()
                     )
+                    // Here, off the main actor because it waits on the disk, and before the model
+                    // holds the core, so no scan for new mail can run first.
+                    NotificationChoiceImport.run(on: app)
+                    return app
                 }
             }.value
             isOpening = false

@@ -8,8 +8,8 @@ use std::{fs, path::PathBuf, sync::Arc};
 #[cfg(debug_assertions)]
 use dev::{dev_credential_store, dev_secrets, with_stored_reserved};
 use mailcal_bindings::{
-    AccountCredentialStore, Appearance, DeviceClass, DeviceInfo, LogLevel, MailcalApp, Observer,
-    Platform, device_time_zone,
+    AccountCredentialStore, Appearance, DeviceClass, DeviceInfo, Intent, LogLevel, MailcalApp,
+    Observer, Platform, PreferenceIntent, device_time_zone,
 };
 
 use crate::{
@@ -258,6 +258,14 @@ fn real_app(
         credential_store,
     )
     .map_err(|error| error.to_string())?;
+    // A notifications choice this host stored itself goes to the core, which holds it from now
+    // on, before the first scan for new mail can run. Only into the person's own store: a dev
+    // account's store of its own is not where it belongs.
+    if data_subdir.is_none() && preferences::global().take_notifications_choice() == Some(false) {
+        app.dispatch(Intent::Preferences {
+            intent: PreferenceIntent::SetNewMailNotifications { on: false },
+        });
+    }
     // The DNS setup uses, kept so a calendar server found through an SRV record can be looked
     // for again when it stops answering.
     app.set_dns_resolver(Box::new(crate::ui::dns::NativeResolver));

@@ -310,6 +310,8 @@ public sealed partial class MailboxModel
             {
                 _connecting = false;
                 _app = app;
+                // Before anything can ask the core for new mail (MailboxModel.Notifications.cs).
+                ImportNotificationsChoice(app);
                 // Where this device remembers what it has synced with the account service; the
                 // core runs its first pass once it has it. Unlike the Credential Manager sink
                 // above it is not racing a dial: nothing syncs until the store is there.

@@ -20,7 +20,7 @@ use engine_api::{MailListRow, UtcDateTime};
 use time::OffsetDateTime;
 
 use crate::{
-    App, Event, Feature, preferences_file::PreferencesFile, snapshot::is_outgoing,
+    App, Event, Feature, Surface, preferences_file::PreferencesFile, snapshot::is_outgoing,
     sync::RefreshProgress,
 };
 
@@ -127,7 +127,11 @@ impl<P: engine_api::Provider> App<P> {
     /// `session_floor` additionally withholds mail received before it, without withholding the
     /// mark advance: what it covers is a whole session's catch-up rather than one pass, which is
     /// why it cannot be expressed as a mark. `None` reports everything past the mark.
+    ///
+    /// With new-mail notifications off, the marks advance exactly as they would and nothing is
+    /// returned, so turning them on again announces only what arrives from then on.
     async fn collect_new_inbound(&self, session_floor: Option<UtcDateTime>) -> Vec<AccountNewMail> {
+        let announce = self.new_mail_notifications();
         let window = self.load_window();
         let mut out = Vec::new();
         // Marks are advanced in memory during the loop and persisted **once** at the end, so a
@@ -167,7 +171,7 @@ impl<P: engine_api::Provider> App<P> {
                     self.set_mark(id.as_str(), high);
                     marks_changed = true;
                 }
-                if scan.previews.is_empty() {
+                if scan.previews.is_empty() || !announce {
                     continue;
                 }
                 let new_count = u32::try_from(scan.previews.len()).unwrap_or(u32::MAX);
@@ -182,7 +186,33 @@ impl<P: engine_api::Provider> App<P> {
         if marks_changed {
             self.persist_marks();
         }
+        // A pass can be the last thing its process does, and a mark that never reached the disk
+        // announces the same mail again; a choice changed as the core was built, before this
+        // pass, would be lost with it. So nothing is left to write when a pass returns.
+        self.settle_preferences();
         out
+    }
+
+    /// Whether a pass announces the new mail it finds: Settings → Notifications. On by default.
+    #[must_use]
+    pub fn new_mail_notifications(&self) -> bool {
+        self.notify_marks
+            .lock()
+            .expect("notify-marks mutex poisoned")
+            .announce
+    }
+
+    /// Turns new-mail notifications on or off, and signals [`Surface::Settings`]. The marks go on
+    /// advancing while they are off, so turning them on never announces what arrived meanwhile.
+    // `async` with no inner `await` is intentional: every dispatched command method shares one
+    // async shape so `dispatch` and the FFI adapter drive them uniformly.
+    #[allow(clippy::unused_async)]
+    pub async fn set_new_mail_notifications(&self, on: bool) {
+        self.notify_marks
+            .lock()
+            .expect("notify-marks mutex poisoned")
+            .set_announce(on);
+        self.observer.surface_changed(Surface::Settings);
     }
 
     /// When this core was built, and so when this desktop session began.
@@ -210,7 +240,7 @@ impl<P: engine_api::Provider> App<P> {
             .set(id, mark);
     }
 
-    /// Writes all advanced marks to the preferences file in a single read-modify-write.
+    /// Hands every advanced mark to the preferences file, in a single read-modify-write.
     fn persist_marks(&self) {
         self.notify_marks
             .lock()
@@ -314,11 +344,13 @@ fn now_utc() -> UtcDateTime {
     .expect("a civil UTC time from the system clock is always representable")
 }
 
-/// The persisted per-account new-mail high-water-marks. Stored in the shared `preferences.toml`
-/// (read-modify-write, preserving sibling settings) exactly like
-/// [`SyncSettingsState`](crate::sync_settings); RFC3339 on disk, parsed to [`UtcDateTime`] here.
+/// The persisted per-account new-mail high-water-marks, and whether a pass announces what it
+/// finds. Stored in the shared `preferences.toml` (read-modify-write, preserving sibling settings)
+/// exactly like [`SyncSettingsState`](crate::sync_settings); RFC3339 on disk, parsed to
+/// [`UtcDateTime`] here.
 pub(crate) struct NotifyMarksState {
     marks: BTreeMap<String, UtcDateTime>,
+    announce: bool,
     prefs: PreferencesFile,
     /// When this state was built, which is when the core was: the floor a desktop cached scan
     /// reports above. It lives beside the marks because it is the same bookkeeping, one instant
@@ -330,17 +362,26 @@ impl NotifyMarksState {
     /// Loads the stored marks from the preferences file (dropping any that fail to parse; a
     /// corrupt entry simply re-seeds that account on the next pass).
     pub(crate) fn new(prefs: PreferencesFile) -> Self {
-        let marks = prefs
-            .load()
+        let stored = prefs.load();
+        let announce = stored.new_mail_notifications;
+        let marks = stored
             .notify_marks
             .into_iter()
             .filter_map(|(id, raw)| raw.parse::<UtcDateTime>().ok().map(|mark| (id, mark)))
             .collect();
         Self {
             marks,
+            announce,
             prefs,
             session_start: now_utc(),
         }
+    }
+
+    /// Sets whether a pass announces new mail, and writes it behind.
+    fn set_announce(&mut self, on: bool) {
+        self.announce = on;
+        self.prefs
+            .edit(move |prefs| prefs.new_mail_notifications = on);
     }
 
     /// The account's mark, if one is stored.
@@ -353,10 +394,9 @@ impl NotifyMarksState {
         self.marks.insert(id.to_owned(), mark);
     }
 
-    /// Writes every in-memory mark to the preferences file, and waits for the write: a pass can
-    /// be the last thing its process does, and a mark that never reached the disk notifies the
-    /// same mail again. A failed write keeps the marks for this session. Call once per pass, not
-    /// per account, so a multi-account pass rewrites the file once.
+    /// Hands every in-memory mark to the preferences file, which writes it behind. A failed
+    /// write keeps the marks for this session. Call once per pass, not per account, so a
+    /// multi-account pass rewrites the file once.
     fn persist(&self) {
         let marks: BTreeMap<String, String> = self
             .marks
@@ -365,10 +405,13 @@ impl NotifyMarksState {
             .collect();
         self.prefs
             .edit(move |prefs| prefs.notify_marks.clone_from(&marks));
-        self.prefs.settle();
     }
 }
 
 #[cfg(test)]
 #[path = "background_sync_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "background_sync_announce_tests.rs"]
+mod announce_tests;

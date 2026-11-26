@@ -20,6 +20,7 @@ import uniffi.mailcal_bindings.AllodiaSubscriptionState
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.NewEventCalendars
+import uniffi.mailcal_bindings.NotificationsPage
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SendAccountSetting
@@ -64,6 +65,8 @@ internal fun CategoryDetail(
     onSetSwipeLeft: (SwipeActionKind) -> Unit,
     onSetSwipeRight: (SwipeActionKind) -> Unit,
     signatures: SignaturesUi,
+    notifications: NotificationsPage,
+    onSetNewMailNotifications: (Boolean) -> Unit,
     about: AboutInfo,
     analyticsEnabled: Boolean,
     onSetAnalytics: (Boolean) -> Unit,
@@ -225,8 +228,9 @@ internal fun CategoryDetail(
             WritingStyleCategory(it) { onOpenCategory(SettingsCategory.ADVANCED) }
         }
 
-        // Notifications, the new-mail toggle + the battery-exemption card (SettingsNotifications.kt).
-        SettingsCategory.NOTIFICATIONS -> NotificationsSettings()
+        // Notifications, the core's new-mail switch + the battery-exemption card
+        // (SettingsNotifications.kt).
+        SettingsCategory.NOTIFICATIONS -> NotificationsSettings(notifications, onSetNewMailNotifications)
 
         // Privacy, the usage-statistics opt-in the welcome screen asked about, withdrawable
         // here in a single tap. GDPR Art. 7(3): withdrawal must be as easy as giving. Turning

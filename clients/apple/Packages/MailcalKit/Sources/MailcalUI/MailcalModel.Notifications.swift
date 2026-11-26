@@ -22,14 +22,13 @@ enum NewMailScan {
 
 extension MailboxModel {
     /// Reports whatever inbound Inbox mail the live runtime has just committed, and raises a
-    /// notification per message when the user has them on.
+    /// notification per message the core returns.
     ///
     /// The core withholds mail that arrived before this session started, so the catch-up sync a
     /// launch begins with is marked seen rather than announced, and a brand-new account is seeded
-    /// rather than having its whole existing inbox announced.
-    ///
-    /// The toggle gates POSTING only. The scan runs either way, so the high-water marks keep
-    /// advancing while notifications are off and turning them back on never floods with a backlog.
+    /// rather than having its whole existing inbox announced. While new-mail notifications are
+    /// off it returns nothing and still advances its marks, so turning them back on never floods
+    /// with a backlog.
     func collectNewMail() {
         guard let app, !accounts.isEmpty else { return }
         guard newMailScan == .idle else {
@@ -43,9 +42,7 @@ extension MailboxModel {
             let outcome = await Task.detached(priority: .utility) {
                 app.collectCachedNewMail()
             }.value
-            if NotificationPrefs.enabled {
-                await MailNotifier.notifyNewMail(outcome)
-            }
+            await MailNotifier.notifyNewMail(outcome)
             let repeatScan = newMailScan == .pending
             newMailScan = .idle
             if repeatScan { collectNewMail() }
