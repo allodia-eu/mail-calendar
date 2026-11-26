@@ -70,7 +70,7 @@ async fn calendars_sharing_a_server_colour_are_drawn_apart_across_accounts() {
     ])
     .await;
     assert!(distinct(&colors), "{colors:?}");
-    let alone = colors_of_one("#492BA1").await;
+    let alone = Box::pin(colors_of_one("#492BA1")).await;
     assert_eq!(
         colors[0].1, alone,
         "the first calendar keeps its server's colour"
