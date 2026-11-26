@@ -61,7 +61,11 @@ public sealed partial class ReadingView
         try
         {
             _expectingLoad = true;
-            Body.CoreWebView2.NavigateToString("<!doctype html><html><body></body></html>");
+            // On the page's own canvas: the composer covers this view a frame or more after it
+            // is blanked, and a document with no background is drawn white in a dark app.
+            var canvas = MailcalBindingsMethods.MessageCanvas(Scheme).Background;
+            Body.CoreWebView2.NavigateToString(
+                $"<!doctype html><html style=\"background:{canvas}\"><body></body></html>");
         }
         catch (Exception ex)
         {
