@@ -63,7 +63,7 @@ public sealed partial class MailboxModel
     /// back.
     /// </summary>
     private async Task<NextcloudFlightEnd> FlyNextcloudAsync(
-        MailcalApp app, Func<MailcalApp, NextcloudSignInStart> begin, CancellationToken cancel)
+        MailcalApp app, Func<MailcalApp, NextcloudSignInStart> begin, CancellationToken cancel, Action? opened = null)
     {
         var end = await NextcloudFlight.FlyAsync(
             () => Task.Run(() => begin(app)),
@@ -73,7 +73,11 @@ public sealed partial class MailboxModel
             TimeSpan.FromMilliseconds(MailcalBindingsMethods.NextcloudPollIntervalMs()),
             NextcloudWake,
             cancel,
-            () => Log.Info("nextcloud sign-in: waiting on the browser"));
+            () =>
+            {
+                Log.Info("nextcloud sign-in: waiting on the browser");
+                opened?.Invoke();
+            });
         Log.Info($"nextcloud sign-in ended: {NextcloudEndName(end)}");
         if (end is NextcloudFlightEnd.Granted)
         {
@@ -101,6 +105,13 @@ public sealed partial class MailboxModel
         NextcloudFlightEnd.Expired => "expired",
         NextcloudFlightEnd.BrowserFailed => "the browser did not open",
         NextcloudFlightEnd.Failed failed => $"failed ({CoreError.Describe(failed.Error)})",
+        NextcloudFlightEnd.NotStarted notStarted => notStarted.Answer switch
+        {
+            NextcloudAddressStart.Unsure => "not started: the server showed nothing either way",
+            NextcloudAddressStart.Maintenance => "not started: the server is in maintenance",
+            NextcloudAddressStart.NotNextcloud => "not started: the server is something else",
+            _ => "not started: no server can be at that address",
+        },
         _ => "cancelled",
     };
 
@@ -113,50 +124,90 @@ public sealed partial class MailboxModel
         NextcloudFlightEnd.BrowserFailed => L10n.AccountSigninBrowserFailed(),
         NextcloudFlightEnd.Failed { Error: MailcalException.Connect } => L10n.SetupImapSigninFailed(),
         NextcloudFlightEnd.Failed failed => CoreErrorCopy.Said(failed.Error),
+        // An address the core could not tell was Nextcloud is said on the pane, beside its offer.
+        NextcloudFlightEnd.NotStarted notStarted => notStarted.Answer switch
+        {
+            NextcloudAddressStart.NotNextcloud other => L10n.SetupNextcloudNotFound(other.Host),
+            NextcloudAddressStart.Maintenance maintenance => L10n.SetupNextcloudMaintenance(maintenance.Host),
+            NextcloudAddressStart.NotAnAddress => L10n.SetupNextcloudAddressInvalid(),
+            _ => null,
+        },
         _ => null,
     };
 
     /// <summary>
-    /// Setup's sign-in, from the found card or the manual form: a grant held from the last press
-    /// at that server goes straight to the core; otherwise the browser is asked for one. The account
-    /// it makes is used for <paramref name="start"/>'s uses. <paramref name="waiting"/> hears when
-    /// the browser holds the sign-in and when it no longer does.
+    /// Setup's sign-in, from the found card, the manual calendar and contacts form or the Nextcloud
+    /// pane: a grant held from the last press at that server goes straight to the core; otherwise
+    /// the browser is asked for one, at an address the pane holds once the core has asked it. The
+    /// account it makes is used for <paramref name="start"/>'s uses. <paramref name="waiting"/>
+    /// hears what the form says while the sign-in is out. Answers how a flight ended without an
+    /// account, and null when none flew or one made an account.
     /// </summary>
-    internal async Task SetupNextcloudSignInAsync(NextcloudStart start, Action<bool> waiting)
+    internal async Task<NextcloudFlightEnd?> SetupNextcloudSignInAsync(NextcloudStart start, Action<NextcloudWait> waiting)
     {
         if (_connecting || _app is not { } app || IsSubmitting)
         {
-            return;
+            return null;
         }
         SetupError = null;
         if (_setupNextcloud.HeldFor(start.Server) is not { } grant)
         {
             AbandonNextcloudGrant(_setupNextcloud.Release());
-            waiting(true);
+            waiting(start.Begin == NextcloudBegin.Asked ? NextcloudWait.Checking : NextcloudWait.Browser);
             var end = await _signIn.RunAsync(async cancel =>
             {
                 IsSigningIn = true;
                 try
                 {
-                    return await FlyNextcloudAsync(app, core => core.BeginNextcloudSignIn(start.Server), cancel);
+                    return await FlySetupNextcloudAsync(app, start, cancel, () => waiting(NextcloudWait.Browser));
                 }
                 finally
                 {
                     IsSigningIn = false;
                 }
             });
-            waiting(false);
+            waiting(NextcloudWait.None);
             if (end is not NextcloudFlightEnd.Granted granted)
             {
                 if (NextcloudSaid(end) is { } said)
                 {
                     SetupError = said;
                 }
-                return;
+                return end;
             }
             grant = granted.Grant;
         }
         await AddNextcloudAccountAsync(app, start, grant);
+        return null;
+    }
+
+    private Task<NextcloudFlightEnd> FlySetupNextcloudAsync(
+        MailcalApp app, NextcloudStart start, CancellationToken cancel, Action opened) => start.Begin switch
+        {
+            NextcloudBegin.Asked => AskNextcloudAsync(app, core => core.BeginNextcloudSignInAt(start.Server), cancel, opened),
+            NextcloudBegin.Anyway => AskNextcloudAsync(app, core => core.BeginNextcloudSignInAnyway(start.Server), cancel, opened),
+            _ => FlyNextcloudAsync(app, core => core.BeginNextcloudSignIn(start.Server), cancel, opened),
+        };
+
+    /// <summary>A sign-in at an address the person typed: flown only once <paramref name="ask"/>
+    /// started one.</summary>
+    private async Task<NextcloudFlightEnd> AskNextcloudAsync(
+        MailcalApp app, Func<MailcalApp, NextcloudAddressStart> ask, CancellationToken cancel, Action opened)
+    {
+        var flown = false;
+        var end = await SetupNextcloudAddress.AskThenFlyAsync(
+            () => Task.Run(() => ask(app)),
+            begun =>
+            {
+                flown = true;
+                return FlyNextcloudAsync(app, _ => begun, cancel, opened);
+            },
+            cancel);
+        if (!flown)
+        {
+            Log.Info($"nextcloud sign-in ended: {NextcloudEndName(end)}");
+        }
+        return end;
     }
 
     private async Task AddNextcloudAccountAsync(MailcalApp app, NextcloudStart start, string grant)

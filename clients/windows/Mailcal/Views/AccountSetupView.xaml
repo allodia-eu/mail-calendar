@@ -3,7 +3,8 @@
     x:Class="Allodia.Mailcal.Views.AccountSetupView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:l10n="using:Allodia.Mailcal">
+    xmlns:l10n="using:Allodia.Mailcal"
+    xmlns:controls="using:Allodia.Mailcal.Controls">
 
     <ScrollViewer>
         <StackPanel x:Name="FormRoot" MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
@@ -56,25 +57,24 @@
                            Visibility="Collapsed"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                <!-- Account type: IMAP/password vs. JMAP (a password or API token, plus a browser
-                     sign-in where the server offers one) vs. Microsoft 365 vs. Google (Gmail +
-                     Google Calendar). -->
-                <StackPanel x:Name="AccountTypeRow" Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypePassword(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
-                        <RadioButton x:Name="JmapChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeJmap(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
-                        <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
-                        <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
-                    </StackPanel>
-                    <!-- A server that holds a calendar and contacts but no mail. On a line of its
-                         own: its name is the longest, and the row above is already full. -->
+                <!-- Account type. Which types are offered, and in which order, is the core's
+                     (manual_setup_kinds): the code-behind lays the choices below out in its order
+                     and leaves out any it does not offer. They wrap, since the longest names the
+                     calendar and contacts server. -->
+                <controls:FlowPanel x:Name="AccountTypeRow" Spacing="16" LineSpacing="4">
+                    <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypePassword(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="JmapChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeJmap(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="NextcloudChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeNextcloud(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                     <RadioButton x:Name="DavChoice" GroupName="AccountType"
                                  Content="{x:Bind l10n:L10n.SetupAccountTypeDav(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
-                </StackPanel>
+                </controls:FlowPanel>
 
                 <!-- What the account is used for: mail, calendar and contacts, as the core offered
                      them for this route and how each starts (docs/account-autodetect.md rule 8).
@@ -318,6 +318,42 @@
                              TextChanged="OnDavServerChanged" LostFocus="OnDavServerLeft" />
                     <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav(), Mode=OneTime}"
                              TextChanged="OnDavServerChanged" LostFocus="OnDavServerLeft" />
+                </StackPanel>
+
+                <!-- A Nextcloud server's calendar and contacts, from its address alone
+                     (docs/nextcloud-sign-in.md rule 2): the sign-in under the field, the wait under
+                     the sign-in, and, where the core could not tell the address is Nextcloud, the
+                     offer to try anyway while the field still holds that address. What is on screen
+                     is decided in AccountSetupView.NextcloudAddress.cs. -->
+                <StackPanel x:Name="NextcloudSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupNextcloudNote(), Mode=OneTime}"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox x:Name="NextcloudServer" Header="{x:Bind l10n:L10n.SetupFieldNextcloudServer(), Mode=OneTime}"
+                             InputScope="Url" IsSpellCheckEnabled="False"
+                             TextChanged="OnNextcloudServerChanged" KeyDown="OnNextcloudServerKeyDown" />
+                    <Button x:Name="NextcloudAddressSignInButton" Content="{x:Bind l10n:L10n.NextcloudSignInButton(), Mode=OneTime}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            HorizontalAlignment="Left" IsEnabled="False" Click="OnSignInNextcloudAddress" />
+                    <!-- While the server is asked, then while the browser holds the sign-in; the
+                         footer's Cancel retires either. -->
+                    <StackPanel x:Name="NextcloudAddressWaitingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                        <ProgressRing x:Name="NextcloudAddressWaitingRing" Width="16" Height="16" IsActive="False" />
+                        <TextBlock x:Name="NextcloudAddressWaitingText"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel x:Name="NextcloudUnsurePanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock x:Name="NextcloudUnsureText"
+                                   Style="{StaticResource BodyTextBlockStyle}"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="NextcloudTryAnywayButton" Content="{x:Bind l10n:L10n.SetupNextcloudTryAnyway(), Mode=OneTime}"
+                                HorizontalAlignment="Left" Click="OnSignInNextcloudAnyway" />
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer.

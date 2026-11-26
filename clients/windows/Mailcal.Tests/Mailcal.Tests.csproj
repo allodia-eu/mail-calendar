@@ -282,6 +282,7 @@
          person's Nextcloud device list, and a poll that never wakes leaves them waiting. -->
     <Compile Include="..\Mailcal\Services\NextcloudFlight.cs" Link="Services\NextcloudFlight.cs" />
     <Compile Include="..\Mailcal\Services\SetupNextcloud.cs" Link="Services\SetupNextcloud.cs" />
+    <Compile Include="..\Mailcal\Services\SetupNextcloudAddress.cs" Link="Services\SetupNextcloudAddress.cs" />
     <!-- The servers found beside a JMAP server, offered on its link step (docs/onboarding.md):
          kept for that account and address only, offered only for what its session lacks, and used
          up once taken. Silent when wrong: a second copy of contacts the session already has. -->

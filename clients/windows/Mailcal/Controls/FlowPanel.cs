@@ -20,6 +20,11 @@ public sealed class FlowPanel : Panel
     /// <summary>The gap between children, horizontally and between wrapped rows.</summary>
     public double Spacing { get; set; } = 6;
 
+    /// <summary>The gap between wrapped rows, when it differs from <see cref="Spacing"/>.</summary>
+    public double LineSpacing { get; set; } = double.NaN;
+
+    private double LineGap => double.IsNaN(LineSpacing) ? Spacing : LineSpacing;
+
     /// <inheritdoc/>
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -38,7 +43,7 @@ public sealed class FlowPanel : Panel
             if (x > 0 && x + size.Width > limit)
             {
                 x = 0;
-                y += lineHeight + Spacing;
+                y += lineHeight + LineGap;
                 lineHeight = 0;
             }
             x += size.Width + Spacing;
@@ -63,7 +68,7 @@ public sealed class FlowPanel : Panel
             if (x > 0 && x + size.Width > finalSize.Width)
             {
                 x = 0;
-                y += lineHeight + Spacing;
+                y += lineHeight + LineGap;
                 lineHeight = 0;
             }
             child.Arrange(new Rect(x, y, size.Width, size.Height));

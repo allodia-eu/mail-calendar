@@ -17,6 +17,9 @@ internal enum DetectTab
     Google,
     /// <summary>An account used for its calendar and contacts alone, over CalDAV and CardDAV.</summary>
     Dav,
+    /// <summary>A Nextcloud server's calendar and contacts, signed in to from its address alone.
+    /// Only the manual form offers it; detection routes a Nextcloud server to <see cref="Dav"/>.</summary>
+    Nextcloud,
 }
 
 /// <summary>
@@ -127,6 +130,18 @@ internal static class AccountDetectForm
         SetupRecommendation.Manual manual => Manual(manual.Reason),
 
         _ => Manual(MissReason.NothingFound),
+    };
+
+    /// <summary>The tab an account type the core's manual form offers (<c>manual_setup_kinds</c>) is
+    /// drawn as.</summary>
+    internal static DetectTab Tab(ManualSetupKind kind) => kind switch
+    {
+        ManualSetupKind.Jmap => DetectTab.Jmap,
+        ManualSetupKind.Microsoft => DetectTab.Microsoft,
+        ManualSetupKind.Google => DetectTab.Google,
+        ManualSetupKind.Nextcloud => DetectTab.Nextcloud,
+        ManualSetupKind.Dav => DetectTab.Dav,
+        _ => DetectTab.Imap,
     };
 
     /// <summary>One detected server as the found card names it: host, port and security.</summary>
