@@ -4,9 +4,8 @@
 
 #if os(macOS)
 import AppKit
-#else
-import UserNotifications
 #endif
+import UserNotifications
 
 /// What this process last put on the icon, so a snapshot that leaves the count alone asks the OS
 /// for nothing.
@@ -30,15 +29,18 @@ struct AppBadge {
         show(unread)
     }
 
-    /// Writes `unread` to the icon. On iOS the `.badge` permission `MailNotifier` asks for governs
-    /// it, and without that permission the OS ignores the write.
+    /// Writes `unread` to the icon, `0` clearing it. The `.badge` permission `MailNotifier` asks
+    /// for governs the notification-centre count on both Apple platforms, and without that
+    /// permission the OS ignores the write.
     static func write(_ unread: UInt32) {
+        // On macOS the Dock reads the notification centre's badge count under that permission, so
+        // the count goes through `setBadgeCount` as well as the dock tile's own label: the label
+        // alone is dropped when the app holds no badge setting, and the OS draws whichever of the
+        // two it honours. `NSApp` is unset in a host-less test run.
         #if os(macOS)
-        // `NSApp` is unset in a host-less test run.
         NSApp?.dockTile.badgeLabel = label(unread)
-        #else
-        UNUserNotificationCenter.current().setBadgeCount(Int(unread))
         #endif
+        UNUserNotificationCenter.current().setBadgeCount(Int(unread))
     }
 
     /// The Dock tile's text for `unread`: none at zero.
