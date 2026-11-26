@@ -26,8 +26,8 @@
 //! the attendee address and the user's note are exactly what `docs/logging.md` forbids.
 
 use engine_api::{
-    AccountId, ApiError, Event, EventId, EventRsvp, EventWrite, InboundScheduling, Message,
-    Provider, RawIcal, UtcDateTime, addresses_match, resolve_instant_in,
+    AccountId, ApiError, Event, EventRsvp, EventWrite, InboundScheduling, Message, Provider,
+    RawIcal, UtcDateTime, addresses_match, resolve_instant_in,
 };
 
 use crate::{
@@ -140,7 +140,7 @@ impl<P: Provider> App<P> {
                 &rsvp,
             )
             .await
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| self.answer_write_failed(&err))?;
         let status = self
             .settle_calendar_write(
                 provider,
@@ -233,8 +233,15 @@ impl<P: Provider> App<P> {
         let collection = self
             .calendar_for_new_events(account, &calendars)
             .ok_or_else(|| "this account has no calendar to add the meeting to".to_owned())?;
-        let href = event_href(collection.id.key().as_str(), event.uid.as_str())
-            .ok_or_else(|| "the meeting's id cannot be made into a calendar address".to_owned())?;
+        // The adapter names the new resource by its own rule, the one its other creates use, so
+        // a copy any of them stored is at this address and the guarded create meets it. Only a
+        // transport whose client names resources has an answer. Its error is not passed on:
+        // it can carry the address, and with it the meeting's `UID`.
+        let href = provider
+            .new_event_id(&collection.id, &event.uid)
+            .map_err(|_| {
+                "this calendar cannot take a meeting stored from an invitation".to_owned()
+            })?;
         let key = href.key().clone();
 
         let write = EventWrite::creating(href, event.uid.clone(), RawIcal::new(document));
@@ -264,7 +271,8 @@ impl<P: Provider> App<P> {
                 // error is a real failure.
                 if !is_conflict(&err) {
                     return Err(format!(
-                        "the meeting could not be added to your calendar: {err}"
+                        "the meeting could not be added to your calendar: {}",
+                        crate::calendar_status::failure_words(&err)
                     ));
                 }
                 log::info!(
@@ -289,8 +297,8 @@ impl<P: Provider> App<P> {
             .into_iter()
             .next();
         // Fall back to the day scan, which finds a copy the server put at an address of its own
-        // choosing: the case the conflict above lands in on a server whose href convention is
-        // not ours.
+        // choosing: the case the conflict above lands in when the server filed the invitation
+        // itself.
         match stored {
             Some(event) => Ok(Some(event)),
             None => Ok(self
@@ -400,51 +408,6 @@ pub(crate) fn attendee_name<'a>(event: &'a Event, attendee: &str) -> Option<&'a 
                 .is_some_and(|address| addresses_match(address, attendee))
         })
         .and_then(|participant| participant.name.as_deref())
-}
-
-/// Mints the resource address a new event is stored at: `<collection><uid>.ics`.
-///
-/// RFC 4791 §5.3.2 lets the **client** choose the resource name, and `<uid>.ics` is the
-/// universal convention, which is what makes the create's `If-None-Match: *` worth having: a
-/// server that deposited its own copy of this meeting put it at the same address, so the guard
-/// finds it instead of overwriting it. A random name would always succeed and always duplicate.
-///
-/// Returns `None` if the result is not a usable key, which the non-empty collection and suffix
-/// make unreachable in practice.
-fn event_href(collection: &str, uid: &str) -> Option<EventId> {
-    let mut href = collection.to_owned();
-    if !href.ends_with('/') {
-        href.push('/');
-    }
-    href.push_str(&encode_path_segment(uid));
-    href.push_str(".ics");
-    EventId::try_from(href.as_str()).ok()
-}
-
-/// Percent-encodes `segment` as a single URI path segment (RFC 3986 §2.3).
-///
-/// A `UID` is opaque; Exchange writes 200 hex characters, Google writes an `@`-bearing
-/// address, and nothing forbids a slash: so it is encoded rather than trusted. The `unreserved`
-/// set is left alone, because for those characters (and only those) the literal byte and its
-/// `%XX` form are equivalent, so this matches an address the server may have minted for the
-/// same `UID`.
-fn encode_path_segment(segment: &str) -> String {
-    let mut out = String::with_capacity(segment.len());
-    for &byte in segment.as_bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(byte));
-        } else {
-            out.push('%');
-            out.push(hex_upper(byte >> 4));
-            out.push(hex_upper(byte & 0x0f));
-        }
-    }
-    out
-}
-
-/// The upper-case hex digit for a 0–15 nibble.
-fn hex_upper(nibble: u8) -> char {
-    char::from_digit(u32::from(nibble), 16).map_or('0', |digit| digit.to_ascii_uppercase())
 }
 
 /// Whether a failed write was refused by its precondition rather than by anything else.

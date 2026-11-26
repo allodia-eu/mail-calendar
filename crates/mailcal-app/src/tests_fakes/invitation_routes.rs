@@ -69,6 +69,26 @@ impl InvitationFake {
         self
     }
 
+    /// A calendar whose server names a new event itself (JMAP, Graph, Google), so the adapter
+    /// has no address to give a document the client stores.
+    pub(crate) fn naming_its_own_events(mut self) -> Self {
+        self.writes = super::Writes::ServerNamed;
+        self
+    }
+
+    /// The meeting falls beyond every window the calendar has read, so only its address finds
+    /// it once stored.
+    pub(crate) fn far_ahead(mut self) -> Self {
+        self.days_ahead = super::meeting::FAR_AHEAD;
+        self
+    }
+
+    /// A calendar that refuses every write, its error naming the resource.
+    pub(crate) fn refusing_writes(mut self) -> Self {
+        self.writes = super::Writes::Refused;
+        self
+    }
+
     /// Serves the invitation addressed to every attendee, the account's own identity last
     /// (`imip_source_to_every_attendee`).
     pub(crate) fn addressed_to_every_attendee(mut self) -> Self {

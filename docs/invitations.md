@@ -542,9 +542,13 @@ It is also why the day preview gates its own hold on the calendar rather than on
 (§"…and it draws the meeting itself"). And the answer has to be written to *something*. So on **both** routes, if the calendar does not hold
 the meeting, the core puts it there before answering: the invitation's own bytes with its `METHOD`
 stripped (RFC 4791 §4.1 forbids `METHOD` on a stored resource), under a guarded create
-(`If-None-Match: *`). That is exactly the attendee flow of RFC 6638 §3.2.2: the client stores the
-scheduling object, the server turns the changed `PARTSTAT` into the `REPLY`, and it is what Apple
-Calendar and Thunderbird do.
+(`If-None-Match: *`), at the address the calendar's adapter names for the meeting's `UID`
+(`new_event_id`). The core never spells that address itself: it is the rule the adapter's own
+creates use, so a copy any of them stored is the one the guard meets. Only a transport whose client
+names a new resource (CalDAV) has one; on any other the answer fails (`NotSaved`), and the reason
+logged is that the calendar cannot take a meeting stored from an invitation. That is exactly the
+attendee flow of RFC 6638 §3.2.2: the client stores the scheduling object, the server turns the
+changed `PARTSTAT` into the `REPLY`, and it is what Apple Calendar and Thunderbird do.
 
 It has to be a whole-document write and not `create_event`: a new meeting draft does not preserve
 the received participants' answers or scheduling parameters, so rebuilding the invitation would
@@ -560,6 +564,10 @@ invitation `APPEND`ed to IMAP so nothing filed it, the Soverin shape exactly). B
 |---|---|
 | the meeting was on the calendar | create refused `412` → read back → `PARTSTAT` written → card reads "You accepted" |
 | the meeting was **not** | create accepted `201` at `…/week-invited%40test.local.ics` → the stored resource carries the `ORGANIZER`, all three `ATTENDEE` lines and **no `METHOD`** → `PARTSTAT` written |
+
+The row shows the address the core wrote at the time, which spelled the `UID`'s `@` as `%40`. The
+calendar's adapter now names it (`new_event_id`), and the engine proves that naming live on
+Stalwart, SabreDAV and Nextcloud (`provider-caldav` `tests/common/imip.rs`).
 
 One more thing that only a live run found: the collection list is read from the **store**, which is
 empty until a calendar sync has run, and the mail list is where a user lands. So an account whose

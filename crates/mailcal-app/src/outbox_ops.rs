@@ -15,6 +15,7 @@ use crate::{
 
 #[path = "outbox_log.rs"]
 mod outbox_log;
+pub(crate) use outbox_log::class_words;
 
 impl<P: Provider> App<P> {
     /// Routes one [`OutboxIntent`] to its handler.
