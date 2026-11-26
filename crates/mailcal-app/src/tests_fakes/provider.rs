@@ -431,10 +431,13 @@ impl engine_api::MailboxWrites for FakeProvider {
             folder.parent = parent.cloned();
         };
         Ok(match edit {
-            MailboxEdit::Create { name, parent } => {
+            MailboxEdit::Create {
+                name, parent, role, ..
+            } => {
                 let id = MailboxId::try_from(format!("made-{name}").as_str()).unwrap();
                 let mut made = Mailbox::new(id.clone(), name.clone());
                 made.parent.clone_from(parent);
+                made.role.clone_from(role);
                 folders.push(made);
                 MailboxEditReceipt::resolved(id)
             }

@@ -27,7 +27,7 @@ use engine_core::{
         ContactPhone, ContactProperty, FieldPatch, NameComponent, NameComponentKind, Organization,
         PropertyId, Title,
     },
-    ids::{AddressBookId, ContactId},
+    ids::{AddressBookId, ContactId, Uid},
     membership::Memberships,
 };
 
@@ -236,7 +236,7 @@ pub fn build_contact_draft(
         ContactId::try_from(uid).map_err(|err| AccountError::ContactWrite(err.to_string()))?,
         Memberships::of_one(address_book.clone()),
     );
-    card.uid = Some(uid.to_owned());
+    card.uid = Some(Uid::new(uid).map_err(|err| AccountError::ContactWrite(err.to_string()))?);
     card.name = edit.name();
     card.emails = properties("email", &edit.emails, |value| ContactEmail::new(value));
     card.phones = properties("phone", &edit.phones, |value| ContactPhone {

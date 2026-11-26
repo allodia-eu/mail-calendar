@@ -130,6 +130,32 @@ fn a_providers_all_mail_gets_no_row_because_the_accounts_own_all_mail_is_that_pl
 }
 
 #[test]
+fn the_services_own_records_get_no_row_and_its_chats_are_an_ordinary_folder() {
+    // Microsoft 365's Sync Issues and the folders under it hold the service's bookkeeping, no
+    // mail anyone filed; Conversation History holds the user's own chats, and reads as any
+    // folder of theirs does (rule 35).
+    let mut conflicts = roled("Conflicts", "Conflicts", MailboxRole::ServerRecords);
+    conflicts.parent = Some(MailboxId::try_from("SyncIssues").unwrap());
+    let rows = sorted_folder_rows(&[
+        roled("Chats", "Conversation History", MailboxRole::ChatHistory),
+        roled("SyncIssues", "Sync Issues", MailboxRole::ServerRecords),
+        conflicts,
+        plain("Acme", "Acme"),
+        roled("INBOX", "Inbox", MailboxRole::Inbox),
+    ]);
+
+    assert_eq!(
+        shape(&rows),
+        vec![("INBOX", 0, None), ("Acme", 0, None), ("Chats", 0, None)]
+    );
+    assert_eq!(
+        rows[2].role,
+        Some(FolderRole::Other),
+        "named by the server, drawn as its own"
+    );
+}
+
+#[test]
 fn a_folder_whose_parent_the_account_does_not_list_is_drawn_at_the_top() {
     // An unsubscribed or hidden intermediate: the row has to go somewhere, and it cannot go
     // under a row that is not there. Its own name is all it has, which is the trade for not

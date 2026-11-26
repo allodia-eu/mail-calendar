@@ -25,10 +25,7 @@ fn any_account() -> AccountId {
 /// A folder change the server never answers: made once, it drops the provider, so the next
 /// request connects again.
 async fn lose_the_connection(provider: &dyn engine_provider::Provider, server: &FakeJmap) {
-    let folder = MailboxEdit::Create {
-        name: "Receipts".to_owned(),
-        parent: None,
-    };
+    let folder = MailboxEdit::create("Receipts".to_owned(), None);
     server.hang_up_next_call();
     provider
         .edit_mailbox(&any_account(), &folder)
