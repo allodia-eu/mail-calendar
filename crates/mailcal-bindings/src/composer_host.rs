@@ -176,12 +176,21 @@ pub fn composer_host_requests_with_history_script() -> String {
         .to_owned()
 }
 
+/// The same, for a host that answers only the page: the signature editor on a client that cannot
+/// raise a link dialog over the Settings one. The editor then draws its own link panel and asks
+/// only about the page's colours and the toolbar's sun or moon.
+#[must_use]
+#[uniffi::export]
+pub fn composer_page_requests_script() -> String {
+    "window.setComposerHostRequests([\"colours\",\"background\"]);".to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ComposerHostRequest, ComposerLinkAnswer, composer_host_requests_script,
         composer_host_requests_with_history_script, composer_link_address,
-        composer_link_answer_script, parse_composer_host_request,
+        composer_link_answer_script, composer_page_requests_script, parse_composer_host_request,
     };
 
     #[test]
@@ -207,6 +216,16 @@ mod tests {
             }
         }
         assert!(composer_host_requests_with_history_script().contains("\"history\""));
+    }
+
+    #[test]
+    fn a_host_answering_only_the_page_asks_for_nothing_else() {
+        // A host that announced "link" without a dialog to answer it would leave the editor's
+        // link button doing nothing.
+        assert_eq!(
+            composer_page_requests_script(),
+            r#"window.setComposerHostRequests(["colours","background"]);"#
+        );
     }
 
     #[test]
