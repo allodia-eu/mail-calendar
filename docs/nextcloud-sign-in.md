@@ -157,8 +157,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Found card: sign-in first, password behind | ✅ | 🚧 | 🚧 | ✅ | ✅ |
 | The link step's card for servers found beside a JMAP server | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Manual form's Nextcloud type, from the address alone | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Manual form's account types read from the core (`manual_setup_kinds`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Manual form's Nextcloud type, from the address alone | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| Manual form's account types read from the core (`manual_setup_kinds`) | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Browser opened, polled, and polled again on return or close | ✅ an account's page and prompt | ✅ | ✅ | ✅ | ✅ |
@@ -237,7 +237,13 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   in `Mailcal.Tests`, and its UI suites (`NextcloudSignInTests`, `NextcloudAccountPageTests`,
   `NextcloudSeparateServerTests`) drive the manual form, the wait and its Cancel, a kept grant's
   retry and withdrawal, the account page, and a mailbox's separate-server step against the
-  fixture. Linux and Android were also driven against a live Nextcloud server through an address
+  fixture. The manual form's Nextcloud type is asserted in `NextcloudAddressTests` and
+  `AccountSetupNextcloudTests` on Apple, on an iPhone and an iPad simulator: one field, a sign-in
+  held until it holds something, an address that cannot be a server refused with the address kept,
+  and an address where nothing answers unsure, with **Try anyway** following the field. Windows
+  asserts it in `SetupNextcloudAddressTests` and `NextcloudManualSetupTests`, and against the
+  engine's fixture signed in from its bare host, made the account and removed it. Linux and
+  Android were also driven against a live Nextcloud server through an address
   whose domain has no mail server and redirects its `.well-known` to Nextcloud: the found card
   led with the sign-in, the grant arrived, a sign-in waiting in the browser asked again the moment
   the app was in front (`a window is active again; asking now` on Linux, `the app is in front

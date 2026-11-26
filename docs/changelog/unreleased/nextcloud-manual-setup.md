@@ -1,6 +1,6 @@
 # Nextcloud from its address alone
 
-Platforms: linux
+Platforms: macos, ios, windows, linux
 Bump: minor
 
 > The manual form's account types now come from the core (`manual_setup_kinds`), and a new
