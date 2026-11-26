@@ -585,6 +585,13 @@
       display: none;
     }
 
+    /* A control the toolbar hides takes no room. The rules above give its buttons a display of their
+       own, which outranks the engine's own `[hidden]`. */
+    .toolbar [hidden],
+    .toolbar > .menu > [hidden] {
+      display: none;
+    }
+
     /* The page's sun or moon: what pressing it does, so a sun on a dark page and a moon on a light. */
     #page-background[data-page="dark"] .moon,
     #page-background:not([data-page="dark"]) .sun {

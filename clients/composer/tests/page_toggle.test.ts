@@ -2,6 +2,7 @@
 // press does.
 
 import { describe, expect, test } from "bun:test";
+import { Window } from "happy-dom";
 
 import { DEFAULT_LABELS } from "../src/labels";
 import type { PageScheme } from "../src/page";
@@ -61,5 +62,26 @@ describe("the page toggle", () => {
     expect(button.getAttribute("aria-label")).toBe(DEFAULT_LABELS.darkBackground);
     button.click();
     expect(state.chosen).toEqual(["light", "dark"]);
+  });
+});
+
+describe("a hidden toggle under the editor's stylesheets", () => {
+  // The toolbar's own rules give its buttons a display of their own, which outranks the engine's
+  // `[hidden]`, so a toggle hidden in a light app would still be drawn.
+  test("takes no room on the row, and neither does its separator", async () => {
+    const sheets = await Promise.all(
+      ["editor.css", "toolbar.css", "popovers.css"].map((name) => Bun.file(`${import.meta.dir}/../src/${name}`).text()),
+    );
+    const window = new Window();
+    const doc = window.document;
+    doc.head.innerHTML = `<style>${sheets.join("\n")}</style>`;
+    doc.body.innerHTML =
+      '<div class="toolbar"><button id="bold">B</button>' +
+      '<span class="sep" id="page-background-sep" hidden></span><button id="page-background" hidden></button></div>';
+    const display = (id: string) => window.getComputedStyle(doc.getElementById(id)!).display;
+
+    expect(display("bold")).toBe("flex");
+    expect(display("page-background")).toBe("none");
+    expect(display("page-background-sep")).toBe("none");
   });
 });
