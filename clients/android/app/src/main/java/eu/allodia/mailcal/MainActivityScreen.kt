@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -22,12 +23,24 @@ import uniffi.mailcal_bindings.launchStatusAfterMs
 @Composable
 internal fun MainActivity.MainScreen(showcase: Boolean) {
             AppTheme(appearance = appearance) {
+              // The page every editor writes on follows the dark-messages preference as the core
+              // last said it, and its sun/moon sets it (ComposerPage.kt).
+              val core = app
+              val darkMessages = displaySettings?.darkMessageBackground
+              val composerPage = remember(core, darkMessages) {
+                  if (core != null && darkMessages != null) {
+                      ComposerPageHost(darkMessages, core::composerBackgroundChoice)
+                  } else {
+                      null
+                  }
+              }
               // Mail and calendar render times through the same ambient setting, so the app can
               // never disagree with itself about whether it is 14:05 or 2:05 PM.
               androidx.compose.runtime.CompositionLocalProvider(
                   LocalUse24Hour provides (
                       displaySettings?.let { it.timeFormat == TimeFormat.TWENTY_FOUR_HOUR } ?: LocalUse24Hour.current
                   ),
+                  LocalComposerPage provides composerPage,
               ) {
                 // Ask for notification permission (Android 13+) only once at least one account
                 // exists, a returning user is asked on this launch, a first-time user right after

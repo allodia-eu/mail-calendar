@@ -18,6 +18,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import org.json.JSONArray
 import org.json.JSONObject
 import uniffi.mailcal_bindings.SignatureBody
+import uniffi.mailcal_bindings.composerPageScript
 
 // Seeds, replaces, or removes THIS message's signature region. Null removes it ("None", or an
 // account with no signature); the editor keeps the user's typed text and their trimming of the
@@ -126,6 +127,8 @@ internal fun composerPageFinishedScripts(
     storedHtml: String = "",
     quoteAttribution: String? = null,
     dark: Boolean = false,
+    // `composerPageScript` for the page in force, or null where no page is named (ComposerPage.kt).
+    page: String? = null,
 ): List<String> = buildList {
     add("window.useNativeComposerChrome()")
     if (topInsetDp > 0f) {
@@ -133,6 +136,9 @@ internal fun composerPageFinishedScripts(
     }
     add("window.setComposerLabels($labelsJson)")
     add(composerSchemeScript(dark))
+    if (page != null) {
+        add(page)
+    }
     if (storedHtml.isNotBlank()) {
         add("window.setComposerBody(${JSONObject.quote(reopenedBodySeed(storedHtml, body))})")
     } else if (quote != null) {
@@ -166,6 +172,8 @@ internal fun WebView.configureComposerWebView(
     signature: () -> String?,
     // The app's light or dark, read at page-finished time like the inset.
     dark: () -> Boolean,
+    // The page's host, read at page-finished time too.
+    page: () -> ComposerPageHost?,
     onScroll: (Int) -> Unit,
     // The document as it stood once the seeds were in, the "nothing written yet" baseline the
     // discard prompt compares against (the macOS/Windows rule), null if the editor never answered,
@@ -184,9 +192,11 @@ internal fun WebView.configureComposerWebView(
         // not right after loadDataWithBaseURL, and not from a layout-time effect, is what
         // guarantees they are defined. See composerPageFinishedScripts for the contract.
         override fun onPageFinished(view: WebView?, url: String?) {
+            val pageScript = page()?.let { composerPageScript(messageScheme(dark(), it.darkMessages)) }
             val scripts = composerPageFinishedScripts(
                 labelsJson, quote, topInsetDp(), signature(), body, storedHtml, quoteAttribution,
                 dark = dark(),
+                page = pageScript,
             )
             for (script in scripts) {
                 view?.evaluateJavascript(script, null)
@@ -245,6 +255,8 @@ internal fun ComposerEditorView(
 ) {
     val dark = LocalAppDark.current
     val currentDark = rememberUpdatedState(dark)
+    val page = LocalComposerPage.current
+    val currentPage = rememberUpdatedState(page)
     val makeEditor = LocalComposerEditorFactory.current
     AndroidView(
         modifier = Modifier
@@ -257,6 +269,7 @@ internal fun ComposerEditorView(
         factory = { context ->
             makeEditor(context).apply {
                 installComposerHost(linkHost)
+                linkHost.onPageMessage = { message -> answerComposerPage(message, currentPage.value) }
                 configureComposerWebView(
                     quote = quote,
                     body = body,
@@ -267,14 +280,16 @@ internal fun ComposerEditorView(
                     topInsetDp = topInsetDp,
                     signature = signature,
                     dark = { currentDark.value },
+                    page = { currentPage.value },
                     onScroll = onScroll,
                     onSeeded = onSeeded,
                 )
-                loadDataWithBaseURL("https://composer.local/", html, "text/html", "utf-8", null)
+                val preloaded = composerHtmlWithPreload(html, composerPreloadScript(dark, page))
+                loadDataWithBaseURL("https://composer.local/", preloaded, "text/html", "utf-8", null)
                 onReady(this)
             }
         },
-        update = { view -> view.evaluateJavascript(composerSchemeScript(dark), null) },
+        update = { view -> view.evaluateJavascript(composerAppearanceScript(dark, page), null) },
     )
 }
 
