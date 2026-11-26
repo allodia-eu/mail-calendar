@@ -13,13 +13,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_api::{
-    AccountId, CalendarSync, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine,
-    TimeZoneId,
-};
+use engine_api::{AccountId, CalendarSync, CalendarUserAddresses, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
-    ids::{CalendarId, MailboxId},
+    ids::{CalendarId, EventId, MailboxId, Uid},
     mail::Mailbox,
     raw::RawMime,
     sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
@@ -31,19 +28,21 @@ use engine_provider::{
     ReplyDelivery, RsvpControls, RsvpResponse, ScopeSync, SubmissionReceipt, WriteGuard,
     WritePrecondition,
 };
-use meeting::{imip_source, invitation_message, invited_event};
+use meeting::{SOON, imip_source, invitation_message, invited_event};
 
 use super::RecordingObserver;
-use crate::{Account, App, Surface, Telemetry, TimeZoneInit};
 
-// The meeting these fixtures are all about, kept next door: see that file's header for why the
-// bytes and the provider are separate concerns.
+#[path = "invitation_app.rs"]
+mod app;
 #[path = "invitation_linked.rs"]
 mod linked;
+// The meeting these fixtures are all about, kept next door: see that file's header for why the
+// bytes and the provider are separate concerns.
 #[path = "invitation_meeting.rs"]
 mod meeting;
 #[path = "invitation_routes.rs"]
 mod routes;
+pub(crate) use app::{invitation_app, invitation_app_with_prefs};
 pub(crate) use linked::{
     CALENDAR_ACCOUNT, OTHER_MAILBOX, linked_invitation_app, shared_calendar_app,
 };
@@ -72,6 +71,10 @@ pub(crate) const MESSAGE_KEY: &str = "invite-1";
 
 /// The event key the meeting is stored under.
 pub(crate) const EVENT_KEY: &str = "/cal/meeting-9.ics";
+
+/// The resource name the fake's adapter gives a new event: opaque, so nothing derived from the
+/// `UID` can arrive at it.
+pub(crate) const MINTED_NAME: &str = "minted-7f3a9c.ics";
 
 /// A provider serving one invitation email and the calendar the meeting is in.
 pub(crate) struct InvitationFake {
@@ -105,6 +108,22 @@ pub(crate) struct InvitationFake {
     /// What the calendar server says it schedules as (RFC 6638 §2.4.1). `Unknown` by default,
     /// which leaves the route to the capabilities alone.
     calendar_users: CalendarUserAddresses,
+    /// How the calendar takes a write.
+    writes: Writes,
+    /// How many days from today the meeting falls.
+    days_ahead: i64,
+}
+
+/// How [`InvitationFake`]'s calendar takes a write.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Writes {
+    /// It names a new event itself, as CalDAV does, and stores what it is sent.
+    Named,
+    /// Its server names new events, so the adapter has no address to give (the engine's
+    /// default answer).
+    ServerNamed,
+    /// It refuses every write with a body that names the resource, as a CalDAV error body can.
+    Refused,
 }
 
 impl InvitationFake {
@@ -134,6 +153,8 @@ impl InvitationFake {
             has_calendar: true,
             reply_delivery: ReplyDelivery::NotReported,
             calendar_users: CalendarUserAddresses::Unknown,
+            writes: Writes::Named,
+            days_ahead: SOON,
         }
     }
 
@@ -258,11 +279,10 @@ impl Provider for InvitationFake {
         _account: &AccountId,
         _message: &engine_core::mail::Message,
     ) -> ProviderResult<RawMime> {
-        Ok(RawMime::new(
-            self.source
-                .as_ref()
-                .map_or_else(imip_source, |raw| raw.as_ref().clone()),
-        ))
+        Ok(RawMime::new(self.source.as_ref().map_or_else(
+            || imip_source(self.days_ahead),
+            |raw| raw.as_ref().clone(),
+        )))
     }
 
     async fn submit_email(
@@ -333,7 +353,7 @@ impl CalendarSync for InvitationFake {
                 SyncState::new("ev-1"),
             ));
         }
-        let event = invited_event(self.stored_sequence);
+        let event = invited_event(self.stored_sequence, self.days_ahead);
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(vec![event.clone()], [event.id.key().clone()].into()),
             SyncState::new("ev-1"),
@@ -356,6 +376,9 @@ impl CalendarWrites for InvitationFake {
         _account: &AccountId,
         write: &EventWrite,
     ) -> ProviderResult<EventWriteReceipt> {
+        if self.writes == Writes::Refused {
+            return Err(refusal_naming(write.event.as_str()));
+        }
         if write.guard != WritePrecondition::IfAbsent {
             return Err(ProviderError::invalid_state(
                 "an invitation must be stored as a guarded create",
@@ -365,14 +388,28 @@ impl CalendarWrites for InvitationFake {
             write.event.as_str().to_owned(),
             write.ical.as_str().to_owned(),
         ));
-        let mut event = invited_event(0);
-        event.id = write.event.clone();
+        // Listed in the server's form, whatever the written address spelled: Stalwart, SabreDAV
+        // and Nextcloud all list a resource written at `…%40….ics` as `…@….ics`.
+        let mut event = invited_event(0, self.days_ahead);
+        event.id = EventId::try_from(write.event.as_str().replace("%40", "@").as_str()).unwrap();
         *self.created.lock().unwrap() = Some(event);
         Ok(EventWriteReceipt::new(
             write.event.clone(),
             write.uid.clone(),
             RevisionTokens::from_etag(ETag::new("\"v2\"")),
         ))
+    }
+
+    /// A stand-in for the adapter's naming rule, not the rule: a name no host could derive from
+    /// the `UID`, so a core that spelled the address itself would write somewhere else. The
+    /// engine proves the real rule, offline and against live servers.
+    fn new_event_id(&self, calendar: &CalendarId, _uid: &Uid) -> ProviderResult<EventId> {
+        if self.writes == Writes::ServerNamed {
+            return Err(ProviderError::invalid_state(
+                "provider does not support naming new events",
+            ));
+        }
+        Ok(EventId::try_from(format!("{}{MINTED_NAME}", calendar.as_str()).as_str()).unwrap())
     }
 
     async fn calendar_user_addresses(
@@ -388,6 +425,9 @@ impl CalendarWrites for InvitationFake {
         base: &Event,
         rsvp: &EventRsvp,
     ) -> ProviderResult<EventWriteReceipt> {
+        if self.writes == Writes::Refused {
+            return Err(refusal_naming(base.id.as_str()));
+        }
         // Every real adapter refuses a control it cannot honour through this one shared
         // check; the fake does the same, so a core test proves the refusal reaches the user
         // rather than the note being quietly dropped on the way out.
@@ -409,64 +449,8 @@ impl CalendarWrites for InvitationFake {
     }
 }
 
-/// An app over one account whose identity is `me@`; **not** the address the invitation is
-/// sent to. The alias reaches the matcher through the message's own `To:` header, which is
-/// what makes an aliased invitation work with no configuration at all.
-pub(crate) fn invitation_app(
-    provider: InvitationFake,
-    surfaces: &Arc<Mutex<Vec<Surface>>>,
-) -> App<InvitationFake> {
-    invitation_app_with_prefs(provider, surfaces, None)
-}
-
-/// The same, with a preferences file: so a test can set the account's standing answer to the
-/// reply-fallback question, and prove a remembered choice is honoured without a prompt.
-///
-/// Without a path the app has nowhere to read a choice from and every account answers `Ask`,
-/// which is right for the default but makes `Always`/`Never` untestable.
-pub(crate) fn invitation_app_with_prefs(
-    provider: InvitationFake,
-    surfaces: &Arc<Mutex<Vec<Surface>>>,
-    prefs_path: Option<std::path::PathBuf>,
-) -> App<InvitationFake> {
-    let account = Account {
-        id: AccountId::try_from("acct-a").unwrap(),
-        // The mail half and the calendar half are two `Provider`s over **shared** recording
-        // state, because the answer crosses them: the calendar stores it and the mail sends
-        // it, and a test that could not see both would only ever prove half an answer.
-        providers: vec![InvitationFake {
-            caps: provider.caps,
-            rsvps: Arc::clone(&provider.rsvps),
-            controls: provider.controls,
-            materialized: provider.materialized,
-            stored_sequence: provider.stored_sequence,
-            source: provider.source.clone(),
-            puts: Arc::clone(&provider.puts),
-            sends: Arc::clone(&provider.sends),
-            created: Arc::clone(&provider.created),
-            has_calendar: provider.has_calendar,
-            reply_delivery: provider.reply_delivery.clone(),
-            calendar_users: provider.calendar_users.clone(),
-        }]
-        .into(),
-        calendar_provider: provider.has_calendar.then_some(provider),
-        meetings: None,
-        contact_providers: Vec::new(),
-        identity: EmailAddress::new("me@test.local"),
-        dialled: true,
-        uses_mail: true,
-    };
-    App::new(
-        Engine::open_in_memory().unwrap(),
-        vec![account],
-        TimeZoneInit {
-            device_zone: TimeZoneId::utc(),
-            prefs_path,
-        },
-        None,
-        Arc::new(RecordingObserver {
-            surfaces: Arc::clone(surfaces),
-        }),
-        Telemetry::off(),
-    )
+/// A refusal shaped as `provider-caldav` renders one: the status and the server's body, which
+/// here names the resource the write addressed.
+fn refusal_naming(href: &str) -> ProviderError {
+    ProviderError::permanent(format!("CalDAV HTTP 403: <d:href>{href}</d:href>"))
 }

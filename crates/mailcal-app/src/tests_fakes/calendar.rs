@@ -132,9 +132,9 @@ pub(crate) struct CalendarFake {
     /// with no connection has and the one case where claiming a materialized window is a lie.
     /// Shared, so a test can take the server away and give it back while the app owns this.
     pub(super) unreachable: Arc<AtomicBool>,
-    /// When set, an **event delta** (a `sync_events` with a cursor) fails. The initial
-    /// snapshot still succeeds, so this fails *only* the post-write reconcile: the path that
-    /// turns a landed write into `Reconciled::Failed`, and the calendar status into `Failed`.
+    /// When set, an **event delta** (a `sync_events` with a cursor) fails, its error naming a
+    /// resource as a CalDAV body can. The snapshot still succeeds, so this fails *only* the
+    /// post-write reconcile: the path that turns a landed write into `Reconciled::Failed`.
     pub(super) reject_event_delta: bool,
     /// How many times this provider has been asked to go to the "network". The grid must paint
     /// from the store, so "did opening the calendar cost a round-trip?" has to be answerable.
@@ -289,7 +289,7 @@ impl CalendarFake {
         }
         if cursor.is_some() {
             if self.reject_event_delta {
-                return Err(ProviderError::invalid_state("the event delta failed"));
+                return Err(ProviderError::invalid_state("500 /cal/k1@test.local.ics"));
             }
             return Ok(ScopeSync::new(
                 SyncUpdate::delta(Vec::new(), Vec::new()),

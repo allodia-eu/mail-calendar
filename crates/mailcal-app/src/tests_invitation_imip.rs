@@ -17,11 +17,15 @@ use std::sync::{Arc, Mutex};
 use engine_api::ScheduleMethod;
 use engine_provider::RsvpResponse;
 use fakes::{
-    ALIAS, InvitationFake, MEETING_UID, MESSAGE_KEY, RecordedPuts, RecordedSends, invitation_app,
+    ALIAS, InvitationFake, MEETING_UID, MESSAGE_KEY, MINTED_NAME, RecordedPuts, RecordedSends,
+    invitation_app,
 };
 
 use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef, ReaderId};
 use crate::tests_fakes as fakes;
+
+#[path = "tests_invitation_refusals.rs"]
+mod refusals;
 
 fn invite() -> MessageRef {
     MessageRef {
@@ -134,22 +138,86 @@ async fn the_stored_document_is_the_invitation_minus_its_method() {
     ))
     .await;
 
-    let puts = answered.puts.lock().unwrap();
-    let (href, document) = puts.first().expect("a document was stored");
+    let (href, document) = answered
+        .puts
+        .lock()
+        .unwrap()
+        .first()
+        .cloned()
+        .expect("a document was stored");
     assert!(!document.contains("METHOD:"), "{document}");
     assert!(document.contains(&format!(
         "ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{ALIAS}"
     )));
     assert!(document.contains("ORGANIZER;CN=Boss:mailto:boss@test.local"));
-    // And at the address a server would itself have chosen for this UID; percent-encoded as a
-    // single path segment, byte for byte the way the CalDAV adapter encodes one, which is what
-    // makes the create's `If-None-Match: *` able to *find* a copy rather than clobber it. This
-    // UID carries an `@`, so the two spellings are not the same address.
-    assert_eq!(href, "/cal/meeting-9%40test.local.ics");
-    assert!(
-        MEETING_UID.contains('@'),
-        "the fixture must exercise encoding"
+    // And at exactly the address the adapter named, never one the core spells from the `UID`.
+    assert_eq!(href, format!("/cal/{MINTED_NAME}"));
+}
+
+#[tokio::test]
+async fn a_meeting_beyond_the_read_window_is_answered_on_the_copy_just_stored() {
+    // The stored copy is found again by its address alone: the day scan sees only the window the
+    // calendar has expanded, and this meeting is past it. An address the server lists in another
+    // form than the one written (an `@` spelled `%40`) finds nothing, and neither route then has
+    // a copy to answer on.
+    for provider in [
+        InvitationFake::new().without_server_scheduling(),
+        InvitationFake::new().without_the_meeting(),
+    ] {
+        let answered = Box::pin(answer(
+            provider.far_ahead(),
+            InvitationResponse::Accept,
+            None,
+            true,
+            None,
+        ))
+        .await;
+        assert_eq!(
+            answered.puts.lock().unwrap().len(),
+            1,
+            "the meeting was stored"
+        );
+        let rsvps = answered.rsvps.lock().unwrap();
+        assert_eq!(rsvps.len(), 1, "the answer landed on the stored copy");
+        assert_eq!(rsvps[0].1, RsvpResponse::Accepted);
+        drop(rsvps);
+        assert_eq!(
+            answered.app.calendar_write_status(),
+            CalendarWriteStatus::Saved
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_calendar_that_names_its_own_events_takes_no_document_and_sends_no_reply() {
+    // Only an adapter whose client names a new resource (CalDAV) can give a stored invitation
+    // an address. Elsewhere the answer fails before any write, the reply does not go out on its
+    // own (it goes last), and the reason names neither the meeting nor an address.
+    let provider = InvitationFake::new()
+        .without_server_scheduling()
+        .naming_its_own_events();
+    let (puts, sends) = (provider.puts(), provider.sends());
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = invitation_app(provider, &surfaces);
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
+
+    let err = Box::pin(app.respond_to_invitation(
+        &invite(),
+        InvitationResponse::Accept,
+        None,
+        true,
+        None,
+    ))
+    .await
+    .expect_err("an invitation with no address to store it at is not answered");
+    assert_eq!(
+        err,
+        "this calendar cannot take a meeting stored from an invitation"
     );
+    assert!(puts.lock().unwrap().is_empty());
+    assert!(sends.lock().unwrap().is_empty());
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]

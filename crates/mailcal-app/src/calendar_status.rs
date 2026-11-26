@@ -55,7 +55,10 @@ impl<P: Provider> App<P> {
                             "reconcile still busy for [{account_handle}]; the in-flight sync will settle it"
                         ),
                         Err(err) => {
-                            log::warn!("post-write reconcile failed for [{account_handle}]: {err}");
+                            log::warn!(
+                                "post-write reconcile failed for [{account_handle}]: {}",
+                                failure_words(&err)
+                            );
                             status = CalendarWriteStatus::Unconfirmed;
                         }
                     }
@@ -63,7 +66,10 @@ impl<P: Provider> App<P> {
                 status
             }
             Reconciled::Failed(err) => {
-                log::warn!("calendar write reconciliation failed for [{account_handle}]: {err}");
+                log::warn!(
+                    "calendar write reconciliation failed for [{account_handle}]: {}",
+                    failure_words(&err)
+                );
                 CalendarWriteStatus::Unconfirmed
             }
             _ => {
@@ -113,7 +119,10 @@ impl<P: Provider> App<P> {
         if error.may_have_applied() {
             self.set_calendar_write_status(CalendarWriteStatus::Unconfirmed);
         }
-        error.to_string()
+        format!(
+            "the answer could not be stored on the calendar: {}",
+            failure_words(error)
+        )
     }
 
     /// Settles a calendar answer that did not happen: not saved, unless its write may have
@@ -123,6 +132,15 @@ impl<P: Provider> App<P> {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
         }
     }
+}
+
+/// Why `error` stopped a write, in words that carry nothing of the server's: its failure class.
+/// The engine's rendering holds the provider's detail, and a server's error body can name the
+/// resource written, whose address carries the meeting's `UID`.
+pub(crate) fn failure_words(error: &ApiError) -> &'static str {
+    crate::connectivity::provider_error_of(error).map_or("a failure on this device", |provider| {
+        crate::outbox_ops::class_words(provider.class())
+    })
 }
 
 /// The calendars a stored event belongs to: the ones a write to it touches.
