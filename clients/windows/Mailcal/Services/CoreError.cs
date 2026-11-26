@@ -36,6 +36,8 @@ internal static class CoreError
             Describe(refused.@reason, error.GetType().Name),
         uniffi.mailcal_bindings.MailcalException.SignInRefused refused =>
             Describe(refused.@reason, error.GetType().Name),
+        uniffi.mailcal_bindings.MailcalException.InsecureServer insecure =>
+            Describe(insecure.@reason, error.GetType().Name),
         // The record carries the account's id, an address; the core's own words carry none.
         uniffi.mailcal_bindings.MailcalException.AlreadySetUp => "that account is already set up",
         uniffi.mailcal_bindings.MailcalException.DifferentAccount => "that sign-in is for a different account",
@@ -54,6 +56,7 @@ internal static class CoreError
     internal static string Said(Exception error, CoreErrorWords words) => error switch
     {
         uniffi.mailcal_bindings.MailcalException.SignInRefused => words.SignInRefused,
+        uniffi.mailcal_bindings.MailcalException.InsecureServer insecure => Insecure(insecure.@insecureCause, words),
         uniffi.mailcal_bindings.MailcalException.AlreadySetUp => words.AlreadySetUp,
         uniffi.mailcal_bindings.MailcalException.DifferentAccount => words.DifferentAccount,
         uniffi.mailcal_bindings.MailcalException.StaleSignIn => words.StaleSignIn,
@@ -73,6 +76,7 @@ internal static class CoreError
         refusal switch
         {
             uniffi.mailcal_bindings.AccountChangeRefusal.SignInRefused => words.SignInRefused,
+            uniffi.mailcal_bindings.AccountChangeRefusal.InsecureServer insecure => Insecure(insecure.Cause, words),
             uniffi.mailcal_bindings.AccountChangeRefusal.AlreadySetUp => words.AlreadySetUp,
             uniffi.mailcal_bindings.AccountChangeRefusal.DifferentAccount => words.DifferentAccount,
             uniffi.mailcal_bindings.AccountChangeRefusal.StaleSignIn => words.StaleSignIn,
@@ -108,10 +112,16 @@ internal static class CoreError
             uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => contacts ? words.OwnSignInContacts : words.OwnSignInCalendar,
             uniffi.mailcal_bindings.UseProblem.ServerChanged => contacts ? words.ServerChangedContacts : words.ServerChangedCalendar,
             uniffi.mailcal_bindings.UseProblem.SignInRefused => words.SignInRefused,
+            uniffi.mailcal_bindings.UseProblem.PlaintextAddress => contacts ? words.PlaintextAddressContacts : words.PlaintextAddressCalendar,
+            uniffi.mailcal_bindings.UseProblem.LedToPlaintext => contacts ? words.LedToPlaintextContacts : words.LedToPlaintextCalendar,
             uniffi.mailcal_bindings.UseProblem.NoneOnServer => contacts ? words.NoneOnServerContacts : words.NoneOnServerCalendar,
             _ => contacts ? words.UnreachableContacts : words.UnreachableCalendar,
         };
     }
+
+    /// <summary>What a server reached only over plaintext says, by what clears it.</summary>
+    private static string Insecure(uniffi.mailcal_bindings.InsecureCause cause, CoreErrorWords words) =>
+        cause == uniffi.mailcal_bindings.InsecureCause.PlaintextAddress ? words.PlaintextAddress : words.LedToPlaintext;
 
     private static string UseName(uniffi.mailcal_bindings.AccountCapability capability) =>
         capability == uniffi.mailcal_bindings.AccountCapability.Contacts ? "the address book" : "the calendar";
@@ -121,6 +131,8 @@ internal static class CoreError
         uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => "its server needs a sign-in of its own",
         uniffi.mailcal_bindings.UseProblem.ServerChanged => "it is paused until a server on another site is allowed",
         uniffi.mailcal_bindings.UseProblem.SignInRefused => "its server refused the sign-in",
+        uniffi.mailcal_bindings.UseProblem.PlaintextAddress => "its server's address is a plaintext one",
+        uniffi.mailcal_bindings.UseProblem.LedToPlaintext => "its server leads to a plaintext address",
         uniffi.mailcal_bindings.UseProblem.NoneOnServer => "its server has none for this account",
         _ => "its server could not be reached",
     };
@@ -161,9 +173,13 @@ internal static class CoreError
 /// </summary>
 /// <param name="BrowserNotOpened">A browser sign-in whose browser could not be opened.</param>
 /// <param name="NotFinished">A browser sign-in nothing came back from in time.</param>
+/// <param name="PlaintextAddress">A server whose address is a plaintext one, which no sign-in is sent to.</param>
+/// <param name="LedToPlaintext">A server that leads to a plaintext address, which no sign-in is sent to.</param>
 /// <param name="ConnectFailed">"Couldn't connect: {error}".</param>
 internal sealed record CoreErrorWords(
     string SignInRefused,
+    string PlaintextAddress,
+    string LedToPlaintext,
     string AlreadySetUp,
     string DifferentAccount,
     string StaleSignIn,
@@ -175,6 +191,10 @@ internal sealed record CoreErrorWords(
     string ServerChangedContacts,
     string NoneOnServerCalendar,
     string NoneOnServerContacts,
+    string PlaintextAddressCalendar,
+    string PlaintextAddressContacts,
+    string LedToPlaintextCalendar,
+    string LedToPlaintextContacts,
     string BrowserNotOpened,
     string NotFinished,
     Func<string, string> ConnectFailed);

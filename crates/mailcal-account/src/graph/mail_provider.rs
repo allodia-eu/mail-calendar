@@ -1,15 +1,13 @@
-//! The [`Provider`] trait implementation for [`RefreshingGraphProvider`]; the
-//! token-refreshing, 429-backoff, and stale-socket reconnect loops wrapped around each
-//! delegated Graph call. Split from the module root (`super`), which holds the struct, its
-//! delegate cache, and the connect entry points, to keep both files under the 500-line cap.
-
-use std::collections::BTreeSet;
+//! The [`Provider`] trait implementation for [`ReconnectingGraphProvider`]: the stale-socket
+//! reconnect loop wrapped around each delegated Graph call. Split from the module root (`super`),
+//! which holds the struct, its delegate, and the connect entry points, to keep both files under
+//! the 500-line cap.
 
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, ProviderKey};
 use engine_core::{
     ids::AccountId,
-    mail::{Mailbox, Message},
+    mail::{Mailbox, Message, MessageMetadata},
     raw::RawMime,
     sync::{MailboxWindows, SyncScope, SyncState},
 };
@@ -19,19 +17,15 @@ use engine_provider::{
     ScopeSync, SenderIdentity, SharedAccount, SubmissionReceipt,
 };
 
-use super::{RefreshingGraphProvider, should_reconnect};
+use super::ReconnectingGraphProvider;
 
 #[async_trait]
-impl Provider for RefreshingGraphProvider {
+impl Provider for ReconnectingGraphProvider {
     fn connection_info(&self) -> ConnectionInfo {
         // Capped capabilities, the delegate's transport facts; see `delegate_info`.
         crate::delegate_info::with_delegate_transport(
             ConnectionInfo::new(self.capabilities),
-            self.cached
-                .lock()
-                .expect("graph delegate mutex poisoned")
-                .as_ref()
-                .map(|(_, provider)| provider.connection_info()),
+            Some(self.delegate.last().connection_info()),
         )
     }
 
@@ -53,19 +47,9 @@ impl Provider for RefreshingGraphProvider {
         account: &AccountId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Mailbox>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sync_mailboxes(account, cursor).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.sync_mailboxes(account, cursor).await })
+            .await
     }
 
     fn stream_email<'a>(
@@ -77,8 +61,8 @@ impl Provider for RefreshingGraphProvider {
         chunk_size: usize,
     ) -> EmailStream<'a> {
         crate::stream_redial::redialling_stream(
-            || self.delegate(),
-            || self.invalidate_delegate(),
+            || std::future::ready(self.delegate.get()),
+            |generation| self.delegate.drop_client(generation),
             account,
             cursor,
             window,
@@ -92,58 +76,40 @@ impl Provider for RefreshingGraphProvider {
         account: &AccountId,
         message: &Message,
     ) -> ProviderResult<RawMime> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.fetch_message_source(account, message).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(
+                |provider| async move { provider.fetch_message_source(account, message).await },
+            )
+            .await
     }
 
     /// Applies a [`MailEdit`] (mark-read/flag, move, permanent delete) by delegating to the
-    /// underlying [`GraphProvider`](provider_graph::GraphProvider), with the same
-    /// token-refresh, 429 backoff, and stale-socket re-dial as the read calls. The `edit` is
+    /// underlying [`GraphProvider`](provider_graph::GraphProvider), with the same stale-socket
+    /// re-dial as the read calls. The `edit` is
     /// keyed by the message's immutable Graph id, so this folder-bound provider can edit a
     /// message in any folder. Safe to wrap like the idempotent reads; see
-    /// [`should_reconnect`] for why the re-dial can't double-apply the mutation.
+    /// [`should_reconnect`](crate::shared_client::should_reconnect) for why the re-dial can't
+    /// double-apply the mutation.
     async fn edit_mail(
         &self,
         account: &AccountId,
         edit: &MailEdit,
     ) -> ProviderResult<MailEditReceipt> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.edit_mail(account, edit).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.edit_mail(account, edit).await })
+            .await
     }
 
     /// Submits a [`Draft`] via `POST /me/sendMail` by delegating to the underlying
-    /// [`GraphProvider`](provider_graph::GraphProvider) (Graph files the Sent copy itself),
-    /// refreshing the access token first and backing off on a 429; but, **unlike** the reads
-    /// and [`edit_mail`](Self::edit_mail), it **never re-issues the send on a transport
-    /// failure.**
+    /// [`GraphProvider`](provider_graph::GraphProvider) (Graph files the Sent copy itself);
+    /// **unlike** the reads and [`edit_mail`](Self::edit_mail), it **never re-issues the send on
+    /// a transport failure.**
     ///
     /// A send is the one non-idempotent Graph call: re-`POST`ing `sendMail` delivers the
     /// message twice. Whether a failed attempt may have reached Graph is the outbox's to decide,
     /// from the hand-over record the adapter writes before the end of the request goes out
     /// (`hand_over`); it retries one that cannot have left and asks about one that may have. So
-    /// on a transport error this only **drops** the (possibly dead-socketed) cached delegate, so
+    /// on a transport error this only **drops** the (possibly dead-socketed) client, so
     /// the next attempt dials a fresh connection, then propagates the error instead of resending
     /// itself.
     ///
@@ -155,19 +121,9 @@ impl Provider for RefreshingGraphProvider {
         draft: &Draft,
         hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
-        let provider = self.delegate().await?;
-        provider
-            .submit_email(account, draft, hand_over)
+        self.delegate
+            .once(|provider| async move { provider.submit_email(account, draft, hand_over).await })
             .await
-            .inspect_err(|err| {
-                // A send is not idempotent and the outbox never blind-retries it, so this never
-                // re-issues. Drop a possibly dead cached delegate (a keep-alive socket the OS
-                // killed during sleep) so the user's deliberate retry rebuilds a fresh client,
-                // then surface the error for the outbox to record.
-                if should_reconnect(err) {
-                    self.invalidate_delegate();
-                }
-            })
     }
 
     /// Saving a draft is **not** re-issued on a dropped connection, for the reason a send is not:
@@ -179,104 +135,73 @@ impl Provider for RefreshingGraphProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> ProviderResult<DraftReceipt> {
-        let provider = self.delegate().await?;
-        provider
-            .put_draft(account, draft, replacing, keywords)
-            .await
-            .inspect_err(|err| {
-                if should_reconnect(err) {
-                    self.invalidate_delegate();
-                }
+        self.delegate
+            .once(|provider| async move {
+                provider
+                    .put_draft(account, draft, replacing, metadata)
+                    .await
             })
+            .await
     }
 
     /// Removing one is retried on a dropped connection: the trait requires an absent draft to
     /// settle as done, so a repeat of a removal that already landed is a no-op.
     async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.delete_draft(account, draft).await {
-                Ok(()) => return Ok(()),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.delete_draft(account, draft).await })
+            .await
     }
 
-    /// Graph reports a message through `POST /messages/{id}/reportMessage`, forwarded on the same
-    /// token-refresh + reconnect loop as [`edit_mail`](Provider::edit_mail), and counted against
-    /// the account's ceiling by the engine like every other request. A report is idempotent, so a
-    /// retry after a stale socket is safe.
     async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sender_identities(account).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.sender_identities(account).await })
+            .await
     }
 
     /// Forwarded, because this wrapper advertises `ByAddress`: the only discovery Graph offers.
+    /// A read, so it is made again after a dead connection.
     async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
-        self.delegate().await?.resolve_shared_account(address).await
+        self.delegate
+            .retrying(|provider| async move { provider.resolve_shared_account(address).await })
+            .await
     }
 
+    /// Graph reports a message through `POST /messages/{id}/reportMessage`, forwarded on the same
+    /// reconnect loop as [`edit_mail`](Provider::edit_mail), and counted against the account's
+    /// ceiling by the engine like every other request. A report is idempotent, so a retry after a
+    /// stale socket is safe.
     async fn report_message(
         &self,
         account: &AccountId,
         report: &MessageReport,
     ) -> ProviderResult<ReportReceipt> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.report_message(account, report).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.delegate
+            .retrying(|provider| async move { provider.report_message(account, report).await })
+            .await
     }
 }
 
-impl engine_api::CalendarSync for RefreshingGraphProvider {}
-impl CalendarWrites for RefreshingGraphProvider {}
+impl engine_api::CalendarSync for ReconnectingGraphProvider {}
+impl CalendarWrites for ReconnectingGraphProvider {}
 
-/// A folder change is made **once**: the token is refreshed first, and a dropped connection
-/// only drops the cached delegate, as for a send. Re-issuing it is not safe on every
-/// transport (a rename replayed against the path it already left meets nothing), and the
-/// outbox retries it anyway, after re-reading the folder list.
+/// A folder change is made **once**: a dropped connection only drops the client, as for a send.
+/// Re-issuing it is not safe on every transport (a rename replayed against the path it already
+/// left meets nothing), and the outbox retries it anyway, after re-reading the folder list.
 #[async_trait]
-impl MailboxWrites for RefreshingGraphProvider {
+impl MailboxWrites for ReconnectingGraphProvider {
     async fn edit_mailbox(
         &self,
         account: &AccountId,
         edit: &MailboxEdit,
     ) -> ProviderResult<MailboxEditReceipt> {
-        let provider = self.delegate().await?;
-        let result = provider.edit_mailbox(account, edit).await;
-        if let Err(err) = &result
-            && should_reconnect(err)
-        {
-            self.invalidate_delegate();
-        }
-        result
+        self.delegate
+            .once(|provider| async move { provider.edit_mailbox(account, edit).await })
+            .await
     }
 }
+
+#[cfg(test)]
+#[path = "mail_provider_tests.rs"]
+mod tests;

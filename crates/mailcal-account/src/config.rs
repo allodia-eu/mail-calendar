@@ -12,7 +12,8 @@ use std::{
 };
 
 use engine_core::ids::{AccountId, IdError};
-use provider_imap::{CredentialSource, Credentials, ImapConfig};
+use engine_provider::{Credential, CredentialSource};
+use provider_imap::ImapConfig;
 use serde::Deserialize;
 
 use crate::{AccountError, CertificateException, OAuthGrant, connect_log::connect_logger};
@@ -81,9 +82,9 @@ pub struct AccountConfig {
     #[serde(default)]
     pub carddav: Option<crate::CardDavAccount>,
     /// The browser sign-in grant, when the account authenticates by OAuth. It belongs to the
-    /// account rather than to one endpoint because every endpoint presents it: IMAP, SMTP and
-    /// CalDAV (and the CardDAV found beside it) each get a bearer token minted from this one
-    /// grant, and none of them stores a password.
+    /// account rather than to one endpoint because every endpoint presents it: IMAP, SMTP,
+    /// CalDAV (and the CardDAV found beside it), JMAP, Graph and Google each ask the account's one
+    /// token source for a token renewed from this grant, and none of them stores a password.
     #[serde(default)]
     pub oauth: Option<OAuthGrant>,
     /// Where the DAV password came from, when a Nextcloud sign-in issued it.
@@ -300,14 +301,14 @@ impl AccountConfig {
             .collect()
     }
 
-    /// The engine credentials for a **password** account, or `None` when this account signs in
+    /// The engine credential for a **password** account, or `None` when this account signs in
     /// with OAuth (whose access token is minted per dial and cannot come from stored config).
     #[must_use]
-    pub fn imap_password_credentials(&self) -> Option<Credentials> {
+    pub fn imap_password_credentials(&self) -> Option<Credential> {
         let imap = self.imap.as_ref()?;
         imap.password
             .as_ref()
-            .map(|password| Credentials::password(&imap.username, password.expose()))
+            .map(|password| Credential::password(&imap.username, password.expose()))
     }
 
     /// The login the account is known by: its mailbox's, else its calendar's, else its address
@@ -328,8 +329,8 @@ impl AccountConfig {
     ///
     /// A source rather than a credential because an OAuth account's is **not stored**: its
     /// access token expires within the hour while the account's connections are dialled for as
-    /// long as the app runs. A password account passes its
-    /// [`imap_password_credentials`](Self::imap_password_credentials), which is its own source.
+    /// long as the app runs. [`imap_credential_source`](crate::imap_credential_source) gives the
+    /// account's.
     ///
     /// The connect observer rides on the config, so every connection built from it is traced;
     /// the sync provider, the `IDLE` watcher, and each re-dial after a dropped session.

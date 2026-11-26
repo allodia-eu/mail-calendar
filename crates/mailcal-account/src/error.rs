@@ -115,6 +115,18 @@ pub enum AccountError {
     /// its own. Carries `calendar` or `contacts`.
     #[error("the account's sign-in does not reach its {0} server")]
     DavNeedsOwnSignIn(&'static str),
+    /// The server is reached only over plaintext, so the engine sends it no sign-in: the account's
+    /// address for it is `http://` off this device, or the server led there (a redirect, or a
+    /// discovery step naming a plaintext address) from one the engine accepts. Nothing was sent.
+    /// No new password or sign-in clears it (`docs/provider-oauth.md` rule 12). Carries the
+    /// engine's words, for the diagnostic log.
+    #[error("the server is not reached securely, so no sign-in is sent to it: {detail}")]
+    InsecureServer {
+        /// Which of the two, as the engine says it.
+        cause: crate::InsecureCause,
+        /// The engine's words, for the diagnostic log.
+        detail: String,
+    },
     /// The account names no credential this connect can present: it signs in with OAuth but
     /// was connected without its token source, or stores neither a password nor a grant. A
     /// stored config makes both impossible and a hand-edited one does not.
@@ -139,31 +151,46 @@ impl AccountError {
     }
 
     /// The verdict for the login that **first** presents an IMAP account's password in a dial;
-    /// the only one whose refusal can mean the password itself is no good. An
-    /// [authentication-class](FailureClass::Authentication) refusal becomes
-    /// [`Self::SigninRejected`]; anything else keeps [`Self::Imap`].
+    /// the only one whose refusal can mean the password itself is no good. A refused sign-in
+    /// becomes [`Self::SigninRejected`] and a server reached only over plaintext
+    /// [`Self::InsecureServer`] ([`Verdict::of`]); anything else keeps [`Self::Imap`].
     ///
     /// A later connection of the same dial deliberately does **not** come through here. The same
     /// password authenticated seconds earlier, so a refusal there is the server contradicting
     /// itself, and prompting for a new sign-in over it is the false prompt
     /// `docs/provider-oauth.md` rule 12 forbids; servers do refuse a valid credential.
-    pub(crate) fn from_first_imap_login(err: ImapError) -> Self {
-        if err.failure_class() == FailureClass::Authentication {
-            Self::SigninRejected(err.to_string())
-        } else {
-            Self::Imap(err)
+    pub(crate) fn from_first_imap_login(err: ImapError, signs_in: SignsIn) -> Self {
+        let credential = match &err {
+            ImapError::Credential(failure) => Some(failure),
+            _ => None,
+        };
+        match Verdict::of(err.failure_class(), credential, signs_in) {
+            Verdict::Refused => Self::SigninRejected(err.to_string()),
+            Verdict::Insecure(cause) => Self::InsecureServer {
+                cause,
+                detail: err.to_string(),
+            },
+            Verdict::NotPermitted | Verdict::Other => Self::Imap(err),
         }
     }
 
     /// The verdict for a JMAP connect, which presents the credential on **every** attempt (session
     /// discovery authenticates, so there is no first-then-folders sequence to corroborate against):
-    /// an [authentication-class](FailureClass::Authentication) refusal: a `401` to a password, an
-    /// API token or a bearer; becomes [`Self::SigninRejected`], anything else [`Self::Jmap`].
-    pub(crate) fn from_jmap_connect(err: &provider_jmap::JmapError) -> Self {
-        if err.failure_class() == FailureClass::Authentication {
-            Self::SigninRejected(err.to_string())
-        } else {
-            Self::Jmap(err.to_string())
+    /// a refused sign-in, such as a `401` to a password, an API token or a bearer, becomes
+    /// [`Self::SigninRejected`] and a server reached only over plaintext [`Self::InsecureServer`]
+    /// ([`Verdict::of`]); anything else [`Self::Jmap`].
+    pub(crate) fn from_jmap_connect(err: &provider_jmap::JmapError, signs_in: SignsIn) -> Self {
+        let credential = match err {
+            provider_jmap::JmapError::Credential(failure) => Some(failure),
+            _ => None,
+        };
+        match Verdict::of(err.failure_class(), credential, signs_in) {
+            Verdict::Refused => Self::SigninRejected(err.to_string()),
+            Verdict::Insecure(cause) => Self::InsecureServer {
+                cause,
+                detail: err.to_string(),
+            },
+            Verdict::NotPermitted | Verdict::Other => Self::Jmap(err.to_string()),
         }
     }
 
@@ -172,35 +199,131 @@ impl AccountError {
     /// server that could not be reached (a timeout, DNS, a `5xx`, `429`), which changes nothing:
     /// only a gone start is worth finding the servers again for (RFC 6764 §6). A server that
     /// asks only for an authentication method the credential cannot use is not gone either:
-    /// it answered, and looking it up again would find it where it is.
+    /// it answered, and looking it up again would find it where it is. Nor is a credential that
+    /// could not be had, such as one discovery would have taken to a host it may not go to: no
+    /// server was asked.
     #[must_use]
     pub fn is_gone(&self) -> bool {
+        use provider_caldav::CalDavError;
         matches!(
             self,
             Self::CalDav(err) | Self::CardDav(err)
                 if err.failure_class() == FailureClass::Permanent
-                    && !matches!(err, provider_caldav::CalDavError::UnsupportedAuthentication(_))
+                    && !matches!(
+                        err,
+                        CalDavError::UnsupportedAuthentication(_) | CalDavError::Credential(_)
+                    )
         )
     }
 
-    /// The verdict for the connect that first presents a DAV endpoint's credential: an
-    /// [authentication-class](FailureClass::Authentication) refusal becomes
-    /// [`Self::SigninRejected`], anything else what `failed` makes of it ([`Self::CalDav`] or
-    /// [`Self::CardDav`]).
+    /// The account's sign-in does not reach its server for `dav_use`
+    /// ([`Self::DavNeedsOwnSignIn`]).
+    pub(crate) fn dav_needs_own_sign_in(dav_use: mailcal_oauth::DavUse) -> Self {
+        Self::DavNeedsOwnSignIn(match dav_use {
+            mailcal_oauth::DavUse::Calendars => "calendar",
+            mailcal_oauth::DavUse::Contacts => "contacts",
+        })
+    }
+
+    /// The verdict for the connect that first presents a DAV endpoint's credential
+    /// ([`Verdict::of`]): a refused sign-in becomes [`Self::SigninRejected`], a server reached
+    /// only over plaintext [`Self::InsecureServer`], and an origin the account's grant may not
+    /// take its token to, for `grant`, [`Self::DavNeedsOwnSignIn`] (`docs/mail-oauth.md` rule
+    /// 10); anything else is what `failed` makes of it ([`Self::CalDav`] or [`Self::CardDav`]).
     ///
-    /// It decides something only for an account without mail, whose calendar or contacts are
-    /// what say whether its sign-in still works (`docs/accounts.md` rule 7). Beside a mailbox the
-    /// mailbox decides, and a DAV failure only leaves the calendar or contacts empty. The requests
-    /// that follow the connect convert the ordinary way, for the reason
+    /// A rejected sign-in decides something only for an account without mail, whose calendar or
+    /// contacts are what say whether its sign-in still works (`docs/accounts.md` rule 7). Beside a
+    /// mailbox the mailbox decides, and a DAV failure only leaves the calendar or contacts empty.
+    /// The requests that follow the connect convert the ordinary way, for the reason
     /// [`Self::from_first_imap_login`] gives.
     pub(crate) fn from_first_dav_connect(
         err: provider_caldav::CalDavError,
         failed: fn(provider_caldav::CalDavError) -> Self,
+        grant: Option<mailcal_oauth::DavUse>,
     ) -> Self {
-        if err.failure_class() == FailureClass::Authentication {
-            Self::SigninRejected(err.to_string())
-        } else {
-            failed(err)
+        let credential = match &err {
+            provider_caldav::CalDavError::Credential(failure) => Some(failure),
+            _ => None,
+        };
+        let signs_in = SignsIn::grant_if(grant.is_some());
+        match (
+            Verdict::of(err.failure_class(), credential, signs_in),
+            grant,
+        ) {
+            (Verdict::Refused, _) => Self::SigninRejected(err.to_string()),
+            (Verdict::Insecure(cause), _) => Self::InsecureServer {
+                cause,
+                detail: err.to_string(),
+            },
+            (Verdict::NotPermitted, Some(dav_use)) => Self::dav_needs_own_sign_in(dav_use),
+            _ => failed(err),
         }
     }
 }
+
+/// What an account signs in with, which decides what a credential the engine will not present
+/// means on its first connect ([`Verdict::of`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SignsIn {
+    /// A password or API token the account stores.
+    WithStoredSecret,
+    /// A token minted from the account's grant.
+    WithGrant,
+}
+
+impl SignsIn {
+    /// [`Self::WithGrant`] for an account that stores a grant, else [`Self::WithStoredSecret`].
+    pub(crate) const fn grant_if(has_grant: bool) -> Self {
+        if has_grant {
+            Self::WithGrant
+        } else {
+            Self::WithStoredSecret
+        }
+    }
+}
+
+/// What a first connect's failure says about the account's sign-in, decided here for IMAP, JMAP,
+/// CalDAV and CardDAV alike.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    /// The sign-in is refused, and the person signs in again: the server refused the credential,
+    /// or the account stores a secret the protocol cannot carry (a Basic username holding `:`, a
+    /// byte an IMAP `LOGIN` or a header has no room for), which never goes out as stored.
+    Refused,
+    /// The server is reached only over plaintext, so no sign-in is sent to it, whatever the
+    /// account signs in with: the address is plaintext, or the server led there, as the engine
+    /// says which.
+    Insecure(crate::InsecureCause),
+    /// The account's grant may not take its token to the server, by the issuer's rule.
+    NotPermitted,
+    /// Anything else: the family's own failure.
+    Other,
+}
+
+impl Verdict {
+    /// The verdict on a first connect that failed with `class`, and with `credential` when the
+    /// adapter reports a credential that could not be had (`ProviderError::credential_failure`
+    /// says why), for an account that `signs_in` as it does. A source that failed keeps its
+    /// class's meaning: a grant that is gone is `Authentication`, a refused sign-in.
+    fn of(
+        class: FailureClass,
+        credential: Option<&engine_provider::ProviderError>,
+        signs_in: SignsIn,
+    ) -> Self {
+        use engine_provider::CredentialFailureKind as Kind;
+        if class == FailureClass::Authentication {
+            return Self::Refused;
+        }
+        match credential.and_then(engine_provider::ProviderError::credential_failure) {
+            Some(Kind::Insecure) => Self::Insecure(crate::InsecureCause::PlaintextAddress),
+            Some(Kind::LedToInsecure) => Self::Insecure(crate::InsecureCause::LedToPlaintext),
+            Some(Kind::Form) if signs_in == SignsIn::WithStoredSecret => Self::Refused,
+            Some(Kind::NotPermitted) if signs_in == SignsIn::WithGrant => Self::NotPermitted,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "error_credential_tests.rs"]
+mod credential_tests;

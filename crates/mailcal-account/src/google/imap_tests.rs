@@ -91,6 +91,7 @@ fn sign_in() -> std::sync::Arc<crate::GraphTokenSource> {
     crate::GraphTokenSource::from_parts(
         OAuthClient::new(provider).unwrap(),
         engine_core::ids::AccountId::try_from("alice@gmail.com@mail.google.com").unwrap(),
+        "alice@gmail.com",
         "refresh".to_owned(),
         None,
         "google",
@@ -222,4 +223,54 @@ fn reads_over_the_api_never_make_its_mail_unreachable() {
         slot.note_read(Err(&lost()));
     }
     assert_eq!(slot.route(), GmailMailRoute::Api);
+}
+
+/// A dial that had no token to sign in with, because the account's token endpoint could not be
+/// reached or refused the grant, reached no IMAP server: it is neither a refused login nor IMAP
+/// out of reach, so it moves nothing and counts nothing.
+#[tokio::test]
+async fn a_dial_without_a_token_is_no_refused_login() {
+    use crate::graph::token_source::test_support::{
+        dead_grant_token_endpoint, imap_dial_without_token, refused_token_endpoint,
+    };
+
+    let (dead, _) = dead_grant_token_endpoint();
+    for failure in [
+        imap_dial_without_token(refused_token_endpoint()).await,
+        imap_dial_without_token(dead).await,
+    ] {
+        let class = failure.class();
+        let (side, answer) = decide(Err(failure), REFUSALS_BEFORE_API - 1);
+        assert!(
+            matches!(side, Side::Unknown(refused) if refused == REFUSALS_BEFORE_API - 1),
+            "{class:?}: {side:?}"
+        );
+        assert_eq!(answer.unwrap_err().class(), class);
+    }
+}
+
+/// A read that failed for want of a token says nothing about whether IMAP can be reached, so it
+/// neither counts towards unreachable nor ends a run of reads that could not reach it.
+#[tokio::test]
+async fn a_read_without_a_token_leaves_reachability_alone() {
+    use crate::graph::token_source::test_support::{
+        imap_dial_without_token, refused_token_endpoint,
+    };
+
+    let tls = crate::tls::tls_with(&[]).unwrap();
+    let slot = GmailImapSlot::shared("without-a-token@gmail.com", &sign_in(), &tls);
+    let no_token = imap_dial_without_token(refused_token_endpoint()).await;
+
+    slot.note_read(Err(&no_token));
+    slot.note_read(Err(&no_token));
+    assert_eq!(slot.route(), GmailMailRoute::Undecided, "not unreached");
+
+    slot.note_read(Err(&lost()));
+    slot.note_read(Err(&no_token));
+    slot.note_read(Err(&lost()));
+    assert_eq!(
+        slot.route(),
+        GmailMailRoute::Unreachable,
+        "the run of unreached reads goes on"
+    );
 }

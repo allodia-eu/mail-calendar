@@ -13,6 +13,8 @@ public class CoreErrorTests
 {
     private static readonly CoreErrorWords Words = new(
         "not accepted",
+        "plaintext address",
+        "led to plaintext",
         "set up already",
         "another account",
         "sign in again",
@@ -24,6 +26,10 @@ public class CoreErrorTests
         "contacts server changed",
         "calendar none on server",
         "contacts none on server",
+        "calendar plaintext address",
+        "contacts plaintext address",
+        "calendar led to plaintext",
+        "contacts led to plaintext",
         "browser not opened",
         "nothing came back",
         error => $"couldn't connect: {error}");
@@ -93,6 +99,39 @@ public class CoreErrorTests
         Assert.Equal(
             "no route to host",
             CoreError.Said(new uniffi.mailcal_bindings.MailcalException.Connect("no route to host"), Words));
+    }
+
+    [Fact]
+    public void A_server_reached_only_over_plaintext_is_said_by_what_clears_it_and_logged_as_the_core_put_it()
+    {
+        // No new password clears it, so it is never said as a refused sign-in; what clears it is
+        // the server's https address, or its operator; the log keeps the engine's own words.
+        var plaintext = new uniffi.mailcal_bindings.MailcalException.InsecureServer(
+            "the server is not reached securely", uniffi.mailcal_bindings.InsecureCause.PlaintextAddress);
+        var led = new uniffi.mailcal_bindings.MailcalException.InsecureServer(
+            "the server is not reached securely", uniffi.mailcal_bindings.InsecureCause.LedToPlaintext);
+        Assert.Equal("plaintext address", CoreError.Said(plaintext, Words));
+        Assert.Equal("led to plaintext", CoreError.Said(led, Words));
+        Assert.Equal("the server is not reached securely", CoreError.Describe(plaintext));
+        Assert.Equal(
+            "led to plaintext",
+            CoreError.Refused(
+                new uniffi.mailcal_bindings.AccountChangeRefusal.InsecureServer(
+                    uniffi.mailcal_bindings.InsecureCause.LedToPlaintext),
+                Words));
+        Assert.Equal(
+            "contacts plaintext address",
+            CoreError.Refused(
+                new uniffi.mailcal_bindings.AccountChangeRefusal.UseNotConnected(
+                    uniffi.mailcal_bindings.AccountCapability.Contacts,
+                    uniffi.mailcal_bindings.UseProblem.PlaintextAddress),
+                Words));
+        Assert.Equal(
+            "calendar led to plaintext",
+            CoreError.NotConnected(
+                uniffi.mailcal_bindings.AccountCapability.Calendar,
+                uniffi.mailcal_bindings.UseProblem.LedToPlaintext,
+                Words));
     }
 
     [Fact]

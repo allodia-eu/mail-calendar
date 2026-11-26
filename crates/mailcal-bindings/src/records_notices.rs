@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use crate::{FolderAction, FolderProblem, InvitationResponse, UseProblem};
+use crate::{FolderAction, FolderProblem, InsecureCause, InvitationResponse, UseProblem};
 
 /// Every notice in force, pulled after a `Surface::Notices` signal.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -79,6 +79,16 @@ pub enum NoticeKind {
     /// The account's stored sign-in no longer works, and nothing about it syncs until the
     /// person signs in again.
     SignInExpired,
+    /// The account's server is reached only over plaintext, so its sign-in is not sent there and
+    /// nothing about it syncs until its address is a secure one (`docs/provider-oauth.md` rule
+    /// 12). No new sign-in and no retry clears it.
+    InsecureServer {
+        /// Whether the address is a plaintext one or the server led there.
+        cause: InsecureCause,
+        /// Whether the account's page changes its servers, where a secure address goes; an
+        /// account whose page does not is added again with one.
+        address_editable: bool,
+    },
     /// The account's grant does not let this app send or change mail; reading still works.
     MailReauth,
     /// The account's grant does not let this app see its calendar; mail is unaffected.

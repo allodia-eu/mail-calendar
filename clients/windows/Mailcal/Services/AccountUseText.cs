@@ -62,6 +62,10 @@ internal static class AccountUseText
             ? L10n.SettingsAccountUseUnreachableCalendar() : L10n.SettingsAccountUseUnreachableContacts(),
         UseProblem.SignInRefused => calendar
             ? L10n.SettingsAccountUseRefusedCalendar() : L10n.SettingsAccountUseRefusedContacts(),
+        UseProblem.PlaintextAddress => calendar
+            ? L10n.SettingsAccountUsePlaintextAddressCalendar() : L10n.SettingsAccountUsePlaintextAddressContacts(),
+        UseProblem.LedToPlaintext => calendar
+            ? L10n.SettingsAccountUseLedToPlaintextCalendar() : L10n.SettingsAccountUseLedToPlaintextContacts(),
         UseProblem.ServerChanged => calendar
             ? L10n.SettingsAccountUseServerChangedCalendar() : L10n.SettingsAccountUseServerChangedContacts(),
         UseProblem.NoneOnServer => calendar

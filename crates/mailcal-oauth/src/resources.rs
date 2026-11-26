@@ -71,26 +71,42 @@ pub fn token_may_reach(issuer: &str, protected_resources: &[String], endpoint: &
     on_issuer_domain(issuer, &host)
 }
 
-/// [`token_may_reach`] for a caller that knows only the host of an HTTPS request: the DAV
-/// transport, on each redirect discovery follows. With `protected_resources`, an HTTPS entry must
-/// name the host; a bare entry names an IMAP or SMTP host and admits no HTTP request.
+/// [`token_may_reach`] for a caller that knows only the origin of an HTTP request, as
+/// `scheme://host:port`: the DAV transport, for the configured server and every origin discovery
+/// moves to. With `protected_resources`, an HTTP entry must name the same scheme, host and port
+/// (the scheme's default applied); a bare entry names an IMAP or SMTP host and admits no HTTP
+/// request. Without, the host must have the issuer host's registrable domain.
 ///
-/// Looser than [`token_may_reach`] on a URL, since the port and path cannot be compared; the
-/// configured URL is held to that before the first request, so this guards only the hops after it.
+/// Looser than [`token_may_reach`] on a URL, since an origin has no path to compare: an entry
+/// naming a path admits its whole origin. The configured URL is held to the path before the first
+/// request, so this guards only the hops after it.
 #[must_use]
-pub fn token_may_reach_host(issuer: &str, protected_resources: &[String], host: &str) -> bool {
-    let host = host.trim_end_matches('.');
+pub fn token_may_reach_origin(issuer: &str, protected_resources: &[String], origin: &str) -> bool {
+    let Some(origin) = http_url(origin) else {
+        return false;
+    };
+    let Some(host) = origin.host_str() else {
+        return false;
+    };
     if !protected_resources.is_empty() {
         return protected_resources.iter().any(|entry| {
-            http_url(entry).is_some_and(|url| {
-                url.scheme() == "https"
-                    && url
+            http_url(entry).is_some_and(|entry| {
+                entry.scheme() == origin.scheme()
+                    && entry
                         .host_str()
-                        .is_some_and(|listed| listed.eq_ignore_ascii_case(host))
+                        .is_some_and(|listed| same_host(listed, host))
+                    && entry.port_or_known_default() == origin.port_or_known_default()
+                    && entry.username().is_empty()
             })
         });
     }
     on_issuer_domain(issuer, host)
+}
+
+/// Whether two URL hosts name the same host, ignoring case and a trailing root label.
+fn same_host(a: &str, b: &str) -> bool {
+    a.trim_end_matches('.')
+        .eq_ignore_ascii_case(b.trim_end_matches('.'))
 }
 
 /// Whether `host` has the registrable domain of `issuer`'s host, or is that host where it has none.

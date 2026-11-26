@@ -25,10 +25,9 @@ engine-provider = { workspace = true }
 engine-tls = { workspace = true, features = ["reqwest"] }
 provider-imap = { workspace = true }
 provider-caldav = { workspace = true }
-# The Microsoft Graph mail adapter, wrapped here in a token-refreshing provider.
+# The Microsoft Graph adapter, wrapped here in providers that replace a dead connection.
 provider-graph = { workspace = true }
-# The Google (Gmail + Google Calendar) native-API adapter, wrapped here in a token-refreshing
-# provider: the cloud-API counterpart of provider-graph.
+# The Google (Gmail + Google Calendar) native-API adapter, wrapped here as provider-graph is.
 provider-google = { workspace = true }
 # The JMAP adapter (RFC 8620/8621): connected directly with a base URL + credentials
 # (Basic username/password, or an OAuth bearer token).
@@ -55,9 +54,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
-# Implementing the engine's async `Provider` trait for the refreshing Graph wrapper.
+# Implementing the engine's async `Provider` trait for the reconnecting wrappers.
 async-trait = { workspace = true }
-# Builds provider streams around async token refresh / reconnect setup.
+# Builds provider streams around a redial after a dead connection.
 async-stream = { workspace = true }
 futures = { workspace = true }
 # Diagnostics for the Graph connect + token-refresh path (routes to the host logger).
@@ -77,7 +76,12 @@ time = { workspace = true }
 [dev-dependencies]
 engine-core = { workspace = true }
 engine-provider = { workspace = true }
-tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread"] }
+# The engine's in-process Gmail IMAP server, which a Google account's reader is connected to
+# when a test binds it to the account's Gmail provider.
+provider-imap = { workspace = true, features = ["test-server"] }
+# `test-util` pauses the clock, so a credential source that never answers meets the engine's
+# deadline at once.
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "test-util"] }
 # `tests/certificate_exception.rs` stands up an in-process TLS server presenting a
 # certificate no trust anchor can rescue, and dials it through the real connect path.
 rcgen = { workspace = true }

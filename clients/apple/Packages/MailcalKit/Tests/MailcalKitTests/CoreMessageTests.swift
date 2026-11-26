@@ -14,6 +14,24 @@ import Testing
         #expect(coreMessage(refused) == L10n.signin_refused())
     }
 
+    @Test func aServerReachedOnlyOverPlaintextIsSaidByWhatClearsIt() {
+        let plaintext = MailcalError.InsecureServer(
+            reason: "the server is not reached securely", insecureCause: .plaintextAddress)
+        let led = MailcalError.InsecureServer(
+            reason: "the server is not reached securely", insecureCause: .ledToPlaintext)
+        #expect(coreMessage(plaintext) == L10n.signin_plaintext_address())
+        #expect(coreMessage(led) == L10n.signin_led_to_plaintext())
+        #expect(
+            AccountSettingsLabels.refused(.insecureServer(cause: .ledToPlaintext))
+                == L10n.signin_led_to_plaintext())
+        #expect(
+            notConnected(.calendar, .plaintextAddress)
+                == L10n.settings_account_use_plaintext_address_calendar())
+        #expect(
+            notConnected(.contacts, .ledToPlaintext)
+                == L10n.settings_account_use_led_to_plaintext_contacts())
+    }
+
     @Test func anAccountAlreadySetUpIsSaidInWords() {
         let twice = MailcalError.AlreadySetUp(accountId: "alice@example.org@imap.example.org")
         #expect(coreMessage(twice) == L10n.account_already_set_up())

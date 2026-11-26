@@ -144,6 +144,13 @@ pub enum UseProblem {
     NeedsOwnSignIn,
     /// Its server refused the account's sign-in.
     SignInRefused,
+    /// Its address is a plaintext one (`http://`), so no sign-in is sent to it; a secure address
+    /// for the server clears it (`docs/provider-oauth.md` rule 12). A retry dials it again.
+    PlaintextAddress,
+    /// The server led to plaintext from an address the engine accepts, so no sign-in is sent
+    /// there; its operator clears it, by serving that address securely, or another secure address
+    /// for the service where it has one. A retry dials it again.
+    LedToPlaintext,
     /// Its server could not be reached. The next retry (Refresh, or coming back online) dials it
     /// again.
     Unreachable,
@@ -163,9 +170,35 @@ impl From<mailcal_app::UseProblem> for UseProblem {
         match problem {
             mailcal_app::UseProblem::NeedsOwnSignIn => Self::NeedsOwnSignIn,
             mailcal_app::UseProblem::SignInRefused => Self::SignInRefused,
+            mailcal_app::UseProblem::Insecure(cause) => match InsecureCause::from(cause) {
+                InsecureCause::PlaintextAddress => Self::PlaintextAddress,
+                InsecureCause::LedToPlaintext => Self::LedToPlaintext,
+            },
             mailcal_app::UseProblem::Unreachable => Self::Unreachable,
             mailcal_app::UseProblem::ServerChanged => Self::ServerChanged,
             mailcal_app::UseProblem::NoneOnServer => Self::NoneOnServer,
+        }
+    }
+}
+
+/// Why a server is reached only over plaintext, so that no sign-in is sent to it, as the engine
+/// says it (`docs/provider-oauth.md` rule 12). A client says what clears each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum InsecureCause {
+    /// The account's address for the server is `http://`: a secure address for it clears this,
+    /// where the server has one.
+    PlaintextAddress,
+    /// The server led to plaintext from an address the engine accepts: its operator clears this,
+    /// by serving that address securely, or another secure address for the service where it has
+    /// one.
+    LedToPlaintext,
+}
+
+impl From<mailcal_account::InsecureCause> for InsecureCause {
+    fn from(cause: mailcal_account::InsecureCause) -> Self {
+        match cause {
+            mailcal_account::InsecureCause::PlaintextAddress => Self::PlaintextAddress,
+            mailcal_account::InsecureCause::LedToPlaintext => Self::LedToPlaintext,
         }
     }
 }

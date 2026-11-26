@@ -12,12 +12,15 @@ pub(crate) use questions::{Questions, ReplyQuestion, UnfiledQuestion};
 
 use crate::{
     AccountProvider, ConnectivitySnapshot, FolderNotice, Notice, NoticeAction, NoticeKind,
-    NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot, UseOutage, UseProblem,
-    notice_words,
+    NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot, UseOutage, notice_words,
 };
 
 #[path = "notices_questions.rs"]
 mod questions;
+
+#[path = "notice_remedies.rs"]
+mod remedies;
+use remedies::{insecure_remedy, outage_remedy, sign_in_remedy};
 
 /// The id of the notice a failed save of the settings raises: its Try again writes them.
 pub(crate) const SETTINGS_NOT_SAVED: &str = "settings_not_saved";
@@ -34,6 +37,9 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) provider: &'a dyn Fn(&str) -> Option<AccountProvider>,
     /// The address a person knows an account by.
     pub(crate) address: &'a dyn Fn(&str) -> String,
+    /// Whether an account's servers are changed on its page (`AccountPage::servers`), where a
+    /// server reached only over plaintext is given a secure address.
+    pub(crate) edits_servers: &'a dyn Fn(&str) -> bool,
     /// The questions the core is holding (rule 8).
     pub(crate) questions: &'a Questions,
     /// A change to the settings could not be saved.
@@ -200,6 +206,26 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
             Some(action),
         ));
     }
+    // No sign-in clears a server reached only over plaintext: a secure address does, or the
+    // server's operator, after which a retry connects.
+    for (account, cause) in sorted_insecure(&connectivity.insecure_server_accounts) {
+        let address_editable = (facts.edits_servers)(account);
+        let kind = NoticeKind::InsecureServer {
+            cause: cause.into(),
+            address_editable,
+        };
+        let action = Some(insecure_remedy(cause.into()));
+        let raise = Raised::new(
+            facts.address,
+            "insecure_server",
+            Some(account),
+            kind,
+            Blocked,
+            Everywhere,
+            action,
+        );
+        raised.push(raise);
+    }
     let reauth = Some(NoticeAction::SignInAgain);
     for account in sorted(&connectivity.mail_reauth_accounts) {
         let kind = NoticeKind::MailReauth;
@@ -307,36 +333,19 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
     raised
 }
 
-/// A dead sign-in's remedy: the provider's browser sign-in where there is one, the account's
-/// page in Settings where a password or token has to be entered again.
-fn sign_in_remedy(provider: Option<AccountProvider>) -> NoticeAction {
-    match provider {
-        Some(
-            AccountProvider::Microsoft
-            | AccountProvider::Google
-            | AccountProvider::JmapOauth
-            | AccountProvider::ImapOauth,
-        ) => NoticeAction::SignInAgain,
-        Some(AccountProvider::Password | AccountProvider::Jmap) | None => {
-            NoticeAction::OpenAccountSettings
-        }
-    }
-}
-
-/// A use that did not connect: dialled again by a refresh when it could not be reached, a
-/// question about the new server when it moved, and explained on the account's page otherwise.
-fn outage_remedy(problem: UseProblem) -> Option<NoticeAction> {
-    Some(match problem {
-        UseProblem::Unreachable => NoticeAction::Retry,
-        UseProblem::ServerChanged => NoticeAction::Review,
-        UseProblem::NeedsOwnSignIn | UseProblem::SignInRefused | UseProblem::NoneOnServer => {
-            NoticeAction::OpenAccountSettings
-        }
-    })
-}
-
 /// The core keeps these as sets, so the order they arrive in is not the same twice; ties in
 /// rank are broken by the order a notice was first raised in, which this makes stable.
+fn sorted_insecure(
+    accounts: &[(String, mailcal_account::InsecureCause)],
+) -> Vec<(&str, mailcal_account::InsecureCause)> {
+    let mut accounts: Vec<_> = accounts
+        .iter()
+        .map(|(id, cause)| (id.as_str(), *cause))
+        .collect();
+    accounts.sort_unstable_by_key(|(id, _)| *id);
+    accounts
+}
+
 fn sorted(accounts: &[String]) -> Vec<&str> {
     let mut accounts: Vec<&str> = accounts.iter().map(String::as_str).collect();
     accounts.sort_unstable();

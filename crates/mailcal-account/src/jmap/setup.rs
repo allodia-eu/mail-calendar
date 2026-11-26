@@ -160,7 +160,7 @@ mod tests {
         .unwrap();
         assert_eq!(config.password.as_ref().unwrap().expose(), "fmapi-token");
         assert!(config.token.is_none());
-        match config.credentials() {
+        match config.credentials().expect("a stored secret") {
             Credentials::Basic { username, password } => {
                 assert_eq!(username, "me@example.net");
                 assert_eq!(password, "fmapi-token");
@@ -200,6 +200,6 @@ mod tests {
         let legacy = "[jmap]\nemail = \"me@example.net\"\nbase_url = \"https://api.example.net\"\ntoken = \"legacy-tok\"\n";
         let config = load_jmap_str(legacy).unwrap();
         assert_eq!(config.token.as_ref().unwrap().expose(), "legacy-tok");
-        assert!(matches!(config.credentials(), Credentials::Bearer(_)));
+        assert!(matches!(config.credentials(), Some(Credentials::Bearer(_))));
     }
 }

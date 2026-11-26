@@ -384,7 +384,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
       offered as on any reply, the body being the person's (rule 22). Its saves and its send
       carry the mark.
     - **The Sent copy.** The send logs the `Message-ID` on this device and asks for the keyword
-      on the Sent copy (the engine's `sent_copy_keywords`).
+      on the Sent copy (the engine's `sent_copy_metadata`).
 
     A save's answer says whether the server kept the keyword. One it did not keep, and one a
     save queued for later has not answered yet, is noted in this device's log as a send is: an

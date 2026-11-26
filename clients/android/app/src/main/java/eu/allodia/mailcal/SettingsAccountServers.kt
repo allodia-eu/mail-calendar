@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.InsecureCause
 import uniffi.mailcal_bindings.AccountEndpointsGap
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountPageIntent
@@ -102,7 +103,12 @@ internal fun ServersGroup(
     )
     val edited = AccountEndpointEdit.edited(form, fields)
     val gap = ui.endpointsGap(entry.id, edited)
-    val description = if (servers.signInRefused) {
+    val insecure = servers.insecureServer
+    val description = if (insecure == InsecureCause.PLAINTEXT_ADDRESS) {
+        L10n.settings_account_servers_plaintext_address(ctx)
+    } else if (insecure == InsecureCause.LED_TO_PLAINTEXT) {
+        L10n.settings_account_servers_led_to_plaintext(ctx)
+    } else if (servers.signInRefused) {
         L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
     } else {
         L10n.settings_account_servers_description(ctx)

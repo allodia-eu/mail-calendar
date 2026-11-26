@@ -192,6 +192,7 @@ impl MailcalApp {
         self.runtime
             .block_on(|| async move { app.add_account_deferred(outcome.account).await });
         self.app.clear_signin_expired(&id);
+        self.app.clear_insecure_server(&id);
         self.disconnected
             .lock()
             .expect("disconnected mutex poisoned")

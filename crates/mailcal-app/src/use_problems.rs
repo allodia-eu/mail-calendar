@@ -23,6 +23,9 @@ use crate::{Account, App, protocol::Surface};
 #[path = "use_refresh.rs"]
 pub(crate) mod refresh;
 
+#[path = "insecure_servers.rs"]
+mod insecure_servers;
+
 /// Why a use the account is used for did not connect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseProblem {
@@ -31,6 +34,11 @@ pub enum UseProblem {
     NeedsOwnSignIn,
     /// Its server answered and refused the account's sign-in.
     SignInRefused,
+    /// Its server is reached only over plaintext, so no sign-in is sent to it, for the cause
+    /// given: its address is `http://`, or the server led there from a secure one. Nothing was
+    /// sent, and no new password or sign-in clears it (`docs/provider-oauth.md` rule 12). A retry
+    /// dials it again, in case the server or its address changed.
+    Insecure(mailcal_account::InsecureCause),
     /// Its server could not be reached, or did not answer in time.
     Unreachable,
     /// Its server answered that it has none for this account: the start it was given is gone, it
@@ -96,6 +104,9 @@ pub(crate) struct UseState {
     changes: BTreeMap<String, ServerChange>,
     /// Refreshes in a row that reached nothing, per account, for a use that has no problem yet.
     misses: BTreeMap<String, refresh::Misses>,
+    /// Accounts whose own server is reached only over plaintext, so the account did not connect
+    /// at all, and why (`insecure_servers`).
+    insecure: BTreeMap<String, mailcal_account::InsecureCause>,
 }
 
 /// What a use's problem becomes when a dial reports `now` and the use was `before`: a paused use

@@ -93,17 +93,20 @@ impl<P: Provider> App<P> {
                 seeds_signature: false,
                 importance: draft.importance,
                 answering: None,
-                drafted: draft.sent_copy_keywords.contains(&drafted_reply_keyword())
+                drafted: draft
+                    .sent_copy_metadata
+                    .keywords
+                    .contains(&drafted_reply_keyword())
                     || self.is_drafted_reply(&draft.message_id),
             },
         );
-        let keywords = self.draft_keywords(&composition);
-        match self.put_draft(account, draft, None, &keywords).await {
+        let metadata = self.draft_metadata(&composition);
+        match self.put_draft(account, draft, None, &metadata).await {
             // No digest: the composer's first save renders its own document, which is not
             // byte for byte this one, so it must write.
             Some(Ok(saved)) => {
-                let kept = Some(&saved.keywords);
-                self.drafted_save_settled(account, &draft.message_id, &keywords, kept);
+                let kept = Some(&saved.kept);
+                self.drafted_save_settled(account, &draft.message_id, &metadata, kept);
                 self.adopt_saved_key(&composition, saved.key);
             }
             Some(Err(err)) => {
@@ -111,7 +114,7 @@ impl<P: Provider> App<P> {
                     self.close_composition(&composition);
                     return Err(NotMoved::Save(err.to_string()));
                 };
-                self.drafted_save_settled(account, &draft.message_id, &keywords, None);
+                self.drafted_save_settled(account, &draft.message_id, &metadata, None);
                 self.record_queued(&composition, queued);
             }
             None => {

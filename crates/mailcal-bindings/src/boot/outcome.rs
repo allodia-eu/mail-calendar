@@ -29,12 +29,14 @@ pub(crate) fn record_dial_outcome<A>(
         Some(DialFailure::MailFailed {
             detail,
             signin_rejected,
+            insecure,
         }) => {
             account_errors.push(detail.clone());
             failed.push(FailedDial {
                 id,
                 detail,
                 signin_rejected,
+                insecure,
             });
         }
         None => {}
@@ -54,6 +56,9 @@ pub(crate) struct FailedDial {
     pub(crate) detail: String,
     /// The server refused the account's credential: raise the reconnect prompt instead.
     pub(crate) signin_rejected: bool,
+    /// Why the server is reached only over plaintext, when it is: say so, badging nothing; the
+    /// next retry dials it again.
+    pub(crate) insecure: Option<mailcal_account::InsecureCause>,
 }
 
 /// What went wrong on one account's boot dial. A calendar that did not connect beside working mail
@@ -67,6 +72,9 @@ pub(crate) enum DialFailure {
         /// Whether the server **refused the credential** rather than being unreachable; the
         /// reconnect prompt, not an outage badge (`docs/provider-oauth.md` rule 12).
         signin_rejected: bool,
+        /// Why the server is reached only over plaintext, when it is, so no sign-in was sent to
+        /// it (`docs/provider-oauth.md` rule 12).
+        insecure: Option<mailcal_account::InsecureCause>,
     },
 }
 
@@ -98,6 +106,7 @@ pub(super) async fn dial_registered(
             // A refused credential is not an outage, and a support log that calls both
             // "unreachable" cannot tell them apart.
             Err(err) if err.signin_expired() => "sign-in REFUSED (kept as placeholder)",
+            Err(err) if err.insecure().is_some() => "server NOT SECURE (kept as placeholder)",
             Err(_) => "unreachable (kept as placeholder)",
         };
         log::info!(
@@ -113,6 +122,7 @@ pub(super) async fn dial_registered(
                 placeholder,
                 Some(DialFailure::MailFailed {
                     signin_rejected: err.signin_expired(),
+                    insecure: err.insecure(),
                     detail: format!("{label}: {err}"),
                 }),
             ),

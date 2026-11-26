@@ -6,14 +6,11 @@
 //! Its own file, as [`super::fake`] is for the submitting one, so each test module stays
 //! under the 500-line limit.
 
-use std::{
-    collections::BTreeSet,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use engine_api::{
     AccountId, CalendarWrites, Draft, DraftReceipt, EmailAddress, Engine, MessageIdHeader,
-    ProviderKey, SubmissionReceipt, TimeZoneId,
+    MessageMetadata, ProviderKey, SubmissionReceipt, TimeZoneId,
 };
 use engine_core::{
     ids::{MailboxId, MessageId},
@@ -45,9 +42,9 @@ pub(super) struct ThreadProvider {
     /// whether a save names the copy it replaces is the whole draft contract
     /// (`docs/drafts.md`).
     draft_puts: Arc<Mutex<Vec<DraftSave>>>,
-    /// The keywords each save asked for, and which of them the receipt says were kept.
-    draft_keywords: Arc<Mutex<Vec<BTreeSet<Keyword>>>>,
-    kept_draft_keywords: fn(&BTreeSet<Keyword>) -> BTreeSet<Keyword>,
+    /// The metadata each save asked for, and which of it the receipt says was kept.
+    draft_metadata: Arc<Mutex<Vec<MessageMetadata>>>,
+    kept_draft_metadata: fn(&MessageMetadata) -> MessageMetadata,
     /// Every stored draft removed.
     draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
     /// When set, `submit_email` fails **permanently**: the one send outcome that leaves the
@@ -68,7 +65,7 @@ pub(super) type DraftSave = (Draft, Option<ProviderKey>);
 pub(super) struct ProviderLogs {
     pub(super) submissions: Arc<Mutex<Vec<Draft>>>,
     pub(super) draft_puts: Arc<Mutex<Vec<DraftSave>>>,
-    pub(super) draft_keywords: Arc<Mutex<Vec<BTreeSet<Keyword>>>>,
+    pub(super) draft_metadata: Arc<Mutex<Vec<MessageMetadata>>>,
     pub(super) draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
 }
 
@@ -88,8 +85,8 @@ impl ThreadProvider {
             submissions: Arc::new(Mutex::new(Vec::new())),
             source_fails: false,
             draft_puts: Arc::new(Mutex::new(Vec::new())),
-            draft_keywords: Arc::default(),
-            kept_draft_keywords: BTreeSet::clone,
+            draft_metadata: Arc::default(),
+            kept_draft_metadata: MessageMetadata::clone,
             draft_deletes: Arc::new(Mutex::new(Vec::new())),
             send_fails: false,
             send_queues: false,
@@ -119,7 +116,7 @@ impl ThreadProvider {
 
     /// A provider whose drafts keep no keyword, as IMAP's do where Drafts takes no new flag.
     pub(super) fn keeping_no_draft_keywords(mut self) -> Self {
-        self.kept_draft_keywords = |_| BTreeSet::new();
+        self.kept_draft_metadata = |_| MessageMetadata::default();
         self
     }
 
@@ -133,7 +130,7 @@ impl ThreadProvider {
         ProviderLogs {
             submissions: Arc::clone(&self.submissions),
             draft_puts: Arc::clone(&self.draft_puts),
-            draft_keywords: Arc::clone(&self.draft_keywords),
+            draft_metadata: Arc::clone(&self.draft_metadata),
             draft_deletes: Arc::clone(&self.draft_deletes),
         }
     }
@@ -239,13 +236,13 @@ impl Provider for ThreadProvider {
         _account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> ProviderResult<DraftReceipt> {
         let mut puts = self.draft_puts.lock().unwrap();
         puts.push((draft.clone(), replacing.cloned()));
-        self.draft_keywords.lock().unwrap().push(keywords.clone());
+        self.draft_metadata.lock().unwrap().push(metadata.clone());
         let key = ProviderKey::new(format!("draft-{}", puts.len())).unwrap();
-        Ok(DraftReceipt::stored(key).with_keywords((self.kept_draft_keywords)(keywords)))
+        Ok(DraftReceipt::stored(key).with_kept((self.kept_draft_metadata)(metadata)))
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {

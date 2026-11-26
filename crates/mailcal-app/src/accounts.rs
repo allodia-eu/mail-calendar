@@ -282,6 +282,8 @@ impl<P: Provider> App<P> {
         // …and any expired-sign-in prompt: removing the account *is* one way to resolve it, and
         // only a successful sync would otherwise retract it, which a removed account never gets.
         self.clear_signin_expired(id);
+        // …and a server it could reach only over plaintext.
+        self.clear_insecure_server(id);
         // …and whatever its calendar or contacts last failed with, or its server last said.
         self.note_use_problems(id, crate::UseProblems::default());
         self.forget_calendar_users(id);

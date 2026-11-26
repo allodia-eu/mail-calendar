@@ -8,7 +8,9 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use engine_core::{ids::MessageIdHeader, mail::EmailAddress, sync::SyncUpdate};
+use engine_core::{
+    error::FailureClass, ids::MessageIdHeader, mail::EmailAddress, sync::SyncUpdate,
+};
 use engine_provider::{Capabilities, ProviderError, TlsVersion, Unrecorded};
 
 use super::*;
@@ -87,12 +89,12 @@ impl Provider for FakeDelegate {
         _account: &AccountId,
         _draft: &Draft,
         _replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> ProviderResult<DraftReceipt> {
         self.record()?;
         Ok(
             DraftReceipt::stored(ProviderKey::new("Drafts:1:7").expect("valid key"))
-                .with_keywords(keywords.clone()),
+                .with_kept(metadata.clone()),
         )
     }
 
@@ -377,15 +379,15 @@ async fn a_draft_save_reaches_the_imap_session() {
         healthy_redial(Arc::new(AtomicUsize::new(0))),
     );
 
-    let keywords = BTreeSet::from([crate::drafted_reply_keyword()]);
+    let metadata = MessageMetadata::default().with_keyword(crate::drafted_reply_keyword());
     let receipt = provider
-        .put_draft(&account(), &draft(), None, &keywords)
+        .put_draft(&account(), &draft(), None, &metadata)
         .await
         .expect("the save is forwarded");
     assert_eq!(receipt.key.as_str(), "Drafts:1:7");
     assert_eq!(
-        receipt.keywords, keywords,
-        "the keywords go down and come back"
+        receipt.kept, metadata,
+        "the metadata goes down and comes back"
     );
     provider
         .delete_draft(
@@ -407,7 +409,7 @@ async fn a_draft_save_is_never_blind_retried() {
         ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
 
     let result = provider
-        .put_draft(&account(), &draft(), None, &BTreeSet::new())
+        .put_draft(&account(), &draft(), None, &MessageMetadata::default())
         .await;
     assert!(result.is_err(), "a retryable save surfaces the error");
     assert_eq!(
@@ -418,7 +420,7 @@ async fn a_draft_save_is_never_blind_retried() {
     assert_eq!(redials.load(Ordering::SeqCst), 0);
 
     provider
-        .put_draft(&account(), &draft(), None, &BTreeSet::new())
+        .put_draft(&account(), &draft(), None, &MessageMetadata::default())
         .await
         .expect("the next save runs on a fresh session");
     assert_eq!(redials.load(Ordering::SeqCst), 1);

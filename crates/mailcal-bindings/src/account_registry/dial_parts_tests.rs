@@ -157,6 +157,13 @@ fn a_failure_says_what_a_person_can_do_about_it() {
         ConnectFailure::unreachable("timed out".to_owned()).use_problem(),
         UseProblem::Unreachable
     );
+    // A server reached only over plaintext, which no new sign-in clears, with why.
+    for cause in [
+        mailcal_account::InsecureCause::PlaintextAddress,
+        mailcal_account::InsecureCause::LedToPlaintext,
+    ] {
+        assert_eq!(insecure(cause).use_problem(), UseProblem::Insecure(cause));
+    }
     // A server that answered it has none here, which a retry would only hear again.
     assert_eq!(
         ConnectFailure::gone("no address book here".to_owned()).use_problem(),
@@ -171,4 +178,23 @@ fn only_a_server_that_did_not_answer_is_an_outage() {
     assert!(unreachable("calendar").is_outage());
     assert!(!signin_expired().is_outage());
     assert!(!ConnectFailure::from(AccountError::DavNeedsOwnSignIn("calendar")).is_outage());
+    let insecure = insecure(mailcal_account::InsecureCause::LedToPlaintext);
+    assert!(!insecure.is_outage());
+    assert!(insecure.insecure().is_some() && !insecure.signin_expired());
+    assert!(!insecure.worth_rediscovering());
+    assert!(matches!(
+        crate::MailcalError::from(insecure),
+        crate::MailcalError::InsecureServer {
+            insecure_cause: crate::InsecureCause::LedToPlaintext,
+            ..
+        }
+    ));
+}
+
+/// A connect that met a server reached only over plaintext, for `cause`.
+fn insecure(cause: mailcal_account::InsecureCause) -> ConnectFailure {
+    ConnectFailure::from(AccountError::InsecureServer {
+        cause,
+        detail: "plaintext".to_owned(),
+    })
 }

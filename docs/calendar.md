@@ -2277,13 +2277,13 @@ Stated, not buried.
   → patch → delete round-trip against the Stalwart harness over JMAP. What the JMAP harness still
   cannot exercise is the **`Enforced` guard path** (the `412` on a stale edit): that is CalDAV-only,
   and a `stalwart-caldav` dev account is the fix for driving it.
-- **Microsoft 365 (Graph) calendars now read/sync and write.** A Microsoft account binds a
-  token-refreshing Graph calendar provider alongside its mail providers (the same shared token +
-  concurrency gate), gated on the `Calendars.ReadWrite` OAuth scope, so it rides the *same*
-  provider-neutral create/patch/delete verbs and per-row `can_write` gating as CalDAV/JMAP, and
-  Graph advertises `WriteGuard::Enforced` (a stale `If-Match` ETag is a `412`). It is host-driven
-  and needs no client change: a connected Microsoft account's agenda simply appears. One provider
-  serves every calendar of the mailbox, each syncing under a scope of its own. Two limits ride in
+- **Microsoft 365 (Graph) calendars now read/sync and write.** A Microsoft account binds a Graph
+  calendar provider alongside its mail providers (the same token source and concurrency gate), gated
+  on the `Calendars.ReadWrite` OAuth scope, so it rides the *same* provider-neutral
+  create/patch/delete verbs and per-row `can_write` gating as CalDAV/JMAP, and Graph advertises
+  `WriteGuard::Enforced` (a stale `If-Match` ETag is a `412`). It is host-driven and needs no client
+  change: a connected Microsoft account's agenda simply appears. One provider serves every calendar
+  of the mailbox, each syncing under a scope of its own. Two limits ride in
   from the engine's `graph.md` and are **not** yet closed: the fetch **window** is baked in at
   connect (a few months back, ~a year on) and re-centred only on reconnect; **one
   display zone per provider** (the device zone, sent as `Prefer: outlook.timezone` for
@@ -2297,11 +2297,11 @@ Stated, not buried.
   So `build_event_patch` resolves that instant beside the wall clock; an all-day or floating
   occurrence resolves to none and needs none, because Google addresses that one by date.
 - **Google Calendar reads/syncs and writes, natively, and needs no reconnect.** A Google account
-  binds a token-refreshing Google Calendar provider alongside its Gmail provider (the same shared
-  token source), riding the *same* provider-neutral create/patch/delete verbs and per-row
-  `can_write` gating as CalDAV/Graph/JMAP; it advertises `WriteGuard::Enforced` (a stale edit is a
-  `412`). Two differences from Graph. **It is IANA-native**: Google's API speaks real time-zone ids,
-  so there is **no display-zone `Prefer` header** and none of Graph's one-zone-per-provider caveat:
+  binds a Google Calendar provider alongside its Gmail provider (the same token source), riding the
+  *same* provider-neutral create/patch/delete verbs and per-row `can_write` gating as
+  CalDAV/Graph/JMAP; it advertises `WriteGuard::Enforced` (a stale edit is a `412`). Two differences
+  from Graph. **It is IANA-native**: Google's API speaks real time-zone ids, so there is **no
+  display-zone `Prefer` header** and none of Graph's one-zone-per-provider caveat:
   the view-model's chosen-zone re-projection is the only zone step. And **both scopes are granted at
   connect** (Gmail + Calendar in one consent), so there is **no scope-upgrade reconnect**: the
   "reconnect to enable calendar" banner below is Microsoft-only; a Google account's agenda simply

@@ -37,6 +37,16 @@ internal fun problemText(ctx: Context, capability: AccountCapability, problem: U
         } else {
             L10n.settings_account_use_own_sign_in_contacts(ctx)
         }
+        UseProblem.PLAINTEXT_ADDRESS -> if (calendar) {
+            L10n.settings_account_use_plaintext_address_calendar(ctx)
+        } else {
+            L10n.settings_account_use_plaintext_address_contacts(ctx)
+        }
+        UseProblem.LED_TO_PLAINTEXT -> if (calendar) {
+            L10n.settings_account_use_led_to_plaintext_calendar(ctx)
+        } else {
+            L10n.settings_account_use_led_to_plaintext_contacts(ctx)
+        }
         UseProblem.SERVER_CHANGED -> if (calendar) {
             L10n.settings_account_use_server_changed_calendar(ctx)
         } else {
@@ -174,6 +184,7 @@ internal fun stopLinkingMessage(ctx: Context, linked: AccountLinkedFrom): String
  */
 internal fun refusalSaid(ctx: Context, refusal: AccountChangeRefusal): String = when (refusal) {
     AccountChangeRefusal.SignInRefused -> L10n.signin_refused(ctx)
+    is AccountChangeRefusal.InsecureServer -> insecureSaid(refusal.cause, ctx)
     AccountChangeRefusal.AlreadySetUp -> L10n.account_already_set_up(ctx)
     AccountChangeRefusal.DifferentAccount -> L10n.signin_different_account(ctx)
     AccountChangeRefusal.StaleSignIn -> L10n.signin_stale(ctx)

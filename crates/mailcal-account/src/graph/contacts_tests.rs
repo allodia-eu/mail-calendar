@@ -1,9 +1,14 @@
-use engine_provider::WriteGuard;
+use engine_core::sync::SyncScope;
+use engine_provider::{Provider, WriteGuard};
 
 use super::{
-    super::token_source::test_support::{mock_token_endpoint, source_at},
+    super::{
+        client_connecting,
+        token_source::test_support::{mock_token_endpoint, source_at},
+    },
     *,
 };
+use crate::http_fake;
 
 fn account() -> AccountId {
     AccountId::try_from("alice@example.com@graph.microsoft.com").unwrap()
@@ -13,32 +18,28 @@ fn book(id: &str) -> AddressBookId {
     AddressBookId::try_from(id).unwrap()
 }
 
+/// The account's client, over a token source that never touches the network.
+fn client() -> Arc<SharedClient<GraphClient>> {
+    let (endpoint, _hits) = mock_token_endpoint(vec![]);
+    account_client(
+        source_at(endpoint, None),
+        MailboxPrincipal::Me,
+        tls_with(&[]).unwrap(),
+    )
+}
+
 /// The id the engine gives the default contacts folder, read from the adapter rather than
 /// restated, so a rename there cannot leave these tests asserting on a stale literal.
 fn root_book() -> AddressBookId {
-    let tls = tls_with(&[]).unwrap();
-    let (endpoint, _hits) = mock_token_endpoint(vec![]);
-    let retry = source_at(endpoint, None).retry();
-    let client = GraphClient::for_mailbox(
-        "access-token".to_owned(),
-        MailboxPrincipal::Me,
-        &tls,
-        &retry,
-        &crate::user_agent(),
-    )
-    .unwrap();
-    GraphContactProvider::personal(client)
+    let (_, current) = client().current().unwrap();
+    GraphContactProvider::personal(current)
         .contact_destination()
         .unwrap()
         .address_book
 }
 
-fn provider(source: GraphContactSource) -> RefreshingGraphContactProvider {
-    let tls = tls_with(&[]).unwrap();
-    let (endpoint, _hits) = mock_token_endpoint(vec![]);
-    let tokens = source_at(endpoint, None);
-    let delegate = Arc::new(build(&source, "access-token", &tls, &tokens.retry()).unwrap());
-    RefreshingGraphContactProvider::new(source, tokens, tls, ("access-token".to_owned(), delegate))
+fn provider(source: GraphContactSource) -> ReconnectingContacts<GraphClient, GraphContactProvider> {
+    bind(source, client()).unwrap()
 }
 
 /// The default folder comes first because the first destination is the one a client
@@ -143,4 +144,26 @@ fn every_source_reports_contacts_and_photos_but_only_personal_folders_report_wri
             "{source:?} writes",
         );
     }
+}
+
+/// Each request asks the account's source for the token, and one Graph refused is replaced once
+/// and the request sent again, on the same client.
+#[tokio::test]
+async fn each_request_presents_the_current_token_and_a_refused_one_is_replaced() {
+    let (endpoint, minted) = mock_token_endpoint(vec![http_fake::minted(1), http_fake::minted(2)]);
+    let (base, received) = http_fake::serve(http_fake::refused_then(r#"{"value":[]}"#));
+    let client = client_connecting(
+        source_at(endpoint, None),
+        MailboxPrincipal::Me,
+        tls_with(&[]).unwrap(),
+        move |source, tls, retry, agent| {
+            GraphClient::with_base_and_source(source, &base, tls, retry, agent)
+        },
+    );
+    let provider = bind(GraphContactSource::Personal(root_book()), client).unwrap();
+
+    provider.sync_address_books(&account(), None).await.unwrap();
+    provider.sync_address_books(&account(), None).await.unwrap();
+
+    http_fake::assert_replaced_once(&received, &minted);
 }

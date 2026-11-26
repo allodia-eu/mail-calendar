@@ -1,6 +1,8 @@
 //! What a person is shown for a core refusal.
 
-use mailcal_bindings::{AccountCapability, AccountChangeRefusal, MailcalError, UseProblem};
+use mailcal_bindings::{
+    AccountCapability, AccountChangeRefusal, InsecureCause, MailcalError, UseProblem,
+};
 
 use crate::l10n;
 
@@ -14,6 +16,7 @@ pub(super) fn said(error: &MailcalError) -> String {
 pub(super) fn refusal_said(refusal: &AccountChangeRefusal) -> String {
     match refusal {
         AccountChangeRefusal::SignInRefused => l10n::signin_refused().to_owned(),
+        AccountChangeRefusal::InsecureServer { cause } => insecure_said(*cause).to_owned(),
         AccountChangeRefusal::AlreadySetUp => l10n::account_already_set_up().to_owned(),
         AccountChangeRefusal::DifferentAccount => l10n::signin_different_account().to_owned(),
         AccountChangeRefusal::StaleSignIn => l10n::signin_stale().to_owned(),
@@ -34,6 +37,15 @@ pub(super) fn refusal_said(refusal: &AccountChangeRefusal) -> String {
     }
 }
 
+/// A server reached only over plaintext, as a sign-in or a change of servers meets it: what
+/// clears it depends on whether its address is a plaintext one or the server led there.
+fn insecure_said(cause: InsecureCause) -> &'static str {
+    match cause {
+        InsecureCause::PlaintextAddress => l10n::signin_plaintext_address(),
+        InsecureCause::LedToPlaintext => l10n::signin_led_to_plaintext(),
+    }
+}
+
 /// Which use of a server of its own did not connect, and why. Only the calendar and the address
 /// book move to one, so anything else is said as the calendar.
 fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'static str {
@@ -44,6 +56,14 @@ fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'st
         UseProblem::NeedsOwnSignIn if contacts => l10n::settings_account_use_own_sign_in_contacts(),
         UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_calendar(),
         UseProblem::SignInRefused => l10n::signin_refused(),
+        UseProblem::PlaintextAddress if contacts => {
+            l10n::settings_account_use_plaintext_address_contacts()
+        }
+        UseProblem::PlaintextAddress => l10n::settings_account_use_plaintext_address_calendar(),
+        UseProblem::LedToPlaintext if contacts => {
+            l10n::settings_account_use_led_to_plaintext_contacts()
+        }
+        UseProblem::LedToPlaintext => l10n::settings_account_use_led_to_plaintext_calendar(),
         UseProblem::ServerChanged if contacts => {
             l10n::settings_account_use_server_changed_contacts()
         }
@@ -57,7 +77,7 @@ fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'st
 
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{AccountCapability, MailcalError, UseProblem};
+    use mailcal_bindings::{AccountCapability, InsecureCause, MailcalError, UseProblem};
 
     use super::said;
     use crate::l10n;
@@ -68,6 +88,18 @@ mod tests {
             reason: "JMAP HTTP 401: {\"status\":401}".to_owned(),
         };
         assert_eq!(said(&refused), l10n::signin_refused());
+        let insecure = |insecure_cause| MailcalError::InsecureServer {
+            reason: "the server is not reached securely".to_owned(),
+            insecure_cause,
+        };
+        assert_eq!(
+            said(&insecure(InsecureCause::PlaintextAddress)),
+            l10n::signin_plaintext_address()
+        );
+        assert_eq!(
+            said(&insecure(InsecureCause::LedToPlaintext)),
+            l10n::signin_led_to_plaintext()
+        );
         let twice = MailcalError::AlreadySetUp {
             account_id: "alice@example.org@imap.example.org".to_owned(),
         };
@@ -115,6 +147,16 @@ mod tests {
                 AccountCapability::Contacts,
                 UseProblem::SignInRefused,
                 l10n::signin_refused(),
+            ),
+            (
+                AccountCapability::Calendar,
+                UseProblem::PlaintextAddress,
+                l10n::settings_account_use_plaintext_address_calendar(),
+            ),
+            (
+                AccountCapability::Contacts,
+                UseProblem::LedToPlaintext,
+                l10n::settings_account_use_led_to_plaintext_contacts(),
             ),
             (
                 AccountCapability::Calendar,

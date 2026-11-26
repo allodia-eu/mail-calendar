@@ -177,19 +177,91 @@ fn a_urls_trailing_dot_is_its_path_and_is_matched_as_one() {
 }
 
 #[test]
-fn a_redirect_known_by_its_host_alone_is_admitted_by_an_https_entry_only() {
+fn an_origin_is_admitted_by_an_http_entry_with_its_scheme_host_and_port() {
     let listed = [
-        "https://dav.example.com".to_owned(),
+        "https://dav.example.com/caldav/".to_owned(),
         "mail.example.com".to_owned(),
     ];
     let issuer = "https://auth.example.com";
-    assert!(token_may_reach_host(issuer, &listed, "DAV.example.com"));
+    // An entry naming a path admits its origin: the origin has no path to compare.
+    assert!(token_may_reach_origin(
+        issuer,
+        &listed,
+        "https://DAV.example.com:443"
+    ));
+    assert!(token_may_reach_origin(
+        issuer,
+        &listed,
+        "https://dav.example.com.:443"
+    ));
+    // The same host on another port or scheme is another server (§3.4).
+    assert!(!token_may_reach_origin(
+        issuer,
+        &listed,
+        "https://dav.example.com:8443"
+    ));
+    assert!(!token_may_reach_origin(
+        issuer,
+        &listed,
+        "http://dav.example.com:443"
+    ));
     // A bare entry is for IMAP and SMTP: a DAV hop to that host is not one the list vouches for.
-    assert!(!token_may_reach_host(issuer, &listed, "mail.example.com"));
+    assert!(!token_may_reach_origin(
+        issuer,
+        &listed,
+        "https://mail.example.com:443"
+    ));
     // Without a list the domain rule decides, as for a full URL.
     let none: [String; 0] = [];
-    assert!(token_may_reach_host(issuer, &none, "dav.example.com"));
-    assert!(!token_may_reach_host(issuer, &none, "dav.example.org"));
+    assert!(token_may_reach_origin(
+        issuer,
+        &none,
+        "https://dav.example.com:8443"
+    ));
+    assert!(!token_may_reach_origin(
+        issuer,
+        &none,
+        "https://dav.example.org:443"
+    ));
+    assert!(!token_may_reach_origin(issuer, &none, "dav.example.com"));
+}
+
+#[test]
+fn a_loopback_origin_is_judged_as_its_url_names_it() {
+    // A plaintext loopback server, listed by its issuer, and the IPv6 loopback in brackets.
+    let listed = [
+        "http://localhost:28080".to_owned(),
+        "https://[::1]/dav".to_owned(),
+    ];
+    let issuer = "http://localhost:28081";
+    assert!(token_may_reach_origin(
+        issuer,
+        &listed,
+        "http://localhost:28080"
+    ));
+    assert!(!token_may_reach_origin(
+        issuer,
+        &listed,
+        "https://localhost:28080"
+    ));
+    assert!(token_may_reach_origin(issuer, &listed, "https://[::1]:443"));
+    // Without a list a loopback issuer reaches its own host only.
+    let none: [String; 0] = [];
+    assert!(token_may_reach_origin(
+        issuer,
+        &none,
+        "http://localhost:28080"
+    ));
+    assert!(!token_may_reach_origin(
+        issuer,
+        &none,
+        "http://127.0.0.1:28080"
+    ));
+    assert!(token_may_reach_origin(
+        "https://[::1]:8443",
+        &none,
+        "https://[::1]:443"
+    ));
 }
 
 #[test]

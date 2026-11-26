@@ -2,9 +2,10 @@
 //! (`docs/nextcloud-sign-in.md`): which server issued it, who it signs in as, and the address
 //! that names the account.
 
+use mailcal_oauth::DavUse;
 use serde::Deserialize;
 
-use crate::{AccountConfig, Secret};
+use crate::{AccountConfig, Secret, config_dav::DavEndpoint};
 
 /// The `[nextcloud]` table. Present exactly when the account's DAV password is an app password a
 /// Nextcloud sign-in obtained; every other account has none and is stored as it always was.
@@ -92,9 +93,22 @@ impl AccountConfig {
     /// account a Nextcloud sign-in did not make.
     #[must_use]
     pub fn nextcloud_app_password(&self) -> Option<(&NextcloudLogin, &str, &Secret)> {
-        let login = self.nextcloud.as_ref()?;
-        let endpoint = self.caldav_endpoint().or_else(|| self.carddav_endpoint())?;
+        let (login, endpoint, _) = self.nextcloud_endpoint()?;
         Some((login, endpoint.username, endpoint.password?))
+    }
+
+    /// The DAV endpoint holding the app password a Nextcloud sign-in stored, and the use it
+    /// serves: the calendar's, else the address book's.
+    pub(crate) fn nextcloud_endpoint(&self) -> Option<(&NextcloudLogin, DavEndpoint<'_>, DavUse)> {
+        let login = self.nextcloud.as_ref()?;
+        let (endpoint, dav_use) = self
+            .caldav_endpoint()
+            .map(|endpoint| (endpoint, DavUse::Calendars))
+            .or_else(|| {
+                self.carddav_endpoint()
+                    .map(|endpoint| (endpoint, DavUse::Contacts))
+            })?;
+        Some((login, endpoint, dav_use))
     }
 }
 

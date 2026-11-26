@@ -7,7 +7,7 @@ use std::{
 
 use engine_api::AccountId;
 
-use crate::{MailcalApp, account_registry, reconnect};
+use crate::{MailcalApp, account_registry, reconnect, reconnect::Reconnected};
 
 /// The ids being dialled again right now, each with whether a dial was asked for it meanwhile:
 /// the dial under way was planned from what the account was before that ask.
@@ -27,32 +27,70 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 /// The ids a retry is dialling, released from `redialling` when the dial is over, however it
 /// ends. An id a dial was asked for meanwhile goes back into `disconnected`, so it is dialled
-/// again from what the account is now.
+/// again from what the account is now. It also holds the shared stores waiting for their
+/// parent's dial, so that none taken from the queue is lost however the dial ends.
 struct Claim {
     redialling: Redialling,
     disconnected: Arc<Mutex<HashSet<String>>>,
     ids: Vec<String>,
+    after_parent: Vec<Waiting>,
+}
+
+/// A shared store waiting for its parent's dial.
+struct Waiting {
+    store: String,
+    parent: String,
+    /// Whether it was taken from the queue, rather than derived from its parent being dialled.
+    from_queue: bool,
 }
 
 impl Claim {
-    /// Releases the ids and answers whether any was asked for again meanwhile.
-    fn release(&mut self) -> bool {
-        let asked_again: Vec<String> = {
+    /// Releases the ids and settles the shared stores waiting for their parent, answering what
+    /// is to be dialled at once, which it queues: the ids asked for again meanwhile, and the
+    /// stores whose parent the dial connected.
+    ///
+    /// A store follows what `dialled`, the dial's outcome, says of its parent: dialled at once
+    /// when it connected the parent; queued with a parent it queued again (one it could not reach,
+    /// or reached only over plaintext); and otherwise dropped, as with a parent whose sign-in was
+    /// refused, which waits for a new credential the store signs in with too (replacing it dials
+    /// the parent's stores). With no outcome, the dial never ran: a store taken from the queue
+    /// goes back, unless another pass is dialling its parent, and one derived from its parent is
+    /// dropped. A parent's dial, or the dial it is asked for again after, derives the store again
+    /// and settles it by that dial's outcome; put back, it would be dialled alone after a refusal.
+    fn release(&mut self, dialled: Option<&Reconnected>) -> Vec<String> {
+        let (mut again, being_dialled): (Vec<String>, HashSet<String>) = {
             let mut redialling = lock(&self.redialling);
-            self.ids
+            let again = self
+                .ids
                 .drain(..)
                 .filter(|id| redialling.remove(id).unwrap_or(false))
-                .collect()
+                .collect();
+            (again, redialling.keys().cloned().collect())
         };
-        let any = !asked_again.is_empty();
-        lock(&self.disconnected).extend(asked_again);
-        any
+        let mut queued = lock(&self.disconnected);
+        queued.extend(again.iter().cloned());
+        for waiting in self.after_parent.drain(..) {
+            match dialled {
+                Some(dialled) if dialled.connected.contains(&waiting.parent) => {
+                    queued.insert(waiting.store.clone());
+                    again.push(waiting.store);
+                }
+                Some(dialled) if dialled.requeued.contains(&waiting.parent) => {
+                    queued.insert(waiting.store);
+                }
+                None if waiting.from_queue && !being_dialled.contains(&waiting.parent) => {
+                    queued.insert(waiting.store);
+                }
+                Some(_) | None => {}
+            }
+        }
+        again
     }
 }
 
 impl Drop for Claim {
     fn drop(&mut self) {
-        self.release();
+        self.release(None);
     }
 }
 
@@ -70,39 +108,87 @@ impl MailcalApp {
     /// Fire-and-forget on the runtime, so a slow re-dial never blocks the host's `dispatch`. A
     /// no-op when there is nothing to dial.
     pub(crate) fn retry_connections(&self) {
-        let mut ids: Vec<String> = lock(&self.disconnected).drain().collect();
+        let ids: Vec<String> = lock(&self.disconnected).drain().collect();
+        self.dial_from_queue(ids, true);
+    }
+
+    /// Dials those of `ids` still queued, and nothing else: no other queued account, and no use
+    /// of a connected one. What a dial finds to dial at once after it (a shared store whose parent
+    /// connected, an account a change was asked for meanwhile) is dialled this way, so one
+    /// Refresh never dials an account that failed in it a second time.
+    pub(crate) fn retry_only(&self, ids: &[String]) {
+        let taken: Vec<String> = {
+            let mut queued = lock(&self.disconnected);
+            ids.iter()
+                .filter(|id| queued.remove(id.as_str()))
+                .cloned()
+                .collect()
+        };
+        self.dial_from_queue(taken, false);
+    }
+
+    /// Dials `ids`, taken from the queue, with the shared stores they open; and, `with_uses`, the
+    /// uses of connected accounts that did not connect or are due.
+    fn dial_from_queue(&self, mut ids: Vec<String>, with_uses: bool) {
         // A shared store is opened by its parent's sign-in, so dialling the parent again dials
         // it again too: otherwise it keeps a connection made with what the parent had before.
-        let shared: Vec<String> = ids
+        let derived: HashSet<String> = ids
             .iter()
             .flat_map(|id| self.registry.shared_children(id))
             .map(|child| child.id.as_str().to_owned())
             .filter(|child| !ids.contains(child))
             .collect();
-        ids.extend(shared);
+        ids.extend(derived.iter().cloned());
         // A parent's dial replaces the connections its shared stores draw on, so a shared
-        // store whose parent is dialled now is dialled once that dial is over, on what it made.
+        // store whose parent is dialled now is dialled once that dial is over, on what it made,
+        // if the dial connected the parent; otherwise it waits with the parent
+        // ([`Claim::release`]).
         let dialled: HashSet<String> = ids.iter().cloned().collect();
-        let (after_parent, now): (Vec<String>, Vec<String>) = ids.into_iter().partition(|id| {
-            self.registry
+        let mut claim = Claim {
+            redialling: Arc::clone(&self.redialling),
+            disconnected: Arc::clone(&self.disconnected),
+            ids: Vec::new(),
+            after_parent: Vec::new(),
+        };
+        ids.retain(|id| {
+            match self
+                .registry
                 .shared_parent(id)
-                .is_some_and(|(parent, _)| dialled.contains(&parent))
+                .filter(|(parent, _)| dialled.contains(parent))
+            {
+                Some((parent, _)) => {
+                    claim.after_parent.push(Waiting {
+                        store: id.clone(),
+                        parent,
+                        from_queue: !derived.contains(id),
+                    });
+                    false
+                }
+                None => true,
+            }
         });
-        ids = now;
         let queued: HashSet<String> = ids.iter().cloned().collect();
         // An account whose mail is up but whose calendar or address book could not be reached has
         // those dialled again: nothing else would, until the next launch.
         // So is one whose calendar and contacts connected more than a day ago: their next connect
         // starts from the principal again, so a home the server moved is followed within a day.
-        let due = self.registry.dav_due(std::time::Instant::now());
-        for id in self
-            .app
-            .accounts_with_use_problem(mailcal_app::UseProblem::Unreachable)
-            .into_keys()
-            .chain(due)
-            // A refresh widened its grant to open a use the dial before it was planned without.
-            .chain(self.registry.take_widened())
-        {
+        let uses: Vec<String> = if with_uses {
+            let due = self.registry.dav_due(std::time::Instant::now());
+            self.app
+                .accounts_with_use_problem(mailcal_app::UseProblem::Unreachable)
+                .into_keys()
+                // One reached only over plaintext is dialled again too, badging nothing, in case
+                // its server or its address changed.
+                .chain(self.app.accounts_with_insecure_use())
+                .chain(due)
+                // A refresh widened its grant to open a use the dial before it was planned
+                // without.
+                .chain(self.registry.take_widened())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        for id in uses {
             if !queued.contains(&id) && !ids.contains(&id) {
                 ids.push(id);
             }
@@ -125,11 +211,7 @@ impl MailcalApp {
         if ids.is_empty() {
             return;
         }
-        let mut claim = Claim {
-            redialling: Arc::clone(&self.redialling),
-            disconnected: Arc::clone(&self.disconnected),
-            ids: ids.clone(),
-        };
+        claim.ids.clone_from(&ids);
         // Snapshot each account's reconnection plan under the registry lock (so no lock is held
         // across the re-dial); an id whose registry entry is gone (removed meanwhile) drops out.
         // The catch-up sync after a successful reconnect resolves the account's own depth.
@@ -173,17 +255,16 @@ impl MailcalApp {
             // One after the other, so a retry never dials more than `MAX_CONCURRENT_DIALS` at
             // once; the calendar and contacts first, being a few requests each.
             let mut unanswered = reconnect_uses.await;
-            unanswered.extend(reconnect.await);
-            let asked_again = claim.release();
+            let reconnected = reconnect.await;
+            unanswered.extend(reconnected.unanswered.iter().cloned());
+            let dial_again = claim.release(Some(&reconnected));
             // Off the runtime: looking again blocks on discovery and on the move's connect, and
             // the last handle on the app must not be dropped on a thread of its own runtime.
             if let Some(app) = app {
                 std::thread::spawn(move || {
                     app.settle_notice_retries();
-                    let dial_again = asked_again || !after_parent.is_empty();
-                    lock(&app.disconnected).extend(after_parent);
-                    if dial_again {
-                        app.retry_connections();
+                    if !dial_again.is_empty() {
+                        app.retry_only(&dial_again);
                     }
                     for id in unanswered {
                         app.rediscover_servers(&id);
@@ -201,7 +282,7 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use super::Claim;
+    use super::{Claim, Reconnected};
 
     fn claim_of(
         redialling: &super::Redialling,
@@ -212,6 +293,7 @@ mod tests {
             redialling: Arc::clone(redialling),
             disconnected: Arc::clone(&disconnected),
             ids: ids.iter().map(|&id| id.to_owned()).collect(),
+            after_parent: Vec::new(),
         };
         (claim, disconnected)
     }
@@ -242,7 +324,11 @@ mod tests {
             ("quiet".to_owned(), false),
         ])));
         let (mut claim, disconnected) = claim_of(&redialling, &["asked", "quiet"]);
-        assert!(claim.release(), "one id was asked for again");
+        assert_eq!(
+            claim.release(Some(&dialled(&[], &[]))),
+            ["asked".to_owned()],
+            "one id was asked for again"
+        );
         assert!(redialling.lock().unwrap().is_empty());
         assert_eq!(
             *disconnected.lock().unwrap(),
@@ -250,8 +336,83 @@ mod tests {
             "only the id asked for again is queued, so a working account is not dialled twice"
         );
         assert!(
-            !claim.release(),
+            claim.release(Some(&dialled(&[], &[]))).is_empty(),
             "a released claim gives nothing back twice"
+        );
+    }
+
+    /// A claim holding `store`, waiting for `parent`'s dial; `from_queue` says whether it was
+    /// taken from the queue or derived from its parent.
+    fn waiting(from_queue: bool) -> (Claim, Arc<Mutex<HashSet<String>>>) {
+        let (mut claim, disconnected) = claim_of(&Arc::default(), &[]);
+        claim.after_parent = vec![super::Waiting {
+            store: "store".to_owned(),
+            parent: "parent".to_owned(),
+            from_queue,
+        }];
+        (claim, disconnected)
+    }
+
+    /// What the parent's dial did, as `reconnect_all` reports it.
+    fn dialled(connected: &[&str], requeued: &[&str]) -> Reconnected {
+        let ids = |ids: &[&str]| ids.iter().map(|&id| id.to_owned()).collect();
+        Reconnected {
+            unanswered: Vec::new(),
+            connected: ids(connected),
+            requeued: ids(requeued),
+        }
+    }
+
+    /// A shared store is dialled at once after a dial that connected its parent, waits with a
+    /// parent the dial queued again, and is dropped with any other outcome, such as a refused
+    /// sign-in, which waits for a new credential. When the dial never ran, one taken from the
+    /// queue keeps its place, unless another pass dials its parent, and one derived from its
+    /// parent is the parent's next dial's.
+    #[test]
+    fn a_store_waiting_for_its_parent_follows_what_the_parents_dial_did() {
+        let store = HashSet::from(["store".to_owned()]);
+        let queue_after = |from_queue, outcome: Option<Reconnected>| {
+            let (mut claim, queue) = waiting(from_queue);
+            let again = claim.release(outcome.as_ref());
+            let queued = queue.lock().unwrap().clone();
+            (again, queued)
+        };
+
+        let (again, queued) = queue_after(true, Some(dialled(&["parent"], &[])));
+        assert_eq!(again, ["store".to_owned()], "dialled at once");
+        assert_eq!(queued, store);
+
+        let (again, queued) = queue_after(false, Some(dialled(&[], &["parent"])));
+        assert!(again.is_empty());
+        assert_eq!(queued, store, "waits with its parent");
+
+        // Refused: neither connected nor queued again, whatever else queued the parent meanwhile.
+        for from_queue in [true, false] {
+            let (mut refused, queue) = waiting(from_queue);
+            queue.lock().unwrap().insert("parent".to_owned());
+            assert!(refused.release(Some(&dialled(&[], &[]))).is_empty());
+            assert!(
+                !queue.lock().unwrap().contains("store"),
+                "waits for a new credential"
+            );
+        }
+
+        let (again, queued) = queue_after(true, None);
+        assert!(again.is_empty());
+        assert_eq!(queued, store, "taken from the queue, it keeps its place");
+        let (_, queued) = queue_after(false, None);
+        assert!(queued.is_empty(), "derived, it is the parent's next dial's");
+
+        let (mut racing, queue) = waiting(true);
+        racing
+            .redialling
+            .lock()
+            .unwrap()
+            .insert("parent".to_owned(), true);
+        assert!(racing.release(None).is_empty());
+        assert!(
+            queue.lock().unwrap().is_empty(),
+            "taken from the queue while another pass dials its parent, it is that dial's"
         );
     }
 

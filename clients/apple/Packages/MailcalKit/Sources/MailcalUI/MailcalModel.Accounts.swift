@@ -37,6 +37,8 @@ func coreMessage(_ error: Error) -> String {
     switch error {
     case MailcalError.SignInRefused(_):
         return L10n.signin_refused()
+    case let MailcalError.InsecureServer(_, cause):
+        return insecureMessage(cause)
     case MailcalError.AlreadySetUp(_):
         return L10n.account_already_set_up()
     case MailcalError.DifferentAccount:
@@ -52,6 +54,15 @@ func coreMessage(_ error: Error) -> String {
         return reason
     default:
         return error.localizedDescription
+    }
+}
+
+/// What a server reached only over plaintext says, by what clears it: its https address, or the
+/// server's operator (docs/provider-oauth.md rule 12).
+func insecureMessage(_ cause: InsecureCause) -> String {
+    switch cause {
+    case .plaintextAddress: L10n.signin_plaintext_address()
+    case .ledToPlaintext: L10n.signin_led_to_plaintext()
     }
 }
 
@@ -82,6 +93,14 @@ func useNotConnectedMessage(_ capability: AccountCapability, _ problem: UseProbl
             : L10n.settings_account_use_own_sign_in_calendar()
     case .signInRefused:
         return L10n.signin_refused()
+    case .plaintextAddress:
+        return contacts
+            ? L10n.settings_account_use_plaintext_address_contacts()
+            : L10n.settings_account_use_plaintext_address_calendar()
+    case .ledToPlaintext:
+        return contacts
+            ? L10n.settings_account_use_led_to_plaintext_contacts()
+            : L10n.settings_account_use_led_to_plaintext_calendar()
     case .serverChanged:
         return contacts
             ? L10n.settings_account_use_server_changed_contacts()

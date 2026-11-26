@@ -136,7 +136,7 @@ async fn a_drafted_reply_is_logged_and_asks_for_the_keyword_on_its_sent_copy() {
 
     let plain = open_reply(&app, "plain").await;
     let mine = sent(&app, &logs, &plain).await;
-    assert!(mine.sent_copy_keywords.is_empty());
+    assert!(mine.sent_copy_metadata.is_empty());
     assert!(!app.is_drafted_reply(&mine.message_id));
 
     // Drafted, then undone: what is sent may still carry its words, so it is marked all the same.
@@ -150,7 +150,8 @@ async fn a_drafted_reply_is_logged_and_asks_for_the_keyword_on_its_sent_copy() {
     let drafted = sent(&app, &logs, &reply).await;
     assert!(
         drafted
-            .sent_copy_keywords
+            .sent_copy_metadata
+            .keywords
             .contains(&drafted_reply_keyword())
     );
     assert!(app.is_drafted_reply(&drafted.message_id));

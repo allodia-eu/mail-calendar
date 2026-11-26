@@ -7,11 +7,15 @@
 use std::sync::Arc;
 
 use engine_core::ids::{AccountId, IdError};
+use engine_provider::{Credential, CredentialSource, CredentialSubject, FixedCredential};
 use mailcal_oauth::DavUse;
-use provider_caldav::{CredentialHosts, Credentials};
 use serde::Deserialize;
 
-use crate::{AccountConfig, AccountError, ImapTokens, Secret, imap_credentials};
+use crate::{AccountConfig, AccountError, AccountTokens, Secret, imap_credentials};
+
+mod issuer_bound;
+
+use issuer_bound::IssuerBound;
 
 /// A CardDAV address-book endpoint.
 ///
@@ -79,91 +83,86 @@ impl AccountConfig {
     }
 }
 
-/// How a DAV endpoint of `account` authenticates: the credential, and the hosts it may follow a
-/// discovery redirect to when that is not the transport's default.
-pub(crate) struct DavAuth {
-    pub(crate) credentials: Credentials,
-    pub(crate) hosts: Option<Arc<dyn CredentialHosts>>,
-}
-
-/// The credential a DAV endpoint of `account` presents for `dav_use`: Basic with the endpoint's
-/// own login, or, on an OAuth account, the grant's access token, sent only where
-/// `draft-ietf-mailmaint-oauth-public` lets it go (`docs/mail-oauth.md` rule 10).
+/// The credential source a DAV endpoint of `account` presents for `dav_use`: Basic with the
+/// endpoint's own login, or, on an OAuth account, the account's own token source, asked per
+/// request and sent only where `draft-ietf-mailmaint-oauth-public` lets it go
+/// (`docs/mail-oauth.md` rule 10).
 ///
-/// A grant reaches a DAV server when its sign-in asked for that use's scope and the server's
-/// host is one its issuer's tokens are for (§3.6), and the token then goes as Bearer under a
-/// [`CredentialHosts`] policy that applies the same host rule to every redirect discovery
-/// follows. Anything else is [`AccountError::DavNeedsOwnSignIn`], before a request is made.
-pub(crate) async fn dav_credentials(
+/// A grant reaches a DAV server when its sign-in asked for that use's scope and the server's URL
+/// is one its issuer's tokens are for (§3.6), and the token then goes as Bearer under an
+/// [`IssuerBound`] source that applies the issuer's rule to every origin discovery moves to.
+/// Anything else is [`AccountError::DavNeedsOwnSignIn`], before a token is minted.
+pub(crate) fn dav_credential_source(
     account: &AccountConfig,
     endpoint: DavEndpoint<'_>,
     dav_use: DavUse,
-    tokens: ImapTokens<'_>,
-) -> Result<DavAuth, AccountError> {
+    tokens: AccountTokens<'_>,
+) -> Result<Arc<dyn CredentialSource>, AccountError> {
     if let Some(grant) = &account.oauth {
         if !grant_reaches(grant, endpoint.base_url, dav_use) {
-            return Err(AccountError::DavNeedsOwnSignIn(match dav_use {
-                DavUse::Calendars => "calendar",
-                DavUse::Contacts => "contacts",
-            }));
+            return Err(AccountError::dav_needs_own_sign_in(dav_use));
         }
         let tokens = tokens.ok_or(AccountError::MissingCredential(
             imap_credentials::NO_TOKEN_SOURCE,
         ))?;
-        return Ok(DavAuth {
-            credentials: Credentials::Bearer(tokens.access_token().await?),
-            hosts: Some(Arc::new(IssuerHosts {
-                issuer: grant.issuer_identifier(),
-                protected_resources: grant.protected_resources.clone(),
-            })),
-        });
+        return Ok(Arc::new(IssuerBound {
+            tokens: Arc::clone(tokens),
+            issuer: grant.issuer_identifier(),
+            protected_resources: grant.protected_resources.clone(),
+        }));
     }
     let password = endpoint
         .password
         .ok_or_else(|| AccountError::CalDavDiscovery("no DAV credential stored".to_owned()))?;
-    Ok(DavAuth {
-        credentials: Credentials::Basic {
-            username: endpoint.username.to_owned(),
-            password: password.expose().to_owned(),
-        },
-        hosts: None,
-    })
+    Ok(Arc::new(FixedCredential::new(
+        dav_subject(account, endpoint, password, dav_use)?,
+        Credential::password(endpoint.username, password.expose()),
+    )))
+}
+
+/// Who a DAV endpoint signing in with its own stored `password` signs in as, to the engine: the
+/// account's own subject when it is the mailbox's login (the same username and password), and
+/// otherwise one naming the account and `dav_use`, so two logins never share a subject.
+fn dav_subject(
+    account: &AccountConfig,
+    endpoint: DavEndpoint<'_>,
+    password: &Secret,
+    dav_use: DavUse,
+) -> Result<CredentialSubject, AccountError> {
+    let mailbox_login = account.imap.as_ref().is_some_and(|imap| {
+        imap.username == endpoint.username
+            && imap
+                .password
+                .as_ref()
+                .is_some_and(|mailbox| mailbox.expose() == password.expose())
+    });
+    if mailbox_login {
+        return account.credential_subject();
+    }
+    let id = account
+        .account_id()
+        .map_err(|_| AccountError::MissingCredential("the account has no id to sign in as"))?;
+    let dav_use = match dav_use {
+        DavUse::Calendars => "calendars",
+        DavUse::Contacts => "contacts",
+    };
+    Ok(CredentialSubject::new(format!("{}#{dav_use}", id.as_str())))
 }
 
 /// Whether `grant`'s token may go to the DAV server at `base_url` for `dav_use`
-/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's URL is
-/// one its issuer's tokens are for (§3.6), and the token would travel over TLS, a loopback server
-/// (a local test server) being the one exception.
+/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, and the server's URL is
+/// one its issuer's tokens are for (§3.6). Whether the token may travel to it over plaintext is
+/// the engine's rule, not this one's: a plaintext address off this device fails its connect as a
+/// server reached only over plaintext (`AccountError::InsecureServer`), not as one the grant does
+/// not reach.
 ///
 /// The URL is parsed as the transport parses it, so an IPv6 literal, an internationalised name or
 /// a userinfo part is judged as the request will go.
 #[must_use]
 pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse) -> bool {
     let url = reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(base_url)).ok();
-    let host = url
-        .as_ref()
-        .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
-    let over_tls = url.as_ref().is_some_and(|url| {
-        url.scheme() == "https"
-            || host
-                .as_deref()
-                .is_some_and(|host| matches!(host, "localhost" | "127.0.0.1" | "[::1]"))
-    });
-    over_tls
-        && mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
+    mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
         && url.is_some_and(|url| grant.token_may_reach(url.as_str()))
-}
-
-/// The hosts a grant's tokens are for, as the DAV transport asks about each redirect.
-struct IssuerHosts {
-    issuer: String,
-    protected_resources: Vec<String>,
-}
-
-impl CredentialHosts for IssuerHosts {
-    fn permits(&self, host: &str) -> bool {
-        mailcal_oauth::token_may_reach_host(&self.issuer, &self.protected_resources, host)
-    }
 }
 
 /// The host (with any port), lowercased, of a base URL: no URL parsing, so the id it goes into
@@ -183,3 +182,7 @@ mod tests;
 #[cfg(test)]
 #[path = "config_dav_grant_tests.rs"]
 mod grant_tests;
+
+#[cfg(test)]
+#[path = "config_dav_hop_tests.rs"]
+mod hop_tests;

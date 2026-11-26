@@ -30,6 +30,7 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | Fact | `NoticeKind` | Severity | Screens | Account | Action | Closes |
 |---|---|---|---|---|---|---|
 | `signin_expired_accounts` | `SignInExpired` | Blocked | Everywhere | ✓ | `SignInAgain`, or `OpenAccountSettings` for a password or token account | No |
+| `insecure_server_accounts` | `InsecureServer { cause, address_editable }` | Blocked | Everywhere | ✓ | `OpenAccountSettings` for a plaintext address, `Retry` where the server led to plaintext | No |
 | `mail_reauth_accounts` | `MailReauth` | Blocked | Mail | ✓ | `SignInAgain` | No |
 | `calendar_reauth_accounts` | `CalendarReauth` | Degraded | Calendar | ✓ | `SignInAgain` | No |
 | `calendar_outages` | `CalendarOutage { problem }` | Degraded | Calendar | ✓ | `Retry` when unreachable, `Review` when the server moved, else `OpenAccountSettings` | No |
@@ -47,11 +48,21 @@ where its platform puts it. Two platforms showing the same moment show the same 
 - **`AccountsSkipped` counts stored accounts that could not be read**, which is what
   `account_connect_errors` holds in the app. Such an account has no id, so the notice is the whole
   app's and has no page to open. An account that was read and then failed to connect is an
-  `Unreachable` or `SignInExpired` notice instead. A client keeps an entry it cannot read, because
+  `Unreachable`, `SignInExpired` or `InsecureServer` notice instead. A client keeps an entry it cannot read, because
   a later version may read it, and removes one only when it is provably beyond recovery: on Linux,
   a config a plain-text keyring cut short that the core cannot read
   ([`client-traps.md`](client-traps.md)), once the launch that leaves it out has logged it and
   raised this notice.
+- **A server reached only over plaintext is its own notice** ([`provider-oauth.md`](provider-oauth.md)
+  rule 12): the engine sends it no sign-in, so the account is Blocked, but no sign-in clears it,
+  so it is no `SignInExpired`, and waiting does not, so it is no `Unreachable`. Its words say
+  what clears it, by `cause`: for a plaintext address its https address, entered in the account's
+  settings where its page changes its servers (`address_editable`) and by adding the account
+  again where it does not; where the server led there, its operator, which the next retry finds
+  (the account is dialled again by every retry, once, badging nothing), or another secure address
+  for the service where it has one, entered in the same places. Connecting the account or
+  removing it takes the notice away. A calendar's or an address book's outage says the same by
+  its problem, `PlaintextAddress` or `LedToPlaintext`.
 - **A refused folder change is closed where it is held.** Dismissing it clears the refusal the app
   holds, so the two never disagree; but only while the app still holds that refusal. A later refusal on the same
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves

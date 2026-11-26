@@ -35,7 +35,7 @@ use mailcal_account::{
 };
 
 /// A Microsoft config built from the environment, or `None` to skip the gated test.
-fn config() -> Option<MicrosoftConfig> {
+pub(super) fn config() -> Option<MicrosoftConfig> {
     let var = |name| std::env::var(name).ok().filter(|value| !value.is_empty());
     let scopes = var("MS_SCOPES")
         .unwrap_or_else(|| "offline_access User.Read Contacts.ReadWrite".to_owned())

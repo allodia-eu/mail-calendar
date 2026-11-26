@@ -28,9 +28,7 @@ struct AccountServersSection: View {
         let gap = model.endpointsGap(entry.id, edited)
         SettingsGroup(
             heading: L10n.settings_account_servers_heading(),
-            description: servers.signInRefused
-                ? L10n.signin_expired_prompt(accounts: AccountSettingsLabels.name(entry))
-                : L10n.settings_account_servers_description()
+            description: AccountSettingsLabels.serversDescription(servers, entry)
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HeldFields(control: servers.save) {

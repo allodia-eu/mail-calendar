@@ -8,6 +8,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import uniffi.mailcal_bindings.InsecureCause
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountPage
@@ -72,6 +73,7 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
     is MailcalException.Connect -> error.v1
     is MailcalException.CertificateRejected -> error.reason
     is MailcalException.SignInRefused -> error.reason
+    is MailcalException.InsecureServer -> error.reason
     // The record carries the account's id, an address; the core's own words carry none.
     is MailcalException.AlreadySetUp -> "that account is already set up"
     is MailcalException.DifferentAccount -> "that sign-in is for a different account"
@@ -90,11 +92,21 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
  */
 internal fun coreErrorSaid(error: Throwable, ctx: Context): String? = when (error) {
     is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
+    is MailcalException.InsecureServer -> insecureSaid(error.insecureCause, ctx)
     is MailcalException.AlreadySetUp -> L10n.account_already_set_up(ctx)
     is MailcalException.DifferentAccount -> L10n.signin_different_account(ctx)
     is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
     is MailcalException.UseNotConnected -> useNotConnectedSaid(error.capability, error.problem, ctx)
     else -> coreErrorText(error)
+}
+
+/**
+ * What a server reached only over plaintext says, by what clears it: its https address, or the
+ * server's operator (docs/provider-oauth.md rule 12).
+ */
+internal fun insecureSaid(cause: InsecureCause, ctx: Context): String = when (cause) {
+    InsecureCause.PLAINTEXT_ADDRESS -> L10n.signin_plaintext_address(ctx)
+    InsecureCause.LED_TO_PLAINTEXT -> L10n.signin_led_to_plaintext(ctx)
 }
 
 /**
@@ -124,6 +136,16 @@ internal fun useNotConnectedSaid(capability: AccountCapability, problem: UseProb
             L10n.settings_account_use_own_sign_in_calendar(ctx)
         }
         UseProblem.SIGN_IN_REFUSED -> L10n.signin_refused(ctx)
+        UseProblem.PLAINTEXT_ADDRESS -> if (contacts) {
+            L10n.settings_account_use_plaintext_address_contacts(ctx)
+        } else {
+            L10n.settings_account_use_plaintext_address_calendar(ctx)
+        }
+        UseProblem.LED_TO_PLAINTEXT -> if (contacts) {
+            L10n.settings_account_use_led_to_plaintext_contacts(ctx)
+        } else {
+            L10n.settings_account_use_led_to_plaintext_calendar(ctx)
+        }
         UseProblem.SERVER_CHANGED -> if (contacts) {
             L10n.settings_account_use_server_changed_contacts(ctx)
         } else {
@@ -143,6 +165,8 @@ private fun useNotConnectedText(capability: AccountCapability, problem: UseProbl
         UseProblem.UNREACHABLE -> "its server could not be reached"
         UseProblem.NEEDS_OWN_SIGN_IN -> "its server needs a sign-in of its own"
         UseProblem.SIGN_IN_REFUSED -> "its server refused the sign-in"
+        UseProblem.PLAINTEXT_ADDRESS -> "its server's address is a plaintext one"
+        UseProblem.LED_TO_PLAINTEXT -> "its server leads to a plaintext address"
         UseProblem.SERVER_CHANGED -> "its server was found on another site and waits to be allowed"
         UseProblem.NONE_ON_SERVER -> "its server has none for this account"
     }

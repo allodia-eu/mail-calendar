@@ -1,4 +1,4 @@
-//! The one rule every token-refreshing provider wrapper follows when it reports
+//! The one rule every reconnecting provider wrapper follows when it reports
 //! [`ConnectionInfo`]: cap the capabilities, forward the transport facts.
 //!
 //! A wrapper reports its **own** capabilities on purpose: a flag omitted there is a flag the

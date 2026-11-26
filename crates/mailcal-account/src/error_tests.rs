@@ -13,8 +13,9 @@ use provider_caldav::CalDavError;
 use provider_imap::ImapError;
 use provider_jmap::JmapError;
 
-use super::AccountError;
+use super::{AccountError, error::SignsIn};
 
+/// The addresses the accounts under test store.
 /// What Dovecot answers a refused `LOGIN`, verbatim.
 fn refused_login() -> ImapError {
     ImapError::Auth("[AUTHENTICATIONFAILED] Authentication failed.".to_owned())
@@ -25,7 +26,7 @@ fn refused_login() -> ImapError {
 fn jmap_status(status: u16) -> JmapError {
     JmapError::Status {
         status,
-        body: "{}".to_owned(),
+        body: "{}".into(),
         // The engine carries a server's own instant here now; nothing this fake stands in
         // for names one.
         retry_after: None,
@@ -35,7 +36,7 @@ fn jmap_status(status: u16) -> JmapError {
 #[test]
 fn a_refused_first_imap_login_is_a_rejected_signin() {
     assert!(matches!(
-        AccountError::from_first_imap_login(refused_login()),
+        AccountError::from_first_imap_login(refused_login(), SignsIn::WithStoredSecret),
         AccountError::SigninRejected(_)
     ));
 }
@@ -43,7 +44,8 @@ fn a_refused_first_imap_login_is_a_rejected_signin() {
 #[test]
 fn a_rejected_signin_still_carries_what_the_server_said() {
     // The prompt names no cause, so this string is all a support log has left of the refusal.
-    let rendered = AccountError::from_first_imap_login(refused_login()).to_string();
+    let rendered =
+        AccountError::from_first_imap_login(refused_login(), SignsIn::WithStoredSecret).to_string();
     assert!(
         rendered.starts_with("sign-in rejected:"),
         "not rendered as a refusal: {rendered}"
@@ -62,7 +64,7 @@ fn a_first_login_that_never_got_an_answer_is_not_a_rejected_signin() {
         "timed out",
     ));
     assert!(matches!(
-        AccountError::from_first_imap_login(err),
+        AccountError::from_first_imap_login(err, SignsIn::WithStoredSecret),
         AccountError::Imap(_)
     ));
 }
@@ -77,7 +79,7 @@ fn a_first_login_refused_on_other_grounds_keeps_its_own_variant() {
         let class = err.failure_class();
         assert!(
             matches!(
-                AccountError::from_first_imap_login(err),
+                AccountError::from_first_imap_login(err, SignsIn::WithStoredSecret),
                 AccountError::Imap(_)
             ),
             "a {class:?} failure was read as a refused credential"
@@ -113,7 +115,7 @@ fn a_dav_401_is_a_rejected_signin() {
         "the engine no longer classifies a 401 as an authentication failure"
     );
     assert!(matches!(
-        AccountError::from_first_dav_connect(dav_status(401), AccountError::CardDav),
+        AccountError::from_first_dav_connect(dav_status(401), AccountError::CardDav, None),
         AccountError::SigninRejected(_)
     ));
 }
@@ -129,7 +131,7 @@ fn a_dav_connect_that_failed_some_other_way_is_not_a_rejected_signin() {
         let class = err.failure_class();
         assert!(
             matches!(
-                AccountError::from_first_dav_connect(err, AccountError::CardDav),
+                AccountError::from_first_dav_connect(err, AccountError::CardDav, None),
                 AccountError::CardDav(_)
             ),
             "a {class:?} failure was read as a refused credential"
@@ -165,7 +167,7 @@ fn a_jmap_401_is_a_rejected_signin() {
         "the engine no longer classifies a 401 as an authentication failure"
     );
     assert!(matches!(
-        AccountError::from_jmap_connect(&jmap_status(401)),
+        AccountError::from_jmap_connect(&jmap_status(401), SignsIn::WithStoredSecret),
         AccountError::SigninRejected(_)
     ));
 }
@@ -175,7 +177,10 @@ fn a_jmap_connect_that_failed_some_other_way_is_not_a_rejected_signin() {
     for err in [jmap_status(503), JmapError::Session("no apiUrl".to_owned())] {
         let class = err.failure_class();
         assert!(
-            matches!(AccountError::from_jmap_connect(&err), AccountError::Jmap(_)),
+            matches!(
+                AccountError::from_jmap_connect(&err, SignsIn::WithStoredSecret),
+                AccountError::Jmap(_)
+            ),
             "a {class:?} failure was read as a refused credential"
         );
     }

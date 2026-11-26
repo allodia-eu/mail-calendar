@@ -1,17 +1,14 @@
-//! The [`Provider`] trait implementation for `RefreshingGmailProvider`; the
-//! token-refreshing, 429-backoff, and stale-socket reconnect loops wrapped around each
-//! delegated Gmail call, plus the two write paths (`edit_mail`, `submit_email`). Split from
-//! the module root (`super`), which holds the struct, its delegate cache, and the connect
-//! entry points, to keep both files under the 500-line cap; mirroring
-//! [`crate::graph`]'s identical split.
-
-use std::collections::BTreeSet;
+//! The [`Provider`] trait implementation for `ReconnectingGmailProvider`: the stale-socket
+//! reconnect loop wrapped around each delegated Gmail call, plus the two write paths
+//! (`edit_mail`, `submit_email`). Split from the module root (`super`), which holds the struct,
+//! its delegates, and the connect entry points, to keep both files under the 500-line cap;
+//! mirroring [`crate::graph`]'s identical split.
 
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, ProviderKey};
 use engine_core::{
     ids::AccountId,
-    mail::{Mailbox, Message},
+    mail::{Mailbox, Message, MessageMetadata},
     raw::RawMime,
     sync::{MailboxWindows, SyncScope, SyncState},
 };
@@ -22,10 +19,10 @@ use engine_provider::{
 };
 use futures::StreamExt;
 
-use super::{RefreshingGmailProvider, should_reconnect};
+use super::ReconnectingGmailProvider;
 
 #[async_trait]
-impl Provider for RefreshingGmailProvider {
+impl Provider for ReconnectingGmailProvider {
     fn connection_info(&self) -> ConnectionInfo {
         // Capped capabilities, the delegate's transport facts; see `delegate_info`.
         crate::delegate_info::with_delegate_transport(
@@ -37,7 +34,7 @@ impl Provider for RefreshingGmailProvider {
                         .lock()
                         .expect("gmail delegate mutex poisoned")
                         .as_ref()
-                        .map(|(_, _, provider)| provider.connection_info())
+                        .map(|built| built.provider.connection_info())
                 }),
         )
     }
@@ -59,19 +56,10 @@ impl Provider for RefreshingGmailProvider {
         account: &AccountId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Mailbox>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sync_mailboxes(account, cursor).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.sync_mailboxes(account, cursor).await
+        })
+        .await
     }
 
     fn stream_email<'a>(
@@ -84,7 +72,7 @@ impl Provider for RefreshingGmailProvider {
     ) -> EmailStream<'a> {
         let reads = crate::stream_redial::redialling_stream(
             || self.reading_delegate(),
-            || self.invalidate_delegate(),
+            |generation| self.drop_client(generation),
             account,
             cursor,
             window,
@@ -103,25 +91,18 @@ impl Provider for RefreshingGmailProvider {
         account: &AccountId,
         message: &Message,
     ) -> ProviderResult<RawMime> {
-        let mut provider = self.reading_delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.fetch_message_source(account, message).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.reading_delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(true, |provider| async move {
+            provider.fetch_message_source(account, message).await
+        })
+        .await
     }
 
     /// Forwards the batch read where the delegate carries several sources a request (fifty over
     /// IMAP); otherwise reads one at a time through
     /// [`fetch_message_source`](Self::fetch_message_source), which re-dials a stale socket once
-    /// per message.
+    /// per message. A delegate that cannot be had answers each message with its failure, every
+    /// fact a caller reads kept
+    /// ([`ProviderError::reworded`](engine_provider::ProviderError::reworded)).
     fn fetch_message_sources<'a>(
         &'a self,
         account: &'a AccountId,
@@ -129,7 +110,7 @@ impl Provider for RefreshingGmailProvider {
     ) -> SourceStream<'a> {
         Box::pin(async_stream::stream! {
             match self.reading_delegate().await {
-                Ok(provider) if provider.connection_info().sources_per_request > 1 => {
+                Ok((_, provider)) if provider.connection_info().sources_per_request > 1 => {
                     let mut sources = provider.fetch_message_sources(account, messages);
                     while let Some(item) = sources.next().await {
                         yield item;
@@ -143,8 +124,7 @@ impl Provider for RefreshingGmailProvider {
                 }
                 Err(err) => {
                     for index in 0..messages.len() {
-                        let err = engine_provider::ProviderError::new(err.class(), err.detail());
-                        yield (index, Err(err));
+                        yield (index, Err(err.reworded(err.detail())));
                     }
                 }
             }
@@ -152,44 +132,33 @@ impl Provider for RefreshingGmailProvider {
     }
 
     /// Applies a [`MailEdit`] (mark-read/flag, move/archive, permanent delete) by delegating
-    /// to the underlying `GmailProvider`, with the same token-refresh, 429 backoff, and
-    /// stale-socket re-dial as the read calls. Gmail's edits are keyed by the message's
-    /// immutable Gmail id, and this provider is account-global, so it can edit a message
-    /// under any label.
+    /// to the underlying `GmailProvider`, with the same stale-socket re-dial as the read calls.
+    /// Gmail's edits are keyed by the message's immutable Gmail id, and this provider is
+    /// account-global, so it can edit a message under any label.
     ///
     /// Safe to wrap like the idempotent reads: a Gmail edit is a label **delta** to a fixed
     /// state (`modify`/`trash`/`delete`), so re-applying it lands on the same result; see
-    /// [`should_reconnect`].
+    /// [`should_reconnect`](crate::shared_client::should_reconnect).
     async fn edit_mail(
         &self,
         account: &AccountId,
         edit: &MailEdit,
     ) -> ProviderResult<MailEditReceipt> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.edit_mail(account, edit).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.edit_mail(account, edit).await
+        })
+        .await
     }
 
     /// Submits a [`Draft`] via `messages.send` by delegating to the underlying
-    /// `GmailProvider` (Gmail files the Sent copy itself), refreshing the access token first
-    /// and backing off on a 429; but, **unlike** the reads and [`edit_mail`](Self::edit_mail),
-    /// it **never re-issues the send on a transport failure**.
+    /// `GmailProvider` (Gmail files the Sent copy itself); **unlike** the reads and
+    /// [`edit_mail`](Self::edit_mail), it **never re-issues the send on a transport failure**.
     ///
     /// A send is the one non-idempotent Gmail call: re-`POST`ing `messages.send` delivers the
     /// message twice. Whether a failed attempt may have reached Gmail is the outbox's to decide,
     /// from the hand-over record the adapter writes before the end of the request goes out
     /// (`hand_over`); it retries one that cannot have left and asks about one that may have. So
-    /// on a transport error this only **drops** the (possibly dead-socketed) cached delegate, so
+    /// on a transport error this only **drops** the (possibly dead-socketed) client, so
     /// the next attempt dials a fresh connection, then propagates the error.
     ///
     /// A throttled send *is* re-issued, one layer down: Google rejects it *before* acting on
@@ -201,17 +170,8 @@ impl Provider for RefreshingGmailProvider {
         draft: &Draft,
         hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
-        let provider = self.delegate().await?;
-        provider
-            .submit_email(account, draft, hand_over)
+        self.once(|provider| async move { provider.submit_email(account, draft, hand_over).await })
             .await
-            .inspect_err(|err| {
-                // A transport failure may have been a send that *did* leave; drop the suspect
-                // socket for the next deliberate attempt, but never resend here.
-                if should_reconnect(err) {
-                    self.invalidate_delegate();
-                }
-            })
     }
 
     /// Saving a draft is **not** re-issued on a dropped connection, for the reason a send is not:
@@ -223,54 +183,30 @@ impl Provider for RefreshingGmailProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-        keywords: &BTreeSet<Keyword>,
+        metadata: &MessageMetadata,
     ) -> ProviderResult<DraftReceipt> {
-        let provider = self.delegate().await?;
-        provider
-            .put_draft(account, draft, replacing, keywords)
-            .await
-            .inspect_err(|err| {
-                if should_reconnect(err) {
-                    self.invalidate_delegate();
-                }
-            })
+        self.once(|provider| async move {
+            provider
+                .put_draft(account, draft, replacing, metadata)
+                .await
+        })
+        .await
     }
 
     /// Removing one is retried on a dropped connection: the trait requires an absent draft to
     /// settle as done, so a repeat of a removal that already landed is a no-op.
     async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.delete_draft(account, draft).await {
-                Ok(()) => return Ok(()),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.delete_draft(account, draft).await
+        })
+        .await
     }
 
-    /// Gmail reports a message by moving it under its `SPAM` label, which this forwards on the
-    /// same reconnect loop [`edit_mail`](Provider::edit_mail) uses: a report is idempotent, so a
-    /// retry after a stale socket cannot double-apply.
     async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.sender_identities(account).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.sender_identities(account).await
+        })
+        .await
     }
 
     async fn set_sender_name(
@@ -279,63 +215,45 @@ impl Provider for RefreshingGmailProvider {
         identity: &SenderIdentityId,
         name: &str,
     ) -> ProviderResult<()> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.set_sender_name(account, identity, name).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.set_sender_name(account, identity, name).await
+        })
+        .await
     }
 
+    /// Gmail reports a message by moving it under its `SPAM` label, which this forwards on the
+    /// same reconnect loop [`edit_mail`](Provider::edit_mail) uses: a report is idempotent, so a
+    /// retry after a stale socket cannot double-apply.
     async fn report_message(
         &self,
         account: &AccountId,
         report: &MessageReport,
     ) -> ProviderResult<ReportReceipt> {
-        let mut provider = self.delegate().await?;
-        let mut reconnected = false;
-        loop {
-            match provider.report_message(account, report).await {
-                Ok(value) => return Ok(value),
-                Err(err) if !reconnected && should_reconnect(&err) => {
-                    self.invalidate_delegate();
-                    provider = self.delegate().await?;
-                    reconnected = true;
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.retrying(false, |provider| async move {
+            provider.report_message(account, report).await
+        })
+        .await
     }
 }
 
-impl engine_api::CalendarSync for RefreshingGmailProvider {}
-impl CalendarWrites for RefreshingGmailProvider {}
+impl engine_api::CalendarSync for ReconnectingGmailProvider {}
+impl CalendarWrites for ReconnectingGmailProvider {}
 
-/// A folder change is made **once**: the token is refreshed first, and a dropped connection
-/// only drops the cached delegate, as for a send. Re-issuing it is not safe on every
-/// transport (a rename replayed against the path it already left meets nothing), and the
-/// outbox retries it anyway, after re-reading the folder list.
+/// A folder change is made **once**: a dropped connection only drops the client, as for a send.
+/// Re-issuing it is not safe on every transport (a rename replayed against the path it already
+/// left meets nothing), and the outbox retries it anyway, after re-reading the folder list.
 #[async_trait]
-impl MailboxWrites for RefreshingGmailProvider {
+impl MailboxWrites for ReconnectingGmailProvider {
     async fn edit_mailbox(
         &self,
         account: &AccountId,
         edit: &MailboxEdit,
     ) -> ProviderResult<MailboxEditReceipt> {
-        let provider = self.delegate().await?;
-        let result = provider.edit_mailbox(account, edit).await;
-        if let Err(err) = &result
-            && should_reconnect(err)
-        {
-            self.invalidate_delegate();
-        }
-        result
+        self.once(|provider| async move { provider.edit_mailbox(account, edit).await })
+            .await
     }
 }
+
+#[cfg(test)]
+#[path = "mail_provider_tests.rs"]
+mod tests;

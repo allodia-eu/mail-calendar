@@ -221,7 +221,8 @@ pub(crate) fn build_accounts(
             .map(|account| account.id.as_str().to_owned())
             .collect()
     } else {
-        // A refused sign-in waits for a replaced credential, as in `reconnect_all`.
+        // A refused sign-in waits for a replaced credential, as in `reconnect_all`; a server
+        // reached only over plaintext is dialled again by the next retry, in case it changed.
         failed
             .iter()
             .filter(|failure| !failure.signin_rejected)
@@ -290,6 +291,8 @@ pub(crate) fn build_accounts(
         };
         if failure.signin_rejected {
             app.note_signin_expired(&account_id);
+        } else if let Some(cause) = failure.insecure {
+            app.note_insecure_server(&account_id, cause);
         } else {
             app.note_account_unreachable(&account_id, Some(failure.detail.clone()));
         }

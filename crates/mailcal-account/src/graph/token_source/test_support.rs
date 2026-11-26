@@ -6,18 +6,16 @@
 //! double-refresh is fatal rather than merely wasteful: so it is the only kind that can catch
 //! the regression this module exists to guard.
 
-use std::{
-    io::{Read, Write},
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use engine_core::ids::AccountId;
 use mailcal_oauth::{OAuthClient, OAuthProviderConfig};
 
 use super::{GraphTokenSource, TokenSink};
+use crate::http_fake::{self, Reply, Seen};
 
 /// A mock token endpoint that models a **rotating, ratcheting** authorization server;
 /// Fastmail's behaviour, and the one that turns a harmless-looking race into a dead
@@ -32,44 +30,27 @@ use super::{GraphTokenSource, TokenSink};
 ///
 /// Returns the endpoint URL and the count of refresh requests it saw.
 pub(crate) fn ratcheting_token_endpoint(initial: &str) -> (String, Arc<AtomicUsize>) {
-    let hits = Arc::new(AtomicUsize::new(0));
-    let hits_thread = Arc::clone(&hits);
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
     let mut valid = initial.to_owned();
     let mut generation = 0usize;
-    std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            let Ok(mut stream) = stream else { continue };
-            let request = read_request(&mut stream);
-            hits_thread.fetch_add(1, Ordering::SeqCst);
-            let presented = form_value(&request, "refresh_token").unwrap_or_default();
-            // The ratchet: anything but the live token revokes the grant outright, so
-            // every later refresh fails too; exactly like the real server.
-            let body = if presented == valid && !valid.is_empty() {
-                generation += 1;
-                valid = format!("rotated-{generation}");
-                format!(
-                    r#"{{"token_type":"Bearer","expires_in":3600,"access_token":"AT-{generation}","refresh_token":"{valid}"}}"#
-                )
-            } else {
-                valid.clear();
+    token_endpoint(move |request| {
+        let presented = form_value(&request.body, "refresh_token").unwrap_or_default();
+        // The ratchet: anything but the live token revokes the grant outright, so every later
+        // refresh fails too; exactly like the real server.
+        if presented == valid && !valid.is_empty() {
+            generation += 1;
+            valid = format!("rotated-{generation}");
+            Reply::Json(format!(
+                r#"{{"token_type":"Bearer","expires_in":3600,"access_token":"AT-{generation}","refresh_token":"{valid}"}}"#
+            ))
+        } else {
+            valid.clear();
+            Reply::Status(
+                "400 Bad Request",
                 r#"{"error":"invalid_grant","error_description":"ratchet or client_id mismatch"}"#
-                    .to_owned()
-            };
-            let status = if body.contains("\"error\"") {
-                "400 Bad Request"
-            } else {
-                "200 OK"
-            };
-            let resp = format!(
-                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
+                    .to_owned(),
+            )
         }
-    });
-    (format!("http://{addr}/token"), hits)
+    })
 }
 
 /// A token endpoint that refuses every refresh with `invalid_grant`, and counts how many it was
@@ -77,62 +58,33 @@ pub(crate) fn ratcheting_token_endpoint(initial: &str) -> (String, Arc<AtomicUsi
 /// builds inline, this keeps answering, which is the only way to tell "we stopped asking" from
 /// "there was nobody left to ask".
 pub(crate) fn dead_grant_token_endpoint() -> (String, Arc<AtomicUsize>) {
-    let hits = Arc::new(AtomicUsize::new(0));
-    let hits_thread = Arc::clone(&hits);
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            let Ok(mut stream) = stream else { continue };
-            let _ = read_request(&mut stream);
-            hits_thread.fetch_add(1, Ordering::SeqCst);
-            let body = r#"{"error":"invalid_grant","error_description":"revoked"}"#;
-            let resp = format!(
-                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
-        }
-    });
-    (format!("http://{addr}/token"), hits)
-}
-
-/// Reads a whole small HTTP request, honouring `Content-Length`: a single `read` can stop
-/// on the headers and leave the form body behind, which would make the mock above decide a
-/// legitimate refresh was a replay and turn this into a flaky test.
-fn read_request(stream: &mut std::net::TcpStream) -> String {
-    let mut raw = Vec::new();
-    let mut buf = [0u8; 4096];
-    while let Ok(read) = stream.read(&mut buf) {
-        if read == 0 {
-            break;
-        }
-        raw.extend_from_slice(&buf[..read]);
-        let text = String::from_utf8_lossy(&raw);
-        let Some((head, body)) = text.split_once("\r\n\r\n") else {
-            continue;
-        };
-        let length: usize = head
-            .lines()
-            .find_map(|line| {
-                line.strip_prefix("Content-Length: ")
-                    .or_else(|| line.strip_prefix("content-length: "))
-            })
-            .and_then(|value| value.trim().parse().ok())
-            .unwrap_or(0);
-        if body.len() >= length {
-            break;
-        }
-    }
-    String::from_utf8_lossy_owned(raw)
+    token_endpoint(|_| {
+        Reply::Status(
+            "400 Bad Request",
+            r#"{"error":"invalid_grant","error_description":"revoked"}"#.to_owned(),
+        )
+    })
 }
 
 /// One `application/x-www-form-urlencoded` value out of a request body.
-fn form_value(request: &str, key: &str) -> Option<String> {
-    let (_, body) = request.split_once("\r\n\r\n")?;
+fn form_value(body: &str, key: &str) -> Option<String> {
     body.split('&')
         .find_map(|pair| pair.strip_prefix(&format!("{key}=")))
         .map(str::to_owned)
+}
+
+/// A token endpoint at `/token` of the crate's test server, answering as `answer` decides, and
+/// the count of requests it saw.
+pub(crate) fn token_endpoint(
+    mut answer: impl FnMut(&Seen) -> Reply + Send + 'static,
+) -> (String, Arc<AtomicUsize>) {
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&hits);
+    let (base, _) = http_fake::serve_with(move |request| {
+        counter.fetch_add(1, Ordering::SeqCst);
+        answer(request)
+    });
+    (format!("{base}/token"), hits)
 }
 
 /// A mock token endpoint that **accepts** the request and then hangs up without answering,
@@ -146,61 +98,54 @@ fn form_value(request: &str, key: &str) -> Option<String> {
 ///
 /// Returns the endpoint URL and the count of requests it saw.
 pub(crate) fn flaky_token_endpoint(failures: usize) -> (String, Arc<AtomicUsize>) {
-    let hits = Arc::new(AtomicUsize::new(0));
-    let hits_thread = Arc::clone(&hits);
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        for (i, stream) in listener.incoming().enumerate() {
-            let Ok(mut stream) = stream else { continue };
-            let _ = read_request(&mut stream);
-            hits_thread.fetch_add(1, Ordering::SeqCst);
-            if i < failures {
-                // Drop it mid-conversation: the request landed, no response comes back.
-                continue;
-            }
-            let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT-OK"}"#;
-            let resp = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
+    let mut seen = 0;
+    token_endpoint(move |_| {
+        seen += 1;
+        if seen <= failures {
+            // Dropped mid-conversation: the request landed, no response comes back.
+            Reply::HangUp
+        } else {
+            Reply::Json(
+                r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT-OK"}"#.to_owned(),
+            )
         }
-    });
-    (format!("http://{addr}/token"), hits)
+    })
 }
 
 /// A token endpoint URL that nothing is listening on, so a connection to it is refused
 /// before any byte of the request is written.
+///
+/// Port 1, never a port a listener was bound to and dropped: the OS hands an ephemeral port it
+/// has taken back to the next bind, so another test's server running at the same time would
+/// answer this endpoint's requests and lose its own replies to them. No test binds port 1, and
+/// the OS never hands it out for a bind to port 0.
 pub(crate) fn refused_token_endpoint() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    drop(listener);
-    format!("http://{addr}/token")
+    "http://127.0.0.1:1/token".to_owned()
 }
 
 /// A mock token endpoint that serves each queued response once, counting hits: so a
 /// test can prove the second `access_token()` was served from cache (no second hit).
 pub(crate) fn mock_token_endpoint(responses: Vec<String>) -> (String, Arc<AtomicUsize>) {
-    let hits = Arc::new(AtomicUsize::new(0));
-    let hits_thread = Arc::clone(&hits);
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-        for (i, stream) in listener.incoming().enumerate() {
-            let Ok(mut stream) = stream else { continue };
-            let mut buf = [0u8; 8192];
-            let _ = stream.read(&mut buf);
-            hits_thread.fetch_add(1, Ordering::SeqCst);
-            let body = responses.get(i).cloned().unwrap_or_default();
-            let resp = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(resp.as_bytes());
-        }
-    });
-    (format!("http://{addr}/token"), hits)
+    let mut responses = responses.into_iter();
+    token_endpoint(move |_| Reply::Json(responses.next().unwrap_or_default()))
+}
+
+/// What an OAuth IMAP dial meets when the token endpoint at `endpoint` gives no token, as the
+/// engine hands it on: dialled through the real connect, which asks for the credential before it
+/// opens anything.
+pub(crate) async fn imap_dial_without_token(endpoint: String) -> engine_provider::ProviderError {
+    use engine_provider::CredentialSource;
+
+    let config = provider_imap::ImapConfig::from_credential_source(
+        "127.0.0.1:1",
+        "127.0.0.1",
+        source_at(endpoint, None) as Arc<dyn CredentialSource>,
+    );
+    let tls = crate::tls::tls_with(&[]).unwrap();
+    match provider_imap::ImapAccount::connect(&config, tls.connector()).await {
+        Ok(_) => panic!("no token, so no sign-in"),
+        Err(err) => err.into(),
+    }
 }
 
 /// A **distinct** account for every test source.
@@ -216,6 +161,9 @@ fn unique_account() -> AccountId {
     AccountId::try_from(format!("alice+{n}@example.com@graph.microsoft.com").as_str())
         .expect("a valid account id")
 }
+
+/// The name every test source signs in as.
+pub(crate) const SIGN_IN_NAME: &str = "you@example.net";
 
 pub(crate) fn source_at(
     token_endpoint: String,
@@ -247,6 +195,7 @@ pub(crate) fn source_for(
     GraphTokenSource::from_parts(
         OAuthClient::new(provider).unwrap(),
         account,
+        SIGN_IN_NAME,
         "initial-refresh".to_owned(),
         sink,
         "graph",
@@ -262,7 +211,11 @@ pub(crate) fn source_for(
 /// `InvalidState` without asking anyone. So the test needs no mail server, and still fails on
 /// exactly the wrapper that advertises drafts and does not forward them.
 pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provider::Provider) {
-    use engine_core::{error::FailureClass, ids::MessageIdHeader, mail::EmailAddress};
+    use engine_core::{
+        error::FailureClass,
+        ids::MessageIdHeader,
+        mail::{EmailAddress, MessageMetadata},
+    };
     use engine_provider::Draft;
 
     assert!(
@@ -280,12 +233,32 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
     let key = engine_core::ids::ProviderKey::new("draft-1").expect("valid key");
 
     let saved = provider
-        .put_draft(&account, &draft, None, &std::collections::BTreeSet::new())
+        .put_draft(&account, &draft, None, &MessageMetadata::default())
         .await
         .unwrap_err();
     assert_eq!(saved.class(), FailureClass::Authentication, "{saved}");
     let removed = provider.delete_draft(&account, &key).await.unwrap_err();
     assert_eq!(removed.class(), FailureClass::Authentication, "{removed}");
+}
+
+/// An event in the calendar `calendar`, and an acceptance of it.
+pub(crate) fn an_invitation() -> (engine_core::calendar::Event, engine_provider::EventRsvp) {
+    use engine_core::{
+        calendar::Event,
+        ids::{CalendarId, EventId, Uid},
+        membership::Memberships,
+        time::CalendarDateTime,
+    };
+    use engine_provider::{EventRsvp, RsvpResponse};
+
+    let event = Event::new(
+        EventId::try_from("calendar/event-1").expect("valid event id"),
+        Uid::new("event-1@example.com").expect("valid uid"),
+        Memberships::of_one(CalendarId::try_from("calendar").expect("valid calendar id")),
+        CalendarDateTime::Floating("2026-09-01T09:00:00".parse().expect("valid time")),
+    );
+    let rsvp = EventRsvp::to(&event, "mailto:me@example.com", RsvpResponse::Accepted);
+    (event, rsvp)
 }
 
 /// Asserts that `provider`, built over a token source whose grant is dead, takes the calendar
@@ -296,22 +269,13 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
 /// `Unknown`.
 pub(crate) async fn assert_calendar_reaches_the_delegate(provider: &dyn engine_provider::Provider) {
     use engine_core::{
-        calendar::Event,
         error::FailureClass,
-        ids::{CalendarId, EventId, Uid},
-        membership::Memberships,
-        time::{CalendarDateTime, Horizon, UtcDateTime},
+        ids::CalendarId,
+        time::{Horizon, UtcDateTime},
     };
-    use engine_provider::{EventRsvp, RsvpResponse};
 
     let account = unique_account();
-    let event = Event::new(
-        EventId::try_from("calendar/event-1").expect("valid event id"),
-        Uid::new("event-1@example.com").expect("valid uid"),
-        Memberships::of_one(CalendarId::try_from("calendar").expect("valid calendar id")),
-        CalendarDateTime::Floating("2026-09-01T09:00:00".parse().expect("valid time")),
-    );
-    let rsvp = EventRsvp::to(&event, "mailto:me@example.com", RsvpResponse::Accepted);
+    let (event, rsvp) = an_invitation();
     let calendar = CalendarId::try_from("calendar").expect("valid calendar id");
     let window = Horizon::new(
         UtcDateTime::new(2026, 8, 1, 0, 0, 0).expect("valid start"),

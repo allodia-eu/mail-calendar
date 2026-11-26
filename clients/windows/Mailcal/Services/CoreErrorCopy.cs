@@ -8,6 +8,8 @@ internal static class CoreErrorCopy
     /// <summary>The words <see cref="CoreError"/> says a core error with.</summary>
     internal static CoreErrorWords Words() => new(
         L10n.SigninRefused(),
+        L10n.SigninPlaintextAddress(),
+        L10n.SigninLedToPlaintext(),
         L10n.AccountAlreadySetUp(),
         L10n.SigninDifferentAccount(),
         L10n.SigninStale(),
@@ -19,6 +21,10 @@ internal static class CoreErrorCopy
         L10n.SettingsAccountUseServerChangedContacts(),
         L10n.SettingsAccountUseNoneOnServerCalendar(),
         L10n.SettingsAccountUseNoneOnServerContacts(),
+        L10n.SettingsAccountUsePlaintextAddressCalendar(),
+        L10n.SettingsAccountUsePlaintextAddressContacts(),
+        L10n.SettingsAccountUseLedToPlaintextCalendar(),
+        L10n.SettingsAccountUseLedToPlaintextContacts(),
         L10n.AccountSigninBrowserFailed(),
         L10n.AccountSigninTimeout(),
         L10n.StatusConnectFailed);

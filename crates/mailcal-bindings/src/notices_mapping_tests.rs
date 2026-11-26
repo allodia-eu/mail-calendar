@@ -104,6 +104,32 @@ fn each_fact_maps_to_its_kind_severity_screens_and_action() {
         ),
         (
             ConnectivitySnapshot {
+                calendar_outages: outage(UseProblem::PlaintextAddress),
+                ..quiet()
+            },
+            NoticeKind::CalendarOutage {
+                problem: UseProblem::PlaintextAddress,
+            },
+            Degraded,
+            Calendar,
+            Some("a"),
+            Some(NoticeAction::OpenAccountSettings),
+        ),
+        (
+            ConnectivitySnapshot {
+                calendar_outages: outage(UseProblem::LedToPlaintext),
+                ..quiet()
+            },
+            NoticeKind::CalendarOutage {
+                problem: UseProblem::LedToPlaintext,
+            },
+            Degraded,
+            Calendar,
+            Some("a"),
+            Some(NoticeAction::Retry),
+        ),
+        (
+            ConnectivitySnapshot {
                 calendar_outages: outage(UseProblem::ServerChanged),
                 ..quiet()
             },

@@ -6,9 +6,9 @@
 //! A child of the drafted-reply send tests, for their `sent` and the rich-submit tests' fakes.
 //! Every address is `@test.local` or a fixture's `.test`; nothing is sent anywhere.
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
-use engine_api::{Keyword, MessageIdHeader};
+use engine_api::{MessageIdHeader, MessageMetadata};
 use mailcal_account::drafted_reply_keyword;
 use mailcal_composer::{Block, ComposerDocument, InlineContent, LeadText, Paragraph, TextRun};
 
@@ -56,15 +56,15 @@ fn save(composition: &CompositionId, text: &str) -> Intent {
     })
 }
 
-fn marked() -> BTreeSet<Keyword> {
-    BTreeSet::from([drafted_reply_keyword()])
+fn marked() -> MessageMetadata {
+    MessageMetadata::default().with_keyword(drafted_reply_keyword())
 }
 
-/// The keywords the last save asked for, and the `Message-ID` it stored.
-fn last_save(logs: &ProviderLogs) -> (BTreeSet<Keyword>, MessageIdHeader) {
-    let keywords = logs.draft_keywords.lock().unwrap().last().cloned().unwrap();
+/// The metadata the last save asked for, and the `Message-ID` it stored.
+fn last_save(logs: &ProviderLogs) -> (MessageMetadata, MessageIdHeader) {
+    let metadata = logs.draft_metadata.lock().unwrap().last().cloned().unwrap();
     let puts = logs.draft_puts.lock().unwrap();
-    (keywords, puts.last().unwrap().0.message_id.clone())
+    (metadata, puts.last().unwrap().0.message_id.clone())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -74,7 +74,11 @@ async fn a_drafted_reply_is_stored_with_the_keyword_on_every_save() {
     let reply = open_reply(&app, "reply").await;
 
     app.dispatch(save(&reply, "My own start.")).await;
-    assert_eq!(last_save(&logs).0, BTreeSet::new(), "nothing drafted yet");
+    assert_eq!(
+        last_save(&logs).0,
+        MessageMetadata::default(),
+        "nothing drafted yet"
+    );
 
     let serial = drafted_into(&app, &reply).await;
     app.dispatch(save(&reply, "Friday works.")).await;
@@ -158,7 +162,11 @@ async fn a_stored_draft_carrying_the_mark_resumes_as_a_drafted_reply() {
     app.dispatch(save(&resumed, "Friday works.")).await;
     assert_eq!(last_save(&logs).0, marked());
     let gone = sent(&Arc::clone(&app), &logs, &resumed).await;
-    assert!(gone.sent_copy_keywords.contains(&drafted_reply_keyword()));
+    assert!(
+        gone.sent_copy_metadata
+            .keywords
+            .contains(&drafted_reply_keyword())
+    );
     assert!(app.is_drafted_reply(&gone.message_id));
 }
 
@@ -175,7 +183,7 @@ async fn a_stored_draft_is_drafted_by_the_mark_or_by_this_devices_log() {
     let plain = resume(&app, "rich-plain", "plain").await;
     assert!(!app.composition_drafted(&plain));
     app.dispatch(save(&plain, "All mine.")).await;
-    assert_eq!(last_save(&logs).0, BTreeSet::new());
+    assert_eq!(last_save(&logs).0, MessageMetadata::default());
 
     app.note_drafted_reply(
         "acct-1",
@@ -195,7 +203,7 @@ async fn a_queued_save_of_a_drafted_reply_is_noted_on_this_device() {
     app.drafted_save_settled(&account, &queued, &marked(), None);
     assert!(app.is_drafted_reply(&queued));
     let plain = MessageIdHeader::new("plain@allodia.local").unwrap();
-    app.drafted_save_settled(&account, &plain, &BTreeSet::new(), None);
+    app.drafted_save_settled(&account, &plain, &MessageMetadata::default(), None);
     assert!(
         !app.is_drafted_reply(&plain),
         "nothing asked, nothing noted"

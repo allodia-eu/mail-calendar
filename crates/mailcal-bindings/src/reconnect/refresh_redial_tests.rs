@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// A server that hangs up on every connection, and how many it has taken.
-fn silent_server() -> (String, Arc<AtomicUsize>) {
+pub(super) fn silent_server() -> (String, Arc<AtomicUsize>) {
     let connections = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&connections);
     let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");

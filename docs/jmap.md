@@ -85,10 +85,18 @@ optional OAuth sign-in, and secure storage of the resulting config.
 7. **One provider per account.** Unlike IMAP/Graph (a provider per folder), a single JMAP
    provider covers the whole account: its mail scope is account-wide and each message
    carries its `mailboxIds` membership, so every folder syncs through it, and a folder
-   opened before the first pass reconnects that same account-wide provider. An **OAuth** account wraps that
-   provider in a `RefreshingJmapProvider`, which re-mints the access token and rebuilds the
-   delegate whenever it changes (~hourly). The engine still only ever sees a finished bearer
-   token, and needs no OAuth code of its own.
+   opened before the first pass reconnects that same account-wide provider. The provider is
+   built once over the account's credential source and asks it on every request
+   ([`mail-oauth.md`](mail-oauth.md) rule 9): an **OAuth** account's source is its shared
+   `GraphTokenSource`, and a stored secret is a fixed credential under the account's id. So an
+   OAuth provider is never rebuilt when its token changes, and the engine sees a finished bearer
+   token and needs no OAuth code of its own. It is connected again only after a request found
+   its connection dead, by the rule every other family follows (`should_reconnect` in
+   `mailcal-account`): after the machine slept, a request on a dead
+   keep-alive socket fails as `Retryable`, the provider is connected again (a new session `GET`
+   on a new client), and a read is made once more on it, while a write is made once and only
+   the next request goes out on the new provider. Each connect binds the same contact book and
+   shared mailbox.
 
 8. **A sign-in that dies can be re-run in place, from the account's own grant.** An expired or
    revoked grant raises the expired-sign-in prompt
@@ -219,11 +227,9 @@ The field logic (which secret gates Connect, blank server ⇒ null) lives in the
 These are **engine** capabilities the JMAP adapter does not implement yet, so the product
 cannot offer them for a JMAP account regardless of client:
 
-> **Mail actions are no longer among them.** At the pinned engine revision `provider-jmap`
-> implements `edit_mail`, and the core forwards it
-> (`crates/mailcal-account/src/jmap/refreshing_provider.rs`), so mark-read/flag, archive, delete
-> and move all work on a JMAP account, as they do on Microsoft 365, which the old wording also
-> named. This paragraph said otherwise for longer than it was true.
+> **Mail actions are not among them.** `provider-jmap` implements `edit_mail`, and the core
+> syncs through that provider itself, so mark-read/flag, archive, delete and move all work on a
+> JMAP account, as they do on Microsoft 365.
 
 - **No attachment download.** Received-file listing/saving needs the same on-demand fetch as
   bodies extended to attachment parts; not wired for JMAP yet.
@@ -233,8 +239,8 @@ cannot offer them for a JMAP account regardless of client:
   This is the one place the OAuth work leaves a thread hanging deliberately: a standing
   EventSource connection is the one place a JMAP access token would expire *mid-stream*, so
   whoever wires push must handle a watch `401` by reconnecting with backoff (never a hot loop).
-  The refresh machinery it would need already exists (`RefreshingJmapProvider`). Tracked as a
-  follow-up; do not wire push without that handling.
+  A reconnect asks the account's credential source, as every other request does, so it presents
+  a current token. Tracked as a follow-up; do not wire push without that handling.
 - **The manual form's blank server hides the sign-in button for some providers.** With the server
   box empty the core derives `https://<email-domain>` (rule 5), and a provider whose JMAP lives on
   a different host (Fastmail's is `api.fastmail.com`) 404s there, so the pre-flight says "no
