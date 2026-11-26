@@ -247,7 +247,9 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
-pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
+pub use nextcloud::{
+    NextcloudAddressStart, NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms,
+};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AiEndpointIntent, AiIntent, AllodiaIntent, BulkAction, EventIntent,
@@ -324,7 +326,8 @@ pub use setup::{
     server_address_parts, standard_port,
 };
 pub use setup_choices::{
-    DetectedSetup, SetupChoice, offered_setup, offers_setup_links, provider_setup_choices,
+    DetectedSetup, ManualSetupKind, SetupChoice, manual_setup_kinds, offered_setup,
+    offers_setup_links, provider_setup_choices,
 };
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,

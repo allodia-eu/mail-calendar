@@ -174,6 +174,52 @@ pub fn provider_setup_choices(kind: AccountKind, email: String) -> Vec<SetupChoi
     })
 }
 
+/// An account type the manual form offers, each with a form of its own.
+#[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ManualSetupKind {
+    /// Mail over IMAP and SMTP, signed in with a password or the server's own sign-in.
+    #[default]
+    Password,
+    /// A JMAP server.
+    Jmap,
+    /// A Microsoft account, signed in through the browser.
+    Microsoft,
+    /// A Google account, signed in through the browser.
+    Google,
+    /// A Nextcloud server's calendar and contacts, signed in through the browser from its address
+    /// alone ([`MailcalApp::begin_nextcloud_sign_in_at`]).
+    Nextcloud,
+    /// A calendar and address-book server without mail (CalDAV and CardDAV), with a password.
+    Dav,
+}
+
+/// The account types the manual form offers, in the order it lists them. Microsoft and Google
+/// need the build's OAuth registration, so a build given none leaves them out rather than offer a
+/// sign-in the provider refuses ([`oauth_routes`](crate::oauth_routes)).
+#[uniffi::export]
+#[must_use]
+pub fn manual_setup_kinds() -> Vec<ManualSetupKind> {
+    let routes = mailcal_account::OauthRoutes::of_this_build();
+    [
+        ManualSetupKind::Password,
+        ManualSetupKind::Jmap,
+        ManualSetupKind::Microsoft,
+        ManualSetupKind::Google,
+        ManualSetupKind::Nextcloud,
+        ManualSetupKind::Dav,
+    ]
+    .into_iter()
+    .filter(|kind| match kind {
+        ManualSetupKind::Microsoft => routes.microsoft,
+        ManualSetupKind::Google => routes.google,
+        ManualSetupKind::Password
+        | ManualSetupKind::Jmap
+        | ManualSetupKind::Nextcloud
+        | ManualSetupKind::Dav => true,
+    })
+    .collect()
+}
+
 /// Whether setup ends by offering to link an account of `kind` to another, for what it is not
 /// used for (the entry's `link_candidates`). A standards account is offered it, and so is a JMAP
 /// account, whose session often has no calendar: few JMAP servers offer one while JMAP Calendars

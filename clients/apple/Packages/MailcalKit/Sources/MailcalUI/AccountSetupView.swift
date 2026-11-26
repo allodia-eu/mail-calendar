@@ -14,20 +14,24 @@ enum SetupAccountKind: Hashable {
     case dav
     case microsoft
     case google
+    /// A Nextcloud server's calendar and contacts, signed in through the browser from its address.
+    case nextcloud
 
-    /// The kinds this build offers, in picker order. A browser sign-in needs the provider's
-    /// OAuth client registration, which is injected at build time, so a build given none drops
-    /// the route rather than showing a button that fails at the provider. The credential routes
-    /// are always there.
-    static var offered: [SetupAccountKind] {
-        let routes = oauthRoutes()
-        return [.imap, .jmap, .dav, .microsoft, .google].filter { kind in
-            switch kind {
-            case .microsoft: return routes.microsoft
-            case .google: return routes.google
-            case .imap, .jmap, .dav: return true
-            }
+    init(_ kind: ManualSetupKind) {
+        switch kind {
+        case .password: self = .imap
+        case .jmap: self = .jmap
+        case .microsoft: self = .microsoft
+        case .google: self = .google
+        case .nextcloud: self = .nextcloud
+        case .dav: self = .dav
         }
+    }
+
+    /// The kinds this build offers, in picker order: the core's, which leaves out a browser
+    /// sign-in the build has no registration for.
+    static var offered: [SetupAccountKind] {
+        manualSetupKinds().map(SetupAccountKind.init)
     }
 
     var label: String {
@@ -37,6 +41,7 @@ enum SetupAccountKind: Hashable {
         case .dav: return L10n.setup_account_type_dav()
         case .microsoft: return L10n.setup_account_type_microsoft()
         case .google: return L10n.setup_account_type_google()
+        case .nextcloud: return L10n.setup_account_type_nextcloud()
         }
     }
 
@@ -45,7 +50,7 @@ enum SetupAccountKind: Hashable {
         switch self {
         case .microsoft: .microsoft
         case .google: .google
-        case .imap, .jmap, .dav: nil
+        case .imap, .jmap, .dav, .nextcloud: nil
         }
     }
 }
@@ -79,6 +84,8 @@ struct AccountSetupView: View {
     /// sits beside it, where the user can see and change it.
     @State var servers = ManualServerPair()
     @State var jmapServer: String
+    /// The Nextcloud pane's server address.
+    @State var nextcloudServer = ""
     /// What a Microsoft or Google sign-in is asked for, as the core offers it for the address
     /// typed: a personal address is offered no colleagues.
     @State var providerUses = UseChoices(.none)
@@ -165,7 +172,7 @@ struct AccountSetupView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // A menu rather than segments: five kinds, one of them named at length, do not fit
+            // A menu rather than segments: six kinds, one of them named at length, do not fit
             // a phone's width side by side. Beside its label while both fit, beneath it once the
             // longest kind is chosen on a phone: squeezed, the label wraps into a tall column of
             // single letters and opens a gap above the form.
@@ -187,6 +194,7 @@ struct AccountSetupView: View {
             case .dav: davForm
             case .microsoft: microsoftForm
             case .google: googleForm
+            case .nextcloud: nextcloudForm
             }
 
             // The transport's own words, suppressed while the certificate panel below is up:
@@ -295,6 +303,9 @@ struct AccountSetupView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(!googleEarlyAccessConfirmed)
             }
+        case .nextcloud:
+            // The sign-in leads from the pane, where its wait and Cancel are drawn.
+            EmptyView()
         }
     }
 }

@@ -1,6 +1,7 @@
 // Signing in with Nextcloud against a real Nextcloud server (docs/nextcloud-sign-in.md rules 2, 5,
-// 6 and 7): from the manual calendar and contacts form, a calendar and contacts account named by its
-// profile address that signs in with Nextcloud; and a typed-password account at the same server,
+// 6 and 7): from the manual calendar and contacts form, and from the Nextcloud type's address alone,
+// a calendar and contacts account named by its profile address that signs in with Nextcloud; and a
+// typed-password account at the same server,
 // whose page offers to sign in with Nextcloud instead, switches, and then signs in again.
 //
 // WHY HERE. The core's half is the live suite's (live_nextcloud_sign_in.rs). What only the running
@@ -90,6 +91,26 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
     [NextcloudFixtureFact]
     public void RemovingTheSignedInAccountReturnsTheWindowToFirstRunSetup() =>
         Case(nameof(RemovingTheSignedInAccountReturnsTheWindowToFirstRunSetup), (_, flow) => flow.RemoveOnlyAccount(Address));
+
+    [NextcloudFixtureFact]
+    public void TheNextcloudTypeSignsInFromTheServersAddressAlone() =>
+        Case(nameof(TheNextcloudTypeSignsInFromTheServersAddressAlone), (app, flow) =>
+        {
+            flow.OpenManualSetup(Address, Filter.ById("NextcloudChoice"));
+            // The bare host: the core finds Nextcloud through its .well-known address.
+            app.Agent.SetText(Field(app, "NextcloudServer"), Fixture);
+            var before = NextcloudBrowser.NewestLoginToken();
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("NextcloudAddressSignInButton", "Button"))!);
+            NextcloudBrowser.GrantNext(Fixture, before, User, Password);
+            flow.CompleteSetupPrompts();
+            var dialog = flow.OpenAccount(Address);
+            Assert.True(SaysEventually(app, dialog, "settings_account_signs_in_nextcloud"),
+                "rule 2: the address alone makes an account that signs in with Nextcloud");
+        });
+
+    [NextcloudFixtureFact]
+    public void RemovingTheAccountTheAddressMadeReturnsTheWindowToFirstRunSetup() =>
+        Case(nameof(RemovingTheAccountTheAddressMadeReturnsTheWindowToFirstRunSetup), (_, flow) => flow.RemoveOnlyAccount(Address));
 
     [NextcloudFixtureFact]
     public void ATypedPasswordAccountConnectsBesideTheOffer() => Case(nameof(ATypedPasswordAccountConnectsBesideTheOffer), (app, flow) =>

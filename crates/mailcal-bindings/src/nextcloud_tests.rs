@@ -4,7 +4,7 @@
 
 use super::{NextcloudGrant, client_name, password_name, test_grant};
 use crate::{
-    NextcloudSignInPoll, Platform,
+    NextcloudAddressStart, NextcloudSignInPoll, Platform,
     nextcloud_mock::{boot, mock_nextcloud},
 };
 
@@ -192,4 +192,145 @@ fn a_grant_round_trips_with_every_field() {
     assert_eq!(login.server, "https://cloud.example.org");
     assert_eq!(login.user.as_deref(), Some("alice"));
     assert_eq!(login.address.as_deref(), Some("alice@example.org"));
+}
+
+#[test]
+fn a_server_named_as_nextcloud_is_asked_and_signed_in_at_from_its_address() {
+    // Only its address book's `.well-known` leads to Nextcloud.
+    let server = mock_nextcloud(vec![
+        (
+            "PROPFIND /.well-known/carddav ",
+            301,
+            "{base}/remote.php/dav/",
+        ),
+        ("PROPFIND /remote.php/dav/ ", 401, ""),
+        ("GET /status.php ", 200, STATUS),
+        ("POST /index.php/login/v2 ", 200, STARTED),
+    ]);
+    let (app, _) = boot("nextcloud-named", Vec::new());
+
+    let started = app.begin_nextcloud_sign_in_at(format!(" {} ", server.base));
+    let Ok(NextcloudAddressStart::Started { start }) = started else {
+        panic!("no sign-in started: {started:?}");
+    };
+    assert_eq!(
+        start.login_url,
+        format!("{}/login/v2/flow/login-token", server.base)
+    );
+    assert_eq!(
+        server.requests_to("PROPFIND /.well-known/caldav").len(),
+        1,
+        "the calendar's hop is asked first"
+    );
+    assert_eq!(server.requests_to("GET /status.php").len(), 1);
+}
+
+#[test]
+fn an_address_that_shows_no_php_is_never_asked_a_php_path() {
+    let stalwart = mock_nextcloud(vec![("GET /status.php ", 200, STATUS)]);
+    let (app, _) = boot("nextcloud-named-no-php", Vec::new());
+
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_at(stalwart.base.clone()),
+        Ok(NextcloudAddressStart::Unsure { .. })
+    ));
+    assert!(stalwart.requests_to("GET /status.php").is_empty());
+}
+
+#[test]
+fn an_address_that_shows_nothing_is_unsure_and_can_be_tried_anyway() {
+    let unsure = mock_nextcloud(vec![("POST /index.php/login/v2 ", 200, STARTED)]);
+    let (app, _) = boot("nextcloud-named-unsure", Vec::new());
+
+    let host = unsure.base.trim_start_matches("http://");
+    let host = host.split(':').next().unwrap().to_owned();
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_at(unsure.base.clone()),
+        Ok(NextcloudAddressStart::Unsure { host: asked }) if asked == host
+    ));
+    assert!(
+        unsure.requests_to("POST /index.php/login/v2").is_empty(),
+        "no sign-in starts before the person chooses to try"
+    );
+    let started = app.begin_nextcloud_sign_in_anyway(unsure.base.clone());
+    let Ok(NextcloudAddressStart::Started { start }) = started else {
+        panic!("no sign-in started: {started:?}");
+    };
+    assert_eq!(
+        start.login_url,
+        format!("{}/login/v2/flow/login-token", unsure.base)
+    );
+
+    // A page's URL copied from the browser is tried at its host once the page starts nothing.
+    let page = format!("{}/apps/dashboard/", unsure.base);
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_anyway(page),
+        Ok(NextcloudAddressStart::Started { .. })
+    ));
+    let begun = unsure.requests_to("POST ");
+    assert!(
+        begun
+            .iter()
+            .any(|request| request.starts_with("POST /apps/dashboard/index.php/login/v2 ")),
+        "{begun:?}"
+    );
+
+    // Tried anyway, a server that starts no sign-in is not Nextcloud.
+    let silent = mock_nextcloud(vec![]);
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_anyway(silent.base.clone()),
+        Ok(NextcloudAddressStart::NotNextcloud { .. })
+    ));
+}
+
+#[test]
+fn an_address_whose_server_names_another_product_is_not_nextcloud() {
+    const OWNCLOUD: &str = r#"{"installed":"true","maintenance":"false","productname":"ownCloud"}"#;
+    let owncloud = mock_nextcloud(vec![("GET /status.php ", 200, OWNCLOUD)]);
+    let (app, _) = boot("nextcloud-named-other", Vec::new());
+
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_at(format!("{}/remote.php/dav/", owncloud.base)),
+        Ok(NextcloudAddressStart::NotNextcloud { .. })
+    ));
+    assert!(owncloud.requests_to("POST /index.php/login/v2").is_empty());
+}
+
+#[test]
+fn what_no_server_can_be_at_starts_nothing() {
+    let (app, _) = boot("nextcloud-named-no-address", Vec::new());
+    for typed in [
+        "",
+        "  ",
+        "http://cloud.example.org",
+        "https://alice:pw@cloud.example.org",
+    ] {
+        assert!(
+            matches!(
+                app.begin_nextcloud_sign_in_at(typed.to_owned()),
+                Ok(NextcloudAddressStart::NotAnAddress)
+            ),
+            "{typed:?}"
+        );
+        assert!(
+            matches!(
+                app.begin_nextcloud_sign_in_anyway(typed.to_owned()),
+                Ok(NextcloudAddressStart::NotAnAddress)
+            ),
+            "{typed:?}"
+        );
+    }
+}
+
+#[test]
+fn a_nextcloud_server_in_maintenance_says_so() {
+    const MAINTENANCE: &str = r#"{"installed":true,"maintenance":true,"productname":"Nextcloud"}"#;
+    let server = mock_nextcloud(vec![("GET /status.php ", 200, MAINTENANCE)]);
+    let (app, _) = boot("nextcloud-named-maintenance", Vec::new());
+
+    assert!(matches!(
+        app.begin_nextcloud_sign_in_at(format!("{}/remote.php/dav/", server.base)),
+        Ok(NextcloudAddressStart::Maintenance { .. })
+    ));
+    assert!(server.requests_to("POST /index.php/login/v2").is_empty());
 }

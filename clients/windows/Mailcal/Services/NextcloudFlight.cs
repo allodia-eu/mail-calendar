@@ -32,6 +32,10 @@ internal abstract record NextcloudFlightEnd
     /// <summary>The core refused to start, or to poll.</summary>
     internal sealed record Failed(Exception Error) : NextcloudFlightEnd;
 
+    /// <summary>The address a person typed started no sign-in, for the reason the core
+    /// <paramref name="Answer"/>ed: no browser opened.</summary>
+    internal sealed record NotStarted(NextcloudAddressStart Answer) : NextcloudFlightEnd;
+
     /// <summary>The attempt was retired. A grant that arrived after that has been withdrawn.</summary>
     internal sealed record Cancelled : NextcloudFlightEnd;
 }

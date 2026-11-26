@@ -1,8 +1,9 @@
 // A loopback stand-in for a Nextcloud server, for the suites about signing in with Nextcloud
 // (docs/nextcloud-sign-in.md): it answers status.php as Nextcloud, starts Login Flow v2, answers the
 // poll as waiting or with a grant, refuses every DAV request, and records each request line, so a
-// case can say what the app asked and when. The shapes are the core's own stand-in's
-// (crates/mailcal-bindings/src/nextcloud_mock.rs).
+// case can say what the app asked and when. Its `.well-known` addresses are not found, as on a
+// Nextcloud server with calendars and contacts switched off, so its bare root shows nothing either
+// way. The shapes are the core's own stand-in's (crates/mailcal-bindings/src/nextcloud_mock.rs).
 //
 // Plain TCP rather than HttpListener, which needs a URL reservation to bind 127.0.0.1 without
 // elevation.
@@ -53,6 +54,7 @@ internal sealed class NextcloudStandIn : IDisposable
     internal const string Begin = "POST /index.php/login/v2 ";
     internal const string Poll = "POST /login/v2/poll ";
     internal const string Withdraw = "DELETE /ocs/v2.php/core/apppassword ";
+    internal const string WellKnown = "PROPFIND /.well-known/";
 
     private async Task ServeAsync()
     {
@@ -106,7 +108,7 @@ internal sealed class NextcloudStandIn : IDisposable
                 ? (200, """{"installed":true,"maintenance":false,"version":"35.0.2.2","productname":"Nextcloud"}""")
                 : (404, "");
         }
-        if (!Nextcloud)
+        if (!Nextcloud || line.StartsWith(WellKnown, StringComparison.Ordinal))
         {
             return (404, "");
         }

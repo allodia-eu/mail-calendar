@@ -9,6 +9,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.NextcloudAddressStart
+import uniffi.mailcal_bindings.NextcloudSignInStart
 import uniffi.mailcal_bindings.SetupRecommendation
 
 private const val CLOUD = "https://cloud.example.org/remote.php/dav"
@@ -71,6 +73,47 @@ class NextcloudSetupTest {
         val jmap = SetupRecommendation.Jmap("alice@example.org", "https://jmap.example.org", true, "https://example.org")
         val found = FoundBeside.of("alice@example.org", detected(jmap).copy(caldavUrl = CLOUD, nextcloudSignIn = true))
         assertTrue(found?.offerFor("alice@jmap")?.nextcloud == true)
+    }
+
+    @Test
+    fun thePanesCheckLastsUntilTheBrowserOpensAndUnsureFollowsTheField() {
+        val state = SetupNextcloud()
+        val attempt = state.begin(checking = true)
+        assertTrue(state.checking)
+        state.opened(attempt)
+        assertFalse("the browser holds it now", state.checking)
+        val unsureAttempt = state.begin(checking = true)
+        state.ended(unsureAttempt)
+        assertFalse(state.checking)
+        state.unsure(unsureAttempt, " cloud.example.org ", "cloud.example.org")
+        assertEquals("cloud.example.org", state.unsureFor("cloud.example.org "))
+        assertNull("another address is not offered", state.unsureFor("other.example.org"))
+        state.begin()
+        assertNull("trying it answers the offer", state.unsureFor("cloud.example.org"))
+    }
+
+    @Test
+    fun anUnsureAnswerForAReplacedAttemptOffersNothingAndLeavingClearsIt() {
+        val state = SetupNextcloud()
+        val stale = state.begin(checking = true)
+        state.begin()
+        state.unsure(stale, "cloud.example.org", "cloud.example.org")
+        assertNull(state.unsureFor("cloud.example.org"))
+        val current = state.begin(checking = true)
+        state.unsure(current, "cloud.example.org", "cloud.example.org")
+        state.leave()
+        assertNull(state.unsureFor("cloud.example.org"))
+        assertFalse(state.checking)
+    }
+
+    @Test
+    fun onlyAStartedAnswerFliesAndEveryOtherIsThrownAsItsRefusal() {
+        val refused = runCatching { nextcloudAddressStarted(NextcloudAddressStart.Unsure("cloud.example.org")) }
+            .exceptionOrNull()
+        assertEquals(NextcloudAddressStart.Unsure("cloud.example.org"), (refused as NextcloudAddressRefused).answer)
+        val start = NextcloudSignInStart(loginUrl = "https://cloud.example.org/login/v2/flow", pending = "p")
+        assertEquals(start, nextcloudAddressStarted(NextcloudAddressStart.Started(start)))
+        assertEquals(listOf(AccountCapability.CALENDAR, AccountCapability.CONTACTS), NEXTCLOUD_USES)
     }
 
     @Test

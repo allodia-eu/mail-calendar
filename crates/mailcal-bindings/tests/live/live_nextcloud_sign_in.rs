@@ -22,18 +22,26 @@ use mailcal_bindings::{AccountCapability, MailcalApp, NextcloudSignInPoll};
 
 use crate::live_oauth::{self, RecordingStore};
 
-fn fixture() -> Option<(String, String, String)> {
+/// One sign-in at a time: the server refuses a second login as the same user while one is
+/// under way in its pages.
+static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The fixture's address, user and password, held for this test alone.
+fn fixture() -> Option<(String, String, String, std::sync::MutexGuard<'static, ()>)> {
     let addr = std::env::var("NEXTCLOUD_HTTP_ADDR").ok()?;
     Some((
         format!("http://{addr}"),
         std::env::var("NEXTCLOUD_USER").unwrap_or_else(|_| "alice".to_owned()),
         std::env::var("NEXTCLOUD_PASS").unwrap_or_else(|_| "nextcloud-alice-pw".to_owned()),
+        ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
     ))
 }
 
 #[test]
 fn a_nextcloud_sign_in_connects_signs_in_again_and_leaves_with_the_account() {
-    let Some((base, user, password)) = fixture() else {
+    let Some((base, user, password, _one_at_a_time)) = fixture() else {
         eprintln!("skipping the Nextcloud sign-in: NEXTCLOUD_HTTP_ADDR unset");
         return;
     };
@@ -76,6 +84,34 @@ fn a_nextcloud_sign_in_connects_signs_in_again_and_leaves_with_the_account() {
     eventually_refused(
         &base,
         &second,
+        "the removed account's password is withdrawn",
+    );
+}
+
+#[test]
+fn a_nextcloud_sign_in_from_the_server_s_address_alone_connects() {
+    let Some((base, user, password, _one_at_a_time)) = fixture() else {
+        eprintln!("skipping the Nextcloud sign-in: NEXTCLOUD_HTTP_ADDR unset");
+        return;
+    };
+    let store = RecordingStore::default();
+    let (_dir, app) = live_oauth::app("nextcloud-address", store.clone());
+    let started = app.begin_nextcloud_sign_in_at(format!("{base}/")).unwrap();
+    let mailcal_bindings::NextcloudAddressStart::Started { start } = started else {
+        panic!("no sign-in started: {started:?}");
+    };
+    let grant = signed_in(&app, &start, &user, &password);
+    let both = vec![AccountCapability::Calendar, AccountCapability::Contacts];
+    let row = app
+        .add_nextcloud_account(grant, both)
+        .expect("the account connects");
+    assert_eq!(row.email, "alice@test.local");
+    let credentials = stored_password(&store, &password);
+    assert_eq!(dav_status(&base, &credentials), 207);
+    app.remove_account(row.id).unwrap();
+    eventually_refused(
+        &base,
+        &credentials,
         "the removed account's password is withdrawn",
     );
 }

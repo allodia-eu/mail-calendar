@@ -150,6 +150,7 @@ mod setup_manual_tests;
 mod setup_microsoft;
 mod setup_model;
 mod setup_nextcloud;
+mod setup_nextcloud_pane;
 mod setup_onboarding;
 #[cfg(test)]
 mod setup_onboarding_tests;

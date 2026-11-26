@@ -35,13 +35,9 @@ public sealed partial class AccountSetupView : UserControl
     public AccountSetupView()
     {
         this.InitializeComponent();
-        // A browser sign-in needs the provider's OAuth client registration, which is injected at
-        // build time, so a build given none drops the choice rather than showing one that fails at
-        // the provider. Detection never routes to a missing one either, so the section behind a
-        // hidden choice is unreachable.
-        var routes = MailcalBindingsMethods.OauthRoutes();
-        MicrosoftChoice.Visibility = routes.Microsoft ? Visibility.Visible : Visibility.Collapsed;
-        GoogleChoice.Visibility = routes.Google ? Visibility.Visible : Visibility.Collapsed;
+        // Which account types the manual form offers is the core's: a build given no OAuth client
+        // registration for a provider has no choice for it.
+        ArrangeAccountTypes();
         // The panel below is built in code, so its colours are resolved once rather than tracked by
         // the framework; an appearance change has to rebuild it (ThemePalette).
         ActualThemeChanged += (_, _) => RenderOnboarding();
@@ -71,6 +67,7 @@ public sealed partial class AccountSetupView : UserControl
                 UpdateCanConnect();
                 UpdateGoogleSignInEnabled();
                 UpdateNextcloud();
+                UpdateNextcloudAddress();
             }
             // A connect refused for a certificate is answered on this form, so the panel is
             // drawn when one arrives and taken away when the next attempt clears it
@@ -302,6 +299,7 @@ public sealed partial class AccountSetupView : UserControl
         : MicrosoftChoice?.IsChecked == true ? DetectTab.Microsoft
         : GoogleChoice?.IsChecked == true ? DetectTab.Google
         : DavChoice?.IsChecked == true ? DetectTab.Dav
+        : NextcloudChoice?.IsChecked == true ? DetectTab.Nextcloud
         : DetectTab.Imap;
 
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
@@ -349,17 +347,19 @@ public sealed partial class AccountSetupView : UserControl
         ShowRefusedCertificate();
         var google = GoogleChoice.IsChecked == true;
         var dav = DavChoice.IsChecked == true;
-        var imap = !jmap && !microsoft && !google && !dav;
+        var nextcloud = NextcloudChoice.IsChecked == true;
+        var imap = !jmap && !microsoft && !google && !dav && !nextcloud;
         ImapSection.Visibility = imap ? Visibility.Visible : Visibility.Collapsed;
         DavSection.Visibility = dav ? Visibility.Visible : Visibility.Collapsed;
+        NextcloudSection.Visibility = nextcloud ? Visibility.Visible : Visibility.Collapsed;
         ShowDavSection(detected: _detectedTab == DetectTab.Dav);
         RefreshUses(ActiveTab());
         JmapSection.Visibility = jmap ? Visibility.Visible : Visibility.Collapsed;
         MicrosoftSection.Visibility = microsoft ? Visibility.Visible : Visibility.Collapsed;
         GoogleSection.Visibility = google ? Visibility.Visible : Visibility.Collapsed;
-        // Connect is the IMAP/JMAP submit; the browser-flow providers (Microsoft, Google) use their
-        // own sign-in button instead.
-        ConnectButton.Visibility = microsoft || google ? Visibility.Collapsed : Visibility.Visible;
+        // Connect is the IMAP/JMAP submit; the browser-flow providers (Microsoft, Google, Nextcloud)
+        // use their own sign-in button instead.
+        ConnectButton.Visibility = microsoft || google || nextcloud ? Visibility.Collapsed : Visibility.Visible;
         MicrosoftButton.Visibility = microsoft ? Visibility.Visible : Visibility.Collapsed;
         GoogleButton.Visibility = google ? Visibility.Visible : Visibility.Collapsed;
         UpdateCanConnect();
@@ -368,6 +368,7 @@ public sealed partial class AccountSetupView : UserControl
         // server answers: until then the card shows nothing to act on (docs/mail-oauth.md rule 8).
         UpdateImapSignIn();
         UpdateNextcloud();
+        UpdateNextcloudAddress();
         // The JMAP sign-in button is its own gate (does this server even offer sign-in?), so
         // arriving on the tab, by detection or by picking it, is what starts that lookup.
         UpdateJmapSignIn();
@@ -460,6 +461,7 @@ public sealed partial class AccountSetupView : UserControl
         ResetJmapSignIn();
         ResetImapSignIn();
         ResetNextcloud();
+        ResetNextcloudAddress();
         GoogleEarlyAccessCheck.IsChecked = false;
         ConnectButton.IsEnabled = false;
     }

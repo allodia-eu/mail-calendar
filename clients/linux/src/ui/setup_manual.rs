@@ -10,6 +10,7 @@ use adw::prelude::*;
 use super::{
     AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_microsoft,
     setup_model::{AccountKind, ManualForm},
+    setup_nextcloud_pane,
     setup_pane::ConnectPane,
     setup_widgets::body,
 };
@@ -70,6 +71,10 @@ pub(super) fn fields(
         ),
         AccountKind::Google => (
             setup_google::manual_fields(content, window, form, error, required, sender),
+            None,
+        ),
+        AccountKind::Nextcloud => (
+            setup_nextcloud_pane::manual_fields(content, window, form, error, required, sender),
             None,
         ),
     };

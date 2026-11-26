@@ -35,11 +35,14 @@ enum NextcloudFlightEnd: Equatable {
     case failed(String)
     /// Retired: the person cancelled, closed the browser without granting, or left the surface.
     case cancelled
+    /// Nothing at the address typed showed whether it is Nextcloud. The pane says so itself and
+    /// offers the sign-in anyway.
+    case unsure(host: String)
 
     /// What a surface says about an end without a grant; `nil` for one that says nothing.
     var said: String? {
         switch self {
-        case .granted, .cancelled: nil
+        case .granted, .cancelled, .unsure: nil
         case .expired: L10n.account_signin_timeout()
         case let .failed(said): said
         }
@@ -51,6 +54,25 @@ enum NextcloudFlightEnd: Equatable {
         if case MailcalError.Connect(_) = error { return .failed(L10n.setup_imap_signin_failed()) }
         return .failed(coreMessage(error))
     }
+}
+
+/// An address typed as a Nextcloud server's at which no sign-in started, thrown out of a flight's
+/// start so the flight ends saying why.
+struct NextcloudAddressRefusal: Error, Equatable {
+    let end: NextcloudFlightEnd
+}
+
+/// The sign-in a typed address started, or the refusal that says why it started none.
+func nextcloudAddressStarted(_ answer: NextcloudAddressStart) throws -> NextcloudSignInStart {
+    let end: NextcloudFlightEnd
+    switch answer {
+    case let .started(start): return start
+    case let .unsure(host): end = .unsure(host: host)
+    case let .notNextcloud(host): end = .failed(L10n.setup_nextcloud_not_found(host: host))
+    case let .maintenance(host): end = .failed(L10n.setup_nextcloud_maintenance(host: host))
+    case .notAnAddress: end = .failed(L10n.setup_nextcloud_address_invalid())
+    }
+    throw NextcloudAddressRefusal(end: end)
 }
 
 /// What ends a pause between two polls.
@@ -134,22 +156,27 @@ func awaitNextcloudGrant(
     }
 }
 
-/// Flies one sign-in: `begin` is the surface's own start, run off the main actor. A grant that
-/// arrives once the calling task was cancelled is withdrawn here, and the flight ends
-/// `.cancelled`.
+/// Flies one sign-in: `begin` is the surface's own start, run off the main actor, and `started`
+/// is told once it has answered with a sign-in. A grant that arrives once the calling task was
+/// cancelled is withdrawn here, and the flight ends `.cancelled`.
 @MainActor
 func flyNextcloudSignIn(
     _ app: MailcalApp,
-    begin: @escaping @Sendable (MailcalApp) throws -> NextcloudSignInStart
+    begin: @escaping @Sendable (MailcalApp) throws -> NextcloudSignInStart,
+    started: () -> Void = {}
 ) async -> NextcloudFlightEnd {
     let start: NextcloudSignInStart
     do {
         start = try await Task.detached(priority: .userInitiated) { try begin(app) }.value
+    } catch let refusal as NextcloudAddressRefusal {
+        logBrowserSignIn("nextcloud", "the address typed started no sign-in")
+        return refusal.end
     } catch {
         logBrowserSignIn("nextcloud", "the sign-in did not start (\(coreMessage(error)))")
         return .failure(error)
     }
     if Task.isCancelled { return .cancelled }
+    started()
     let wake = NextcloudWake()
     let browser = NextcloudBrowser()
     guard browser.open(start.loginUrl, ended: { wake.fire($0) }) else {
@@ -187,6 +214,7 @@ private func flightLog(_ end: NextcloudFlightEnd) -> String {
     case .expired: "the sign-in was not finished in time"
     case .failed: "the sign-in ended without a grant"
     case .cancelled: "the sign-in was retired"
+    case .unsure: "the address typed showed nothing either way"
     }
 }
 

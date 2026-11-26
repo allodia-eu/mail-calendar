@@ -15,6 +15,8 @@ pub(crate) struct SetupNextcloud {
     asked: Option<String>,
     /// The grant the last completion could not make an account of, and the server it is for.
     grant: Option<(String, Grant)>,
+    /// The server is being asked whether it is Nextcloud; the browser opens once it has answered.
+    pub(in crate::ui) asking: bool,
 }
 
 impl SetupNextcloud {
@@ -22,6 +24,7 @@ impl SetupNextcloud {
         Self {
             asked: None,
             grant: None,
+            asking: false,
         }
     }
 
@@ -55,10 +58,35 @@ pub(in crate::ui) fn manual_server(form: &ManualForm) -> Option<&str> {
 }
 
 impl SetupState {
-    /// The browser holds a sign-in with Nextcloud.
-    pub(in crate::ui) fn nextcloud_signing_in(&mut self) {
+    /// A sign-in with Nextcloud starts: the server is first `asking` whether it is Nextcloud, when
+    /// nothing has said so yet, then the browser holds it. An offer to sign in anyway is answered
+    /// by it, whichever way it ends.
+    pub(in crate::ui) fn nextcloud_signing_in(&mut self, asking: bool) {
         self.phase = Phase::NextcloudSigningIn;
+        self.nextcloud.asking = asking;
+        if let Some(SetupForm::Manual(form)) = self.form.as_mut() {
+            form.nextcloud_unsure = None;
+        }
         self.clear_feedback();
+        self.bump();
+    }
+
+    /// The server started the sign-in and the browser is opening on it.
+    pub(in crate::ui) fn nextcloud_browser_opened(&mut self) {
+        if self.phase == Phase::NextcloudSigningIn && self.nextcloud.asking {
+            self.nextcloud.asking = false;
+            self.bump();
+        }
+    }
+
+    /// The server at `address` showed nothing either way: back to the Nextcloud pane, which offers
+    /// the sign-in anyway while it still holds that address.
+    pub(in crate::ui) fn nextcloud_unsure(&mut self, address: &str, host: String) {
+        self.phase = Phase::Form;
+        self.clear_feedback();
+        if let Some(SetupForm::Manual(form)) = self.form.as_mut() {
+            form.nextcloud_unsure = Some((address.to_owned(), host));
+        }
         self.bump();
     }
 
@@ -83,6 +111,17 @@ impl SetupState {
         let server = server.filter(|server| self.nextcloud.asked.as_ref() != Some(server))?;
         self.nextcloud.asked = Some(server.clone());
         Some(server)
+    }
+
+    /// Records what the manual Nextcloud pane holds, and answers the address to sign in at:
+    /// `None` when the form is no longer on screen.
+    pub(in crate::ui) fn adopt_manual_nextcloud(&mut self, typed: ManualForm) -> Option<String> {
+        if self.phase != Phase::Form || !matches!(self.form, Some(SetupForm::Manual(_))) {
+            return None;
+        }
+        let address = typed.nextcloud_server.clone();
+        self.form = Some(SetupForm::Manual(typed));
+        Some(address)
     }
 
     /// The server answered. A yes for the server the pane still names draws the offer above its

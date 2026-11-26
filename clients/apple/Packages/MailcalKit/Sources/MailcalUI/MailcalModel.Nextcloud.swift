@@ -30,6 +30,23 @@ extension MailboxModel {
             complete: { await self.addNextcloudAccount($0, uses: uses) })
     }
 
+    /// The manual form's sign-in at the address typed as the Nextcloud server's, for its calendar
+    /// and contacts: once the core has found Nextcloud there, or `anyway`, after it could not
+    /// tell.
+    func signInWithNextcloud(at address: String, anyway: Bool) {
+        setupError = nil
+        setupExistingAccount = nil
+        setupNextcloud.start(
+            app, key: address, checking: !anyway,
+            begin: { app in
+                try nextcloudAddressStarted(
+                    anyway
+                        ? app.beginNextcloudSignInAnyway(address: address)
+                        : app.beginNextcloudSignInAt(address: address))
+            },
+            complete: { await self.addNextcloudAccount($0, uses: [.calendar, .contacts]) })
+    }
+
     /// Adds the account `grant` signs in to. An account already set up for this person is offered
     /// the grant instead, beneath the refusal.
     private func addNextcloudAccount(

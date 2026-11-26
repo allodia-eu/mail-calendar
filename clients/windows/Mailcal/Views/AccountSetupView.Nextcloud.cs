@@ -106,7 +106,7 @@ public sealed partial class AccountSetupView
         }
         await model.SetupNextcloudSignInAsync(start, waiting =>
         {
-            _nextcloudWaiting = waiting;
+            _nextcloudWaiting = waiting != NextcloudWait.None;
             UpdateNextcloud();
         });
         UpdateNextcloud();

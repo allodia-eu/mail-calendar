@@ -35,30 +35,57 @@ struct NextcloudSignInState: Equatable {
         case dropped
     }
 
+    /// An address the core could not place, as it was typed, and the host it named.
+    struct Unsure: Equatable {
+        let asked: String
+        let host: String
+
+        /// The host to offer the sign-in anyway at, while the field holds the address asked.
+        func offer(_ typed: String) -> String? {
+            typed.trimmingCharacters(in: .whitespaces) == asked ? host : nil
+        }
+    }
+
     private(set) var attempts = SignInAttempts()
     private(set) var held: Held?
+    /// The last address checked showed nothing either way.
+    private(set) var unsure: Unsure?
+    /// The attempt whose server is being asked whether it is Nextcloud, before any browser.
+    private var checkingAttempt: Int?
     /// The core is putting the held grant on an account.
     private(set) var completing = false
     /// The surface was left while the core completed: the grant is withdrawn if it fails.
     private(set) var leftWhileCompleting = false
 
     var waiting: Bool { attempts.signingIn }
+    /// The server is being asked whether it is Nextcloud; the browser opens once it has answered.
+    var checking: Bool { checkingAttempt != nil && checkingAttempt == attempts.current }
 
     /// The grant kept for `key`, taken for another try; `nil` when none is kept for it, or one is
     /// being completed already.
     mutating func retry(_ key: String?) -> NextcloudGrant? {
         guard !completing, let held, key == nil || held.key == key else { return nil }
+        unsure = nil
         completing = true
         leftWhileCompleting = false
         return held.grant
     }
 
-    /// Starts the browser for a new attempt, superseding one in flight. A grant kept for anything
-    /// else is answered to be withdrawn: the person moved on from it.
-    mutating func begin() -> (attempt: Int, withdraw: NextcloudGrant?) {
+    /// Starts a new attempt, superseding one in flight, `checking` the server first when nothing
+    /// has said it is Nextcloud. A grant kept for anything else is answered to be withdrawn: the
+    /// person moved on from it.
+    mutating func begin(checking: Bool = false) -> (attempt: Int, withdraw: NextcloudGrant?) {
         let withdraw = held?.grant
         held = nil
-        return (attempts.begin(), withdraw)
+        unsure = nil
+        let attempt = attempts.begin()
+        checkingAttempt = checking ? attempt : nil
+        return (attempt, withdraw)
+    }
+
+    /// The server started `attempt`'s sign-in: the browser opens on it.
+    mutating func opened(_ attempt: Int) {
+        if checkingAttempt == attempt { checkingAttempt = nil }
     }
 
     mutating func landed(_ attempt: Int, key: String, _ end: NextcloudFlightEnd) -> Landing {
@@ -66,7 +93,10 @@ struct NextcloudSignInState: Equatable {
             if case let .granted(grant) = end { return .withdraw(grant) }
             return .dropped
         }
-        guard case let .granted(grant) = end else { return .ended(end) }
+        guard case let .granted(grant) = end else {
+            if case let .unsure(host) = end { unsure = Unsure(asked: key, host: host) }
+            return .ended(end)
+        }
         held = Held(key: key, grant: grant)
         completing = true
         leftWhileCompleting = false
@@ -96,6 +126,7 @@ struct NextcloudSignInState: Equatable {
     /// withdrawn only if that completion fails.
     mutating func leave() -> NextcloudGrant? {
         retire()
+        unsure = nil
         if completing {
             leftWhileCompleting = true
             return nil
@@ -116,13 +147,17 @@ final class NextcloudSignIn {
 
     var waiting: Bool { state.waiting }
     var completing: Bool { state.completing }
+    var checking: Bool { state.checking }
+    var unsure: NextcloudSignInState.Unsure? { state.unsure }
     var busy: Bool { waiting || completing }
 
     /// Signs in for `key`: with the grant kept for it when there is one, else through the
-    /// browser, `begin` starting the flight off the main actor. `complete` makes the account.
+    /// browser, `begin` starting the flight off the main actor, `checking` first whether the server
+    /// is Nextcloud. `complete` makes the account.
     func start(
         _ app: MailcalApp?,
         key: String,
+        checking: Bool = false,
         begin: @escaping @Sendable (MailcalApp) throws -> NextcloudSignInStart,
         complete: @escaping (NextcloudGrant) async -> NextcloudCompleted
     ) {
@@ -133,10 +168,10 @@ final class NextcloudSignIn {
             return
         }
         task?.cancel()
-        let (attempt, withdraw) = state.begin()
+        let (attempt, withdraw) = state.begin(checking: checking)
         if let withdraw { app.abandonNextcloudSignIn(grant: withdraw.value) }
         task = Task {
-            let end = await flyNextcloudSignIn(app, begin: begin)
+            let end = await flyNextcloudSignIn(app, begin: begin) { state.opened(attempt) }
             switch state.landed(attempt, key: key, end) {
             case let .complete(grant):
                 await finish(app, grant, complete)

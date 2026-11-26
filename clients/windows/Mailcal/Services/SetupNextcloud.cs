@@ -6,8 +6,30 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
-/// <summary>Where a press signs in, and what the account it makes is used for.</summary>
-internal sealed record NextcloudStart(string Server, AccountCapability[] Uses);
+/// <summary>How the core is asked to start a sign-in.</summary>
+internal enum NextcloudBegin
+{
+    /// <summary>At a server already known to be Nextcloud: detection, or the form, asked it.</summary>
+    Known,
+    /// <summary>At an address typed on the Nextcloud pane, which the core asks first.</summary>
+    Asked,
+    /// <summary>At such an address the core could not tell was Nextcloud, without asking.</summary>
+    Anyway,
+}
+
+/// <summary>What the setup form says while a sign-in it started is out.</summary>
+internal enum NextcloudWait
+{
+    None,
+    /// <summary>The core is asking the address whether it is Nextcloud.</summary>
+    Checking,
+    /// <summary>The browser holds the sign-in.</summary>
+    Browser,
+}
+
+/// <summary>Where a press signs in, how the core starts it, and what the account it makes is used
+/// for.</summary>
+internal sealed record NextcloudStart(string Server, AccountCapability[] Uses, NextcloudBegin Begin = NextcloudBegin.Known);
 
 /// <summary>
 /// The manual calendar and contacts form's question to its server: asked once per server, when a

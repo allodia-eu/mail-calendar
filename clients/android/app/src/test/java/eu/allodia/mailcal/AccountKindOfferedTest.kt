@@ -2,54 +2,50 @@ package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import uniffi.mailcal_bindings.OAuthRoutes
+import uniffi.mailcal_bindings.ManualSetupKind
 
-// Which account types the setup picker shows. A browser sign-in needs the provider's OAuth client
-// registration, which is injected into the core at build time (BUILDING.md), so this is a property
-// of the binary rather than of the address being added, and a build given none must drop the route
-// instead of showing a button that fails at the provider.
-//
-// The decision is a pure function of what the core reported precisely so it can be asserted here:
+// Which account types the setup picker shows, and in which order: the core's
+// (`manual_setup_kinds`), which already leaves out a browser sign-in this build carries no
+// registration for. The mapping is a pure function of the core's list so it can be asserted here:
 // the JVM suite never loads the cdylib, so a form that asked the core itself could not be rendered
 // in a test at all.
 class AccountKindOfferedTest {
-    private fun routes(google: Boolean, microsoft: Boolean) = OAuthRoutes(
-        google = google,
-        googleRedirectUri = null,
-        microsoft = microsoft,
-    )
-
     @Test
-    fun a_build_with_both_registrations_offers_all_five() {
+    fun the_picker_offers_the_core_s_kinds_in_the_core_s_order() {
         assertEquals(
             listOf(
                 AccountKind.PASSWORD,
                 AccountKind.JMAP,
-                AccountKind.DAV,
                 AccountKind.MICROSOFT,
                 AccountKind.GOOGLE,
+                AccountKind.NEXTCLOUD,
+                AccountKind.DAV,
             ),
-            AccountKind.offered(routes(google = true, microsoft = true)),
+            AccountKind.of(
+                listOf(
+                    ManualSetupKind.PASSWORD,
+                    ManualSetupKind.JMAP,
+                    ManualSetupKind.MICROSOFT,
+                    ManualSetupKind.GOOGLE,
+                    ManualSetupKind.NEXTCLOUD,
+                    ManualSetupKind.DAV,
+                ),
+            ),
         )
     }
 
     @Test
-    fun a_build_with_neither_still_offers_the_three_credential_routes() {
+    fun a_kind_the_core_leaves_out_is_not_offered() {
         assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV),
-            AccountKind.offered(routes(google = false, microsoft = false)),
+            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.NEXTCLOUD, AccountKind.DAV),
+            AccountKind.of(
+                listOf(ManualSetupKind.PASSWORD, ManualSetupKind.JMAP, ManualSetupKind.NEXTCLOUD, ManualSetupKind.DAV),
+            ),
         )
     }
 
     @Test
-    fun each_registration_drops_only_its_own_route() {
-        assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV, AccountKind.MICROSOFT),
-            AccountKind.offered(routes(google = false, microsoft = true)),
-        )
-        assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV, AccountKind.GOOGLE),
-            AccountKind.offered(routes(google = true, microsoft = false)),
-        )
+    fun every_kind_the_core_can_name_is_one_the_form_draws() {
+        assertEquals(AccountKind.entries, AccountKind.of(ManualSetupKind.entries))
     }
 }

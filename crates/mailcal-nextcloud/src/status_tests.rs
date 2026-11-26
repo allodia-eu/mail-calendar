@@ -26,6 +26,31 @@ fn every_other_answer_is_not_nextcloud() {
     }
 }
 
+#[test]
+fn a_document_says_nextcloud_maintenance_another_product_or_nothing() {
+    use super::{Status, status_of_body};
+    assert_eq!(status_of_body(NEXTCLOUD.as_bytes()), Status::Nextcloud);
+    for body in [
+        r#"{"installed":"true","maintenance":"false","productname":"ownCloud"}"#,
+        r#"{"installed":true,"maintenance":false,"productname":"Infinite Scale"}"#,
+        r#"{"installed":false,"maintenance":false,"productname":"Nextcloud"}"#,
+    ] {
+        assert_eq!(status_of_body(body.as_bytes()), Status::Other, "{body}");
+    }
+    assert_eq!(
+        status_of_body(br#"{"installed":true,"maintenance":true,"productname":"Nextcloud"}"#),
+        Status::Maintenance
+    );
+    for body in [
+        r#"{"installed":true,"maintenance":false}"#,
+        "<html><body><h1>404 Not Found</h1></body></html>",
+        "[]",
+        "",
+    ] {
+        assert_eq!(status_of_body(body.as_bytes()), Status::Unknown, "{body}");
+    }
+}
+
 #[tokio::test]
 async fn a_server_is_asked_at_its_root() {
     let server = test_server::serve(vec![test_server::json(200, NEXTCLOUD)]);

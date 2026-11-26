@@ -10,7 +10,7 @@
 
 use std::time::SystemTime;
 
-use mailcal_nextcloud::{AppCredentials, NextcloudError, PendingFlow, Poll, Root};
+use mailcal_nextcloud::{AppCredentials, Named, NextcloudError, PendingFlow, Poll, Root};
 use serde::{Deserialize, Serialize};
 
 use crate::{MailcalApp, MailcalError, Platform};
@@ -41,6 +41,27 @@ pub enum NextcloudSignInPoll {
         /// Opaque; hand it back unchanged.
         grant: String,
     },
+}
+
+/// What starting a sign-in at an address a person typed as their Nextcloud server's came to.
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum NextcloudAddressStart {
+    /// The server started a sign-in, which goes on as any other does.
+    Started { start: NextcloudSignInStart },
+    /// Nothing at `host` showed whether it is Nextcloud: its `.well-known` addresses lead to no
+    /// PHP endpoint, or its status could not be read, which a mistyped address shows and so can a
+    /// Nextcloud server with calendars and contacts switched off. The client says so and offers
+    /// the sign-in anyway ([`MailcalApp::begin_nextcloud_sign_in_anyway`]).
+    Unsure { host: String },
+    /// The Nextcloud server at `host` is in maintenance and runs no sign-in until it is over.
+    Maintenance { host: String },
+    /// The server at `host` is something else: its status names another product, or its
+    /// `.well-known` addresses lead to a DAV server that runs no PHP; or, tried anyway, it started
+    /// no sign-in.
+    NotNextcloud { host: String },
+    /// No Nextcloud server can be at what was typed: nothing, no host, plain HTTP to another
+    /// machine, or an address carrying a name or password.
+    NotAnAddress,
 }
 
 /// What a granted sign-in yields, round-tripped through the client.
@@ -111,6 +132,81 @@ impl MailcalApp {
             .root_for(&mailcal_account::normalize_caldav_base_url(&server_url))
             .ok_or_else(|| MailcalError::Config("not a Nextcloud server address".to_owned()))?;
         self.begin_at(&root)
+    }
+
+    /// Starts a Nextcloud sign-in at `address`, which the person typed as their Nextcloud
+    /// server's: a host name or any URL on it. The server is asked first, as rule 1 of
+    /// `docs/nextcloud-sign-in.md` allows, and only one that answers as Nextcloud is asked to
+    /// start a sign-in; one that shows nothing either way is [`NextcloudAddressStart::Unsure`],
+    /// and a browser opens for neither.
+    ///
+    /// **Blocking** (the server is located, asked and then asked to start); call it off the UI
+    /// thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Connect`] when a Nextcloud server answered but started no sign-in,
+    /// and [`MailcalError::Config`] when no client for the requests can be made.
+    pub fn begin_nextcloud_sign_in_at(
+        &self,
+        address: String,
+    ) -> Result<NextcloudAddressStart, MailcalError> {
+        let Some((url, typed)) = typed_address(&address) else {
+            return Ok(NextcloudAddressStart::NotAnAddress);
+        };
+        let client = setup_client()?;
+        let named = self
+            .runtime
+            .block_on(|| async { mailcal_nextcloud::named_nextcloud_root(&client, &url).await });
+        let host = typed.host().to_owned();
+        match named {
+            Named::Nextcloud(root) => self
+                .begin_at(&root)
+                .map(|start| NextcloudAddressStart::Started { start }),
+            Named::Maintenance => {
+                log::info!("nextcloud: the server is in maintenance");
+                Ok(NextcloudAddressStart::Maintenance { host })
+            }
+            Named::Other => {
+                log::info!("nextcloud: the address typed answered as something else");
+                Ok(NextcloudAddressStart::NotNextcloud { host })
+            }
+            Named::Unsure => {
+                log::info!("nextcloud: the address typed showed nothing either way");
+                Ok(NextcloudAddressStart::Unsure { host })
+            }
+        }
+    }
+
+    /// Starts a Nextcloud sign-in at the server `address` names without asking whether it is
+    /// Nextcloud: the person chose to try after [`NextcloudAddressStart::Unsure`]. An address
+    /// with a path is tried there and then at its host, since a URL copied from the browser names
+    /// a page rather than the installation. A server that starts none is
+    /// [`NextcloudAddressStart::NotNextcloud`].
+    ///
+    /// **Blocking** (a request, or two for an address with a path); call it off the UI thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] when no client for the request can be made.
+    pub fn begin_nextcloud_sign_in_anyway(
+        &self,
+        address: String,
+    ) -> Result<NextcloudAddressStart, MailcalError> {
+        let Some((url, typed)) = typed_address(&address) else {
+            return Ok(NextcloudAddressStart::NotAnAddress);
+        };
+        let host = host_root(&url).filter(|host| *host != typed);
+        for root in std::iter::once(typed.clone()).chain(host) {
+            match self.begin_at(&root) {
+                Ok(start) => return Ok(NextcloudAddressStart::Started { start }),
+                Err(MailcalError::Connect(_)) => {}
+                Err(other) => return Err(other),
+            }
+        }
+        Ok(NextcloudAddressStart::NotNextcloud {
+            host: typed.host().to_owned(),
+        })
     }
 
     /// Asks once whether the person has finished the sign-in `pending` started. On a grant, it
@@ -228,6 +324,27 @@ impl MailcalApp {
             }
         });
     }
+}
+
+/// The URL a person's typed Nextcloud address names, HTTPS when it names no scheme, and the server
+/// it is on; `None` for what no Nextcloud server can be at.
+fn typed_address(address: &str) -> Option<(String, Root)> {
+    let address = address.trim();
+    if address.is_empty() {
+        return None;
+    }
+    let url = mailcal_account::normalize_caldav_base_url(address);
+    let root = Root::of(&url)?;
+    Some((url, root))
+}
+
+/// The server at the root of `url`'s host, without its path.
+fn host_root(url: &str) -> Option<Root> {
+    let mut url = url::Url::parse(url).ok()?;
+    url.set_path("/");
+    url.set_query(None);
+    url.set_fragment(None);
+    Root::of(url.as_str())
 }
 
 /// The HTTP client a sign-in runs on: the trust setup has, with no certificate exceptions.

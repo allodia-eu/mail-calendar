@@ -1,5 +1,5 @@
 // The account types the manual setup form offers, and the picker that chooses one. A menu rather
-// than a row of segments: five types, one of them "Calendar and contacts (CalDAV/CardDAV)", do not
+// than a row of segments: six types, one of them "Calendar and contacts (CalDAV/CardDAV)", do not
 // fit across a phone. Split from AccountSetupScreen.kt to keep that file under the 500-line limit.
 package eu.allodia.mailcal
 
@@ -22,17 +22,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import uniffi.mailcal_bindings.OAuthRoutes
+import uniffi.mailcal_bindings.ManualSetupKind
 
-// The account kinds the setup form can offer (the two OAuth providers, Microsoft and Google, sit
-// together at the end); which of them this build shows is [AccountKind.offered].
+// The account kinds the setup form can offer; which of them this build shows, and in which order,
+// is the core's (`manual_setup_kinds`), read through [AccountKind.of].
 internal enum class AccountKind {
     PASSWORD,
     JMAP,
-    // A calendar and contacts server without mail (docs/accounts.md).
-    DAV,
     MICROSOFT,
     GOOGLE,
+    // A Nextcloud server's calendar and contacts, signed in to from its address alone
+    // (docs/nextcloud-sign-in.md rule 2).
+    NEXTCLOUD,
+    // A calendar and contacts server without mail (docs/accounts.md).
+    DAV,
     ;
 
     internal fun label(ctx: Context): String = when (this) {
@@ -41,21 +44,21 @@ internal enum class AccountKind {
         DAV -> L10n.setup_account_type_dav(ctx)
         MICROSOFT -> L10n.setup_account_type_microsoft(ctx)
         GOOGLE -> L10n.setup_account_type_google(ctx)
+        NEXTCLOUD -> L10n.setup_account_type_nextcloud(ctx)
     }
 
     internal companion object {
-        // The kinds a build offering [routes] shows, in picker order. A browser sign-in needs the
-        // provider's OAuth client registration, which is injected at build time, so a build given
-        // none drops the route rather than showing a button that fails at the provider. The two
-        // credential routes are always there.
-        //
-        // Takes the routes rather than asking the core for them, so this is a pure function the
-        // JVM suite can exercise, asking would load the cdylib, which no test here does.
-        internal fun offered(routes: OAuthRoutes): List<AccountKind> = entries.filter { kind ->
+        // The kinds the core offers, in its order. It leaves out a browser sign-in this build
+        // carries no registration for. Takes the list rather than asking the core, so the JVM
+        // suite, which never loads the cdylib, can exercise it.
+        internal fun of(kinds: List<ManualSetupKind>): List<AccountKind> = kinds.map { kind ->
             when (kind) {
-                MICROSOFT -> routes.microsoft
-                GOOGLE -> routes.google
-                PASSWORD, JMAP, DAV -> true
+                ManualSetupKind.PASSWORD -> PASSWORD
+                ManualSetupKind.JMAP -> JMAP
+                ManualSetupKind.MICROSOFT -> MICROSOFT
+                ManualSetupKind.GOOGLE -> GOOGLE
+                ManualSetupKind.NEXTCLOUD -> NEXTCLOUD
+                ManualSetupKind.DAV -> DAV
             }
         }
     }
