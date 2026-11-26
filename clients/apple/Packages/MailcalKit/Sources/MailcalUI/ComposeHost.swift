@@ -130,6 +130,7 @@ struct ComposeHost: View {
         ) { submission in
             submitted(model.submitComposition(submission))
         } cancel: { dismiss() }
+        .composerPage(model)
         #if os(iOS)
         .sheet(item: $remedySettings) { category in
             SettingsHubView(

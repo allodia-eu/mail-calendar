@@ -13,6 +13,7 @@
 //
 // Do not relax one of these without updating that doc (rule AND matrix) and every other platform.
 
+using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -42,12 +43,58 @@ internal sealed class EditorWebViewHost
     // Set once the bundle has loaded, so its hooks exist.
     private bool _loaded;
 
+    private MailboxModel? _model;
+
+    // The page the loaded document was last put on, so a Settings signal that moved something
+    // else does not name it again.
+    private MessageScheme? _namedPage;
+
+    // The script registered to run before each document this view loads, removed before the next
+    // load registers the state as it is then.
+    private string? _preload;
+
+    // Cancelled by Close. A registration still pending when the view closes may never complete,
+    // even when asked to cancel, and while it is awaited it holds this host, the view and whatever
+    // owns them, so a wait on one lets go of it when the view closes.
+    private readonly CancellationTokenSource _closing = new();
+
     /// <summary>Wraps <paramref name="view"/>; the gates are applied on the first load.</summary>
     internal EditorWebViewHost(WebView2 view)
     {
         _view = view;
         _view.ActualThemeChanged += (_, _) => _ = SyncSchemeAsync();
     }
+
+    /// <summary>
+    /// The model whose dark-messages preference, with the app's scheme, decides the page the message
+    /// is written on exactly as it decides a reading view's (docs/reading-dark-mode.md, "Writing in
+    /// a dark app"), and which stores the page the toolbar's sun or moon asks for. A host that
+    /// leaves it unset keeps the message on the editor's own light page. Set before the first load,
+    /// which turns the request channel on for the page's colours; the host announces them once the
+    /// page has loaded.
+    /// </summary>
+    internal MailboxModel? Model
+    {
+        get => _model;
+        set
+        {
+            if (_model is { } old)
+            {
+                old.PropertyChanged -= OnModelChanged;
+            }
+            _model = value;
+            if (value is not null)
+            {
+                value.PropertyChanged += OnModelChanged;
+            }
+        }
+    }
+
+    private bool AppDark => _view.ActualTheme == ElementTheme.Dark;
+
+    /// <summary>The page the message is written on, or null for a host that names none.</summary>
+    private MessageScheme? Page =>
+        _model is { } model ? MessageSchemes.For(AppDark, model.DarkMessageBackground) : null;
 
     /// <summary>
     /// Invoked once the bundle has finished loading, at which point its <c>window.*</c> hooks are
@@ -75,8 +122,51 @@ internal sealed class EditorWebViewHost
     internal async Task LoadAsync()
     {
         await EnsureAsync();
+        try
+        {
+            await InTreeAsync();
+            await PreloadAsync();
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            return;
+        }
         _expectingLoad = true;
         _view.CoreWebView2!.NavigateToString(Bundle());
+    }
+
+    // A host loads its editor before it puts the view in a window, and until then the view's
+    // ActualTheme is the default, light, rather than the app's.
+    private Task InTreeAsync()
+    {
+        if (_view.IsLoaded)
+        {
+            return Task.CompletedTask;
+        }
+        var inTree = new TaskCompletionSource();
+        void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            _view.Loaded -= OnLoaded;
+            inTree.TrySetResult();
+        }
+        _view.Loaded += OnLoaded;
+        _closing.Token.Register(() => inTree.TrySetCanceled(_closing.Token));
+        return inTree.Task;
+    }
+
+    // Hands the app's scheme and the page to the document before it runs, so the editor's first
+    // frame is drawn on them rather than on the light page the stylesheet starts on. WebView2 keeps
+    // a registration for every later document, so the one made for an earlier load goes first.
+    private async Task PreloadAsync()
+    {
+        var core = _view.CoreWebView2!;
+        if (_preload is { } previous)
+        {
+            core.RemoveScriptToExecuteOnDocumentCreated(previous);
+            _preload = null;
+        }
+        _preload = await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            ComposerPage.Preload(AppDark, Page, MailcalBindingsMethods.ComposerPagePreloadScript)).AsTask().WaitAsync(_closing.Token);
     }
 
     /// <summary>Runs <paramref name="script"/> in the editor document, discarding its result.</summary>
@@ -111,6 +201,9 @@ internal sealed class EditorWebViewHost
     internal void Close()
     {
         _loaded = false;
+        _closing.Cancel();
+        // The model is the app's and outlives this view.
+        Model = null;
         try
         {
             _view.Close();
@@ -127,21 +220,39 @@ internal sealed class EditorWebViewHost
     /// (<c>clients/composer/src/scheme.ts</c>).</summary>
     internal static string SchemeScript(bool dark) => $"window.setComposerScheme({Arg(dark ? "dark" : "light")})";
 
-    // Names the scheme from the element's ActualTheme, which carries an appearance chosen in the app.
-    // WebView2's own `prefers-color-scheme` follows the system's instead, so it is not consulted.
+    // Names the scheme from the element's ActualTheme, which carries an appearance chosen in the app,
+    // and the page the message is written on, which that scheme moves. WebView2's own
+    // `prefers-color-scheme` follows the system's instead, so it is not consulted.
     private async Task SyncSchemeAsync()
     {
         if (!_loaded || _view.CoreWebView2 is not { } core)
         {
             return;
         }
+        var page = Page;
+        var script = SchemeScript(AppDark);
+        if (page is { } scheme)
+        {
+            script += ";" + MailcalBindingsMethods.ComposerPageScript(scheme);
+        }
+        _namedPage = page;
         try
         {
-            await core.ExecuteScriptAsync(SchemeScript(_view.ActualTheme == ElementTheme.Dark));
+            await core.ExecuteScriptAsync(script);
         }
         catch (Exception ex)
         {
             Log.Warn($"editor: colour scheme ({ex.GetType().Name})");
+        }
+    }
+
+    // The dark-messages preference arrives with the core's Settings signal, from the reading view's
+    // toggle, Settings → Reading or this editor's own toolbar.
+    private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MailboxModel.DisplaySettingsVersion) && Page != _namedPage)
+        {
+            _ = SyncSchemeAsync();
         }
     }
 
@@ -161,8 +272,11 @@ internal sealed class EditorWebViewHost
         settings.IsScriptEnabled = true;
         settings.AreHostObjectsAllowed = false;
         settings.AreDevToolsEnabled = WebViewInspection.DevToolsEnabled;
-        settings.IsWebMessageEnabled = HostRequested is not null;
-        if (HostRequested is not null)
+        // A host that names a page answers the colours on it, so it listens even with no requests
+        // of its own (the signature editor).
+        var listens = HostRequested is not null || _model is not null;
+        settings.IsWebMessageEnabled = listens;
+        if (listens)
         {
             core.WebMessageReceived += OnWebMessageReceived;
         }
@@ -269,9 +383,32 @@ internal sealed class EditorWebViewHost
         // Every message, the ones the parser leaves out included: the reply-draft report is the
         // core's to read (MailcalApp.composer_reply_draft_report).
         Posted?.Invoke(message);
+        // The page's two are the core's: the colours it shows, and the sun or moon, whose Settings
+        // signal names the page back to every editor and reading view.
+        Func<string, bool>? choose = _model is { } model ? model.ComposerBackgroundChoice : null;
+        switch (ComposerPage.Route(message, MailcalBindingsMethods.ComposerColoursAnswerScript, choose, out var answer))
+        {
+            case EditorPost.Answered:
+                _ = AnswerAsync(sender, answer!);
+                return;
+            case EditorPost.Chosen:
+                return;
+        }
         if (MailcalBindingsMethods.ParseComposerHostRequest(message) is { } request)
         {
             HostRequested?.Invoke(request);
+        }
+    }
+
+    private static async Task AnswerAsync(CoreWebView2 sender, string answer)
+    {
+        try
+        {
+            await sender.ExecuteScriptAsync(answer);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"editor: page colours ({ex.GetType().Name})");
         }
     }
 

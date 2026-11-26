@@ -73,6 +73,9 @@ public sealed partial class ComposerView : UserControl
     {
         _model = model;
         _request = request;
+        // The message is written on the page a reading view would draw it on
+        // (docs/reading-dark-mode.md, "Writing in a dark app").
+        _editor.Model = model;
         // A forward, a stored draft and a share open the composer already holding files, and the
         // core holds them (ComposerView.Files.cs). Drawn here rather than in the loaded handler so
         // the tiles are there on the first render. Attach is drawn with them, so a composer the

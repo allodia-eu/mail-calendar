@@ -63,7 +63,17 @@ internal class ComposerHostChannel(
 // The link dialog a WebView is waiting on, if any, and the channel that fills it in.
 internal class ComposerLinkHost(onMessage: (String) -> Unit = {}) {
     var request by mutableStateOf<LinkDialogRequest?>(null)
-    val channel = ComposerHostChannel(onLink = { request = it }, onMessage = onMessage)
+
+    // The page's reader of every message (`answerComposerPage`), set once the editor's WebView
+    // exists.
+    var onPageMessage: (String) -> Unit = {}
+    val channel = ComposerHostChannel(
+        onLink = { request = it },
+        onMessage = { message ->
+            onMessage(message)
+            onPageMessage(message)
+        },
+    )
 }
 
 /** The channel's host; [onMessage] is told every message the editor posts. */

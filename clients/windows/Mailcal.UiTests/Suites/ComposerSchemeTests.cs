@@ -1,7 +1,9 @@
-// The composer's formatting toolbar is drawn in the app's light or dark, and the page under it stays
-// light either way (docs/settings.md, General). WebView2's own `prefers-color-scheme` follows the
-// desktop rather than the app, so the toolbar follows the app only because EditorWebView.cs names
-// the element's ActualTheme to the bundle on load and on every change.
+// The composer's formatting toolbar is drawn in the app's light or dark, and the page under it is the
+// one a reading view would draw the message on: light in a light app, dark in a dark one while dark
+// messages are on, as they are here (docs/reading-dark-mode.md, "Writing in a dark app";
+// ComposerDarkPageTests holds the preference's half). WebView2's own `prefers-color-scheme` follows
+// the desktop rather than the app, so both follow the app only because EditorWebView.cs names the
+// element's ActualTheme to the bundle on load and on every change.
 //
 // Colour is a pixel rule, so the editor is sampled off the screen. The launch is pinned to the
 // appearance this desktop is not in: a toolbar that followed the desktop would pass a run pinned to
@@ -25,7 +27,7 @@ public sealed class ComposerSchemeTests(ComposerSchemeApp showcase) : IClassFixt
     private const double Mid = 128;
 
     // "This is the light page": nothing in either scheme's chrome is this light but #fafafa, and the
-    // page is sampled where no toolbar is.
+    // page is sampled where no toolbar is. The dark page is #1e1e1e.
     private const double PageFloor = 200;
 
     private static string Scheme(bool dark) => dark ? "dark" : "light";
@@ -64,14 +66,15 @@ public sealed class ComposerSchemeTests(ComposerSchemeApp showcase) : IClassFixt
         var (toolbar, page) = (0d, 0d);
         // The page first. A web view that has not painted yet is black from edge to edge, which a
         // toolbar sampled on its own reads as dark: on a slow runner the editor had signalled its
-        // seed and drawn nothing at all.
+        // seed and drawn nothing at all. Light, the page is the evidence the view painted; dark, the
+        // light toolbar a light app would have drawn is the evidence the scheme reached it.
         App.Eventually(() =>
         {
             (toolbar, page) = Sample(app);
-            return page > PageFloor;
+            return dark ? page < Mid : page > PageFloor;
         }, TimeSpan.FromSeconds(30));
-        Assert.True(page > PageFloor,
-            $"the page sampled at {page} for 30 s; it stays light in either scheme (docs/settings.md), and an editor that never paints reads black");
+        Assert.True(dark ? page < Mid : page > PageFloor,
+            $"the page sampled at {page} for 30 s in a {Scheme(dark)} app; it is the page a reading view would draw the message on (docs/reading-dark-mode.md, rule 10)");
         App.Eventually(() =>
         {
             (toolbar, page) = Sample(app);
@@ -79,10 +82,9 @@ public sealed class ComposerSchemeTests(ComposerSchemeApp showcase) : IClassFixt
         }, TimeSpan.FromSeconds(5));
         Assert.True(toolbar < Mid == dark,
             $"the toolbar sampled at luminance {toolbar}, {Scheme(toolbar < Mid)}, and must be {Scheme(dark)}: {because}");
-        Assert.True(page > PageFloor,
-            $"the page sampled at {page} under a {Scheme(dark)} toolbar; the page stays light in either scheme (docs/settings.md)");
+        Assert.True(page < Mid == dark,
+            $"the page sampled at {page} under a {Scheme(dark)} toolbar; it follows the app's scheme with the toolbar (docs/reading-dark-mode.md, rule 10)");
     }
-
     /// <summary>Picks <paramref name="dark"/> in Settings → General and closes Settings, so nothing
     /// lies over the composer when it is sampled.</summary>
     private static void Pick(App app, bool dark)
@@ -95,14 +97,14 @@ public sealed class ComposerSchemeTests(ComposerSchemeApp showcase) : IClassFixt
     }
 
     [OfflineFact]
-    public void TheToolbarIsInTheAppsAppearanceNotTheDesktopsAndThePageStaysLight() =>
-        Case(nameof(TheToolbarIsInTheAppsAppearanceNotTheDesktopsAndThePageStaysLight), app =>
+    public void TheToolbarAndThePageAreInTheAppsAppearanceNotTheDesktops() =>
+        Case(nameof(TheToolbarAndThePageAreInTheAppsAppearanceNotTheDesktops), app =>
             AssertScheme(app, !DesktopDark,
                 $"the run is pinned to {Scheme(!DesktopDark)} on a {Scheme(DesktopDark)} desktop; matching the desktop means the editor was never told the app's scheme"));
 
     [OfflineFact]
-    public void PickingAnAppearanceRepaintsAnOpenComposersToolbarBothWays() =>
-        Case(nameof(PickingAnAppearanceRepaintsAnOpenComposersToolbarBothWays), app =>
+    public void PickingAnAppearanceRepaintsAnOpenComposersToolbarAndPageBothWays() =>
+        Case(nameof(PickingAnAppearanceRepaintsAnOpenComposersToolbarAndPageBothWays), app =>
         {
             AssertScheme(app, !DesktopDark, "the composer opened in the launch's appearance");
             Pick(app, DesktopDark);

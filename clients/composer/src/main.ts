@@ -87,8 +87,8 @@ const pageToggle = installPageToggle(
   () => toolbar.fit(),
 );
 // The app's scheme and the page a host handed this document before it ran
-// (`composer_page_preload_script`), so the first frame is drawn on them rather than on the light
-// page and the system's scheme the stylesheet starts on.
+// (`composer_page_preload_script`). The head's script has drawn both already (`preset.ts`); naming
+// them again here is what installs the page.
 const preset = window as Window & { composerScheme?: unknown; composerPage?: unknown };
 if (preset.composerScheme !== undefined) setScheme(doc.documentElement, preset.composerScheme);
 if (preset.composerPage !== undefined) page.set(preset.composerPage);

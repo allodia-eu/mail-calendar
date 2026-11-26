@@ -19,9 +19,10 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
     func makeCoordinator() -> HeaderHost { HeaderHost() }
 
     func makeUIView(context: Context) -> WKWebView {
+        // The scheme and the page first, so the load carries them from its first frame.
+        followScheme(context)
         let view = editor.mount()
         context.coordinator.install(in: view, header: hostedHeader(context.coordinator))
-        followScheme(context)
         return view
     }
 
@@ -38,7 +39,7 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
     }
 
     private func followScheme(_ context: Context) {
-        editor.host.setDark(context.environment.colorScheme == .dark)
+        editor.host.follow(context.environment)
     }
 
     /// The header as the scroll view hosts it: at the top of the frame it is given, its height

@@ -48,4 +48,11 @@ public sealed partial class MailboxModel
         Log.Info($"settings: set dark message background={dark}");
         DispatchPreference(new PreferenceIntent.SetDarkMessageBackground(dark));
     }
+
+    /// <summary>
+    /// Hands the core a message the shared editor posted, and answers whether it was the toolbar's
+    /// sun or moon, which sets the same preference as <see cref="SetDarkMessageBackground"/>. False
+    /// while no core is open.
+    /// </summary>
+    internal bool ComposerBackgroundChoice(string message) => _app?.ComposerBackgroundChoice(message) == true;
 }

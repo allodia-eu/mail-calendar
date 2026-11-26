@@ -1,6 +1,6 @@
-# Linux writes a message on the page it will be read on
+# A message is written on the page it will be read on
 
-Platforms: linux
+Platforms: macos, ios, windows, android, linux
 Bump: minor
 
 > In a dark app the composer and the signature editor draw the message on the reading view's dark

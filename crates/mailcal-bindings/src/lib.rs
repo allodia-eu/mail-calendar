@@ -219,11 +219,7 @@ pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_clipboard_html,
     composer_image_data_url, composer_image_data_url_from_bytes,
 };
-pub use composer_host::{
-    COMPOSER_HOST_CHANNEL, ComposerHostRequest, ComposerLinkAnswer, composer_host_channel,
-    composer_host_requests_script, composer_host_requests_with_history_script,
-    composer_link_address, composer_link_answer_script, parse_composer_host_request,
-};
+pub use composer_host::*;
 pub use composer_importance::{ComposerImportance, MessageImportance};
 pub use composer_layout::{ComposerScroller, composer_caret_scroll, composer_scroller};
 pub use composer_open::{

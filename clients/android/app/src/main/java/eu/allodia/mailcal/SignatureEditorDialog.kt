@@ -199,20 +199,27 @@ internal fun SignatureEditorDialog(
                     Box(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
                         val dark = LocalAppDark.current
                         val currentDark = rememberUpdatedState(dark)
+                        val page = LocalComposerPage.current
+                        val currentPage = rememberUpdatedState(page)
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
                             factory = { context ->
                                 WebView(context).apply {
+                                    drawNoCanvasOfItsOwn()
                                     installComposerHost(linkHost)
+                                    linkHost.onPageMessage = { message ->
+                                        answerComposerPage(message, currentPage.value)
+                                    }
                                     configureSignatureWebView(
                                         labelsJson = labelsJson,
                                         bodyHtml = initialBodyHtml.orEmpty(),
                                         placeholder = L10n.settings_signatures_placeholder(ctx),
                                         dark = { currentDark.value },
+                                        page = { currentPage.value },
                                     )
                                     loadDataWithBaseURL(
                                         "https://composer.local/",
-                                        html,
+                                        composerHtmlWithPreload(html, composerPreloadScript(dark, page)),
                                         "text/html",
                                         "utf-8",
                                         null,
@@ -220,7 +227,9 @@ internal fun SignatureEditorDialog(
                                     webView = this
                                 }
                             },
-                            update = { view -> view.evaluateJavascript(composerSchemeScript(dark), null) },
+                            update = { view ->
+                                view.evaluateJavascript(composerAppearanceScript(dark, page), null)
+                            },
                         )
                     }
                     ComposerLinkDialogHost(linkHost, webView)
@@ -235,6 +244,7 @@ private fun WebView.configureSignatureWebView(
     bodyHtml: String,
     placeholder: String,
     dark: () -> Boolean,
+    page: () -> ComposerPageHost?,
 ) {
     applyEditorSecuritySettings()
     webViewClient = object : EditorWebViewClient() {
@@ -247,7 +257,7 @@ private fun WebView.configureSignatureWebView(
             // one tappable line (see fillViewport in editor.html).
             view?.evaluateJavascript("window.useNativeComposerChrome()", null)
             view?.evaluateJavascript("window.setComposerLabels($labelsJson)", null)
-            view?.evaluateJavascript(composerSchemeScript(dark()), null)
+            view?.evaluateJavascript(composerAppearanceScript(dark(), page()), null)
             view?.announceComposerHost()
             view?.evaluateJavascript(
                 "window.setSignatureBody(${JSONObject.quote(bodyHtml)}, ${JSONObject.quote(placeholder)})",
