@@ -148,7 +148,11 @@ fn the_services_own_records_get_no_row_and_its_chats_are_an_ordinary_folder() {
         shape(&rows),
         vec![("INBOX", 0, None), ("Acme", 0, None), ("Chats", 0, None)]
     );
-    assert_eq!(rows[2].role, Some(FolderRole::Other), "named by the server, drawn as its own");
+    assert_eq!(
+        rows[2].role,
+        Some(FolderRole::Other),
+        "named by the server, drawn as its own"
+    );
 }
 
 #[test]
