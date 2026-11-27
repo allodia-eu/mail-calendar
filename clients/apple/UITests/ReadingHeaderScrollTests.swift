@@ -25,8 +25,8 @@ final class ReadingHeaderScrollTests: XCTestCase {
         let reply = Filter.button("Reply")
         try app.wait(reply, "no message was opened, so there is no reading view to scroll")
         // The recipients line, which every message in the dataset has and no other surface draws
-        // while a message is open.
-        let recipients = Filter.text("To:").role("AXStaticText")
+        // while a message is open. It opens the details, so it is a button reading "To: …".
+        let recipients = Filter.textLike("To:").role("AXButton")
         try app.wait(recipients, "the reading header drew no recipients line to follow")
 
         // ⚠️ **The header is on screen a good while before the scroll it rides exists.** It is a

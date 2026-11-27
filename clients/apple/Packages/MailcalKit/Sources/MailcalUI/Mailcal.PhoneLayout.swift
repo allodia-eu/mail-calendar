@@ -16,8 +16,9 @@ extension ContentView {
     var iPhoneLayout: some View {
         SidebarDrawer(
             isOpen: $sidebarOpen,
-            // Nothing pushed means nothing for the system back-swipe to do, so the edge is ours.
-            edgeSwipeEnabled: openedMessage == nil && openedContact == nil
+            // Nothing pushed on the tab in front means nothing for the system back-swipe to do, so
+            // the edge is ours. Another tab's open message or contact is not in the way.
+            edgeSwipeEnabled: phoneTabHasNothingPushed
         ) {
             sidebarList(showsCalendarAndContacts: false)
         } content: {
@@ -41,6 +42,14 @@ extension ContentView {
         .onChange(of: model.addingAccount) { _, opening in if opening { dismissSidebar() } }
     }
 
+    private var phoneTabHasNothingPushed: Bool {
+        switch model.destination {
+        case .mail: openedMessage == nil
+        case .calendar: true
+        case .contacts: openedContact == nil
+        }
+    }
+
     /// Which tab is showing. Mail is restored rather than re-selected, see `showMail()`.
     private var phoneTab: Binding<AppDestination> {
         Binding(
@@ -48,8 +57,8 @@ extension ContentView {
             set: { destination in
                 switch destination {
                 case .mail: showMail()
-                case .calendar: showCalendar()
-                case .contacts: showContacts()
+                case .calendar: showCalendar(asTab: true)
+                case .contacts: showContacts(asTab: true)
                 }
             }
         )
@@ -73,11 +82,10 @@ extension ContentView {
                             .accessibilityLabel(L10n.action_compose())
                     }
                 }
+                // The tab bar stays while a message is open: checking the calendar against a
+                // proposed time is one tap, and the tab keeps the message to come back to.
                 .navigationDestination(item: $openedMessage) { opened in
                     bannered(readingView(for: opened))
-                        // An open message is read, not navigated away from: the height goes to
-                        // the message, and Back returns to the list, where the tabs are.
-                        .toolbar(.hidden, for: .tabBar)
                 }
         }
     }

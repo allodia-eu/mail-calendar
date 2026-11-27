@@ -31,6 +31,12 @@ fn loaded_sender_uses_the_full_reading_header_and_loading_falls_back_to_the_row(
         attachments: Vec::new(),
         invitation: None,
         pending: false,
+        from_name: "Sender".to_owned(),
+        from_address: "sender@example.test".to_owned(),
+        to_people: Vec::new(),
+        cc_people: Vec::new(),
+        bcc_people: Vec::new(),
+        default_reply_all: false,
     };
 
     assert_eq!(

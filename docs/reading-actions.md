@@ -17,6 +17,18 @@ overflow: it is the end of the row on every platform, which is what makes it fin
 label. (Which of archive and delete comes first is each platform's own; only the overflow's place
 is fixed here.)
 
+**On a phone and a tablet the row is the navigation bar's trailing end**, because the bottom of the
+screen is the tab bar's, which stays while a message is open so the calendar is one tap away (a tab
+bar is for moving between sections, never for acting on one, and two bars of buttons stacked at the
+bottom read as one). The same actions, in three groups: archive and delete; the **default answer**
+with a chevron beside it holding the other answers; the overflow last of all. The default answer is
+**reply-all when it would reach someone a plain reply does not** (the account's own address never
+counting), else reply; the core decides it (`ReadingSnapshot.default_reply_all`) from the same two
+suggestions the composers prefill, so the default never claims more people than the reply-all
+composer then shows. Until the body arrives it is reply. The sun/moon is the overflow's first item
+there, a bar of glass having no room for a seventh button. A desktop keeps the row above the message,
+with every answer on it.
+
 In a dark app the **sun/moon toggle** sits immediately before archive and delete, an icon at every
 width like the overflow. It is a view of the message rather than an action on it, so it opens the
 trailing group instead of joining the replies, and it is absent in a light app
@@ -193,6 +205,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Touch: actions in the navigation bar, default answer from `default_reply_all`, tab bar kept | n/a | ✅ (`ReadingView.TouchActions.swift`) | n/a | ✗ | n/a |
 | Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ✅ | ✅ (iPad) | ✅ | — | ✅ |
 | Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |

@@ -266,3 +266,25 @@ fn flat_order_is_independent_of_the_supplied_order_when_dates_tie() {
         "got {forward:?}",
     );
 }
+
+#[test]
+fn a_flat_rows_preview_is_one_run_of_text() {
+    // A snippet keeps the body's own breaks; a row showing two lines of it must not spend the
+    // second on the gap after the greeting.
+    let mut greeting = message("m1", "Status", 0, None);
+    greeting.preview = Some("Hello Ada,\r\n\r\n  The status of\tyour app  ".to_owned());
+    let snapshot = build(
+        &[at("a", &greeting)],
+        &[],
+        &[],
+        vec![],
+        None,
+        None,
+        ViewMode::Flat,
+        ALL,
+    );
+    let SnapshotRow::Flat(row) = &snapshot.rows[0] else {
+        panic!("expected a flat row");
+    };
+    assert_eq!(row.preview, "Hello Ada, The status of your app");
+}

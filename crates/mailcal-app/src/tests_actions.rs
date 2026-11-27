@@ -1,13 +1,12 @@
 //! Message-action tests for [`super::App`]: action routing to the owning account on a
 //! provider-key collision, opening/reading a message body (sanitise, inline images,
-//! attachments, recipients), marking read, and reply/forward subject formatting. The body
-//! warm lives in `tests_warm.rs`; the mark-read-on-open + cold-open-retry behaviour lives in
-//! `tests_reading.rs`; the calendar write-action tests live in `tests_calendar_actions.rs`. The
-//! shared fixtures live in `tests_fakes.rs`.
+//! attachments; the recipients are in `tests_reading_header.rs`), marking read, and reply/forward
+//! subject formatting. The body warm lives in `tests_warm.rs`; the mark-read-on-open +
+//! cold-open-retry behaviour lives in `tests_reading.rs`; the calendar write-action tests live in
+//! `tests_calendar_actions.rs`. The shared fixtures live in `tests_fakes.rs`.
 
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
-use engine_api::EmailAddress;
 use engine_provider::MailEdit;
 use fakes::{
     FakeConnector, FakeProvider, account, app, app_with_connector, message, msg, open_folder,
@@ -243,38 +242,6 @@ async fn exporting_a_message_that_is_gone_reports_it() {
         !path.exists(),
         "nothing is written for a message we do not have"
     );
-}
-
-#[tokio::test]
-async fn open_message_surfaces_to_cc_and_bcc_recipients_formatted() {
-    // A stored message carrying To/Cc/Bcc; like the sender's own Sent copy, whose APPENDed
-    // bytes keep the Bcc header. Opening it surfaces every recipient in the reading snapshot,
-    // so the sender can see whom they Bcc'd.
-    let mut m = message("m1", "a", "Quarterly report");
-    m.envelope.to = vec![
-        EmailAddress::named("Bob Jones", "bob@remote.test"),
-        EmailAddress::new("team@remote.test"),
-    ];
-    m.envelope.cc = vec![EmailAddress::new("carol@remote.test")];
-    m.envelope.bcc = vec![EmailAddress::new("dave@remote.test")];
-
-    let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let app = app(
-        vec![account("acct-1", FakeProvider::with(vec![m]))],
-        &surfaces,
-    );
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::OpenMessage {
-        reader: ReaderId::Pane,
-        message: msg("acct-1", "m1"),
-    })
-    .await;
-
-    let reading = app.reading_view();
-    // Named addresses render as "Name <email>", bare ones as the address; comma-joined.
-    assert_eq!(reading.to, "Bob Jones <bob@remote.test>, team@remote.test");
-    assert_eq!(reading.cc, "carol@remote.test");
-    assert_eq!(reading.bcc, "dave@remote.test");
 }
 
 #[tokio::test]

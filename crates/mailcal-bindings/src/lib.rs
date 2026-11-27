@@ -258,8 +258,8 @@ pub use protocol::{
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
-    MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
-    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
+    MailPerson, MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow,
+    SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
         AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, QuoteSettings,
         QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind, SwipeDirection,

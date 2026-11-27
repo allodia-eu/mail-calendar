@@ -8,7 +8,7 @@ use engine_api::{
     AccountId, AttachmentPartId, EmailAddress, Message, MessageAttachment, Provider, SystemKeyword,
 };
 use mailcal_viewmodel::{
-    AttachmentRow, Avatar, ReadingSnapshot,
+    AttachmentRow, Avatar, MailPerson, ReadingSnapshot,
     avatar::{self},
     importance_banner,
 };
@@ -43,9 +43,10 @@ impl<P: Provider> App<P> {
         message: &MessageRef,
         trace: &mut OpenTrace,
     ) -> ReadingSnapshot {
-        let mut snapshot = self
-            .fetch_reading_traced(message.clone(), None, trace)
-            .await;
+        // Boxed, both here and in the retry below: the fetch carries the whole snapshot, and held
+        // inline twice it lifts every future that opens a message, which is every `dispatch`,
+        // past the size clippy allows.
+        let mut snapshot = Box::pin(self.fetch_reading_traced(message.clone(), None, trace)).await;
         // A cold open (e.g. tapped from a notification) can beat the account's mail provider,
         // which dials asynchronously a moment after boot: the body fetch then fails for lack of a
         // provider, not because the message is unavailable. Keep waiting and retry while the
@@ -60,9 +61,7 @@ impl<P: Provider> App<P> {
             tokio::time::sleep(OPEN_DIAL_POLL).await;
             waited += OPEN_DIAL_POLL;
             trace.lap = Instant::now();
-            snapshot = self
-                .fetch_reading_traced(message.clone(), None, trace)
-                .await;
+            snapshot = Box::pin(self.fetch_reading_traced(message.clone(), None, trace)).await;
         }
         snapshot
     }
@@ -276,6 +275,7 @@ impl<P: Provider> App<P> {
         // round-trip; `None` for ordinary mail and for anything the RSVP gate rejects.
         let invitation = self.invitation_card(&message, &original).await;
         trace.step("built the invitation card");
+        let default_reply = self.default_reply(&message, &original).await;
         ReadingSnapshot {
             key,
             // This snapshot IS the answer, so it never announces a wait; `pending` is only ever
@@ -301,6 +301,16 @@ impl<P: Provider> App<P> {
             to: format_addresses(&original.envelope.to),
             cc: format_addresses(&original.envelope.cc),
             bcc: format_addresses(&original.envelope.bcc),
+            sender: original
+                .envelope
+                .from
+                .first()
+                .map(person)
+                .unwrap_or_default(),
+            to_people: original.envelope.to.iter().map(person).collect(),
+            cc_people: original.envelope.cc.iter().map(person).collect(),
+            bcc_people: original.envelope.bcc.iter().map(person).collect(),
+            default_reply,
             html,
             plain: body.plain().map(str::to_owned),
             has_remote_images,
@@ -453,6 +463,19 @@ pub(crate) fn format_addresses(addresses: &[EmailAddress]) -> String {
         .map(format_address)
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// One address as a person: the display name trimmed, empty when blank, beside the address.
+fn person(address: &EmailAddress) -> MailPerson {
+    MailPerson {
+        name: address
+            .name
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_owned(),
+        address: address.email.clone(),
+    }
 }
 
 /// Formats one address as `Name <email>` when it has a non-blank display name, else `email`.

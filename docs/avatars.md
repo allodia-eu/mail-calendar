@@ -146,23 +146,28 @@ them, so there is nothing left to ask.
 
 ## The unread dot
 
-The read-state glyph is retired. On **desktop layouts** (wherever the list sits beside a
-reading pane) the row reads *dot · avatar · text*. On the **compact phone list** there is no
-dot: bold subject and sender already carry unread, and the width is better spent on the text.
+The read-state glyph is retired. **Every list row, on every layout, reads *dot · avatar · text*.**
+An unread row draws the dot in the accent colour; a read row keeps its space, so the avatars stand
+in one column down the list. Bold subject and sender stay as well: the dot is what the eye finds
+while scanning, and the weight is what the row says once it is found.
+
+On a **phone** the dot stands in the list's own leading margin, as in Apple's Mail, so it costs the
+text no width. Bold weight alone did not carry unread on a phone: people could not tell which mail
+they had read, and a dark theme narrows the difference between the two weights further.
 
 ## Per-platform
 
 | Platform | List row | Reading header | Contacts row + detail | Dot rule | Hidden from AT | Where |
 |---|:---:|:---:|:---:|:---:|:---:|---|
 | Core | ✅ | ✅ | ✅ | n/a | n/a | `mailcal-viewmodel/src/avatar.rs`, `mailcal-app/src/avatars.rs` |
-| macOS / iOS / iPadOS | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.swift`, `Mailcal.MailRows.swift`, `ReadingView.swift`, `Contacts/` |
+| macOS / iOS / iPadOS | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.swift`, `Mailcal.MailRows.swift`, `Mailcal.TouchRows.swift`, `ReadingView.swift`, `Contacts/` |
 | Android | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.kt`, `MailRows.kt`, `ReadingScreen.kt`, `ThreadReading.kt`, `ContactsScreen.kt`, `ContactDetailSheet.kt` |
 | Windows | ✅ | ✅ | ✅ | ✅ | ✅ | `Controls/AvatarView.cs`, `ViewModels/AvatarItem.cs`, `MailListView.xaml`, `ReadingView.xaml`, `ContactsView.xaml` |
 | Linux | ✅ | ✅ | ✅ | ✅ | ✅ | `clients/linux/src/ui/avatar.rs` |
 
-"Dot rule" is the row below: a dot where the list sits beside a reading pane, none on a compact
-phone list. It is a column because it is the one thing here a client can draw *plausibly* wrong:
-a dot on every layout looks fine until you notice the phone's subjects are truncating.
+"Dot rule" is the section above: a dot on every row of every layout, its space kept when read. It
+is a column because a client can drop it *plausibly*: a layout that reads its own size class, as an
+iPad's list column does, can decide it is a phone and lose the dot while still looking finished.
 
 ## Known gaps
 

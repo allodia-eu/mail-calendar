@@ -7,7 +7,8 @@ UTC ISO instant (`...Z`) or a naive wall-clock and nothing else; each client loc
 contract fixes the two rendering shapes so the app never disagrees with itself across platforms.
 
 **Principle.** The **list row** shows a compact, relative label; the **reading header** shows the
-full absolute date. One policy, every client: it is decided **here**, never per client, because a
+full absolute date, always within one tap: a header that folds its details away shows the list's
+relative label and keeps the absolute date in those details. One policy, every client: it is decided **here**, never per client, because a
 support answer ("the date on the row is today, so it shows the time") must hold everywhere.
 
 **Why it is client-side, not core.** Deciding "today vs this week vs older" needs the user's active
@@ -21,7 +22,7 @@ client's job; the core's contribution is the unambiguous UTC instant.
 | Surface | Shape | Rule |
 |---|---|---|
 | **List row** (flat row, thread row, thread sub-row) | Relative label | **today** → time (`09:05`) · **previous six days** → short weekday (`Fri` / `vr`) · **this year** → day + month (`3 Jul` / `3 jul`) · **older** → day + month + year (`3 Jul 2025`). A naive/unparseable value falls back to the absolute shape. |
-| **Reading header** (the opened message's date) | Absolute | The full localised date + time (`2026-07-20 09:05`), in the active display zone. |
+| **Reading header** (the opened message's date) | Absolute | The full localised date + time (`2026-07-20 09:05`), in the active display zone. A header that **folds its details away** (the recipients' addresses behind one control) shows the list row's relative label instead, and its details show the absolute date under the label the printout gives it, **Sent**: what is read at a glance is when, and what is checked is exactly when. |
 | **Quoted original** (the attribution line and its `Sent:` header) | Absolute | The same shape as the reading header, and for a stronger reason: this one is **sent**, so an unconverted instant lands in the recipient's mailbox. |
 
 ⚠️ **The absolute date is formatted where it is drawn, never carried as text.** Every client keeps
@@ -75,7 +76,7 @@ copy). See [`calendar.md`](calendar.md).
 | Platform | Relative (list) | Absolute (reading header) | Quoted original | Names follow app language | Clock setting | Where |
 |---|---|---|---|:---:|:---:|---|
 | Android | `relativeDate` → `relativeDatePattern` | `localDateTime` | `localDateTime` at the seam | ✅ | ✅ | `clients/android/.../MailDialogs.kt`, `MainActivityCore.kt` |
-| macOS / iOS / iPadOS | `relativeDate` → `relativeDatePattern` | `localDateTime` | `localDateTime` at the seam | ✅ | ✅ | `clients/apple/.../TimeZoneViews.swift`, `Mailcal.AutoAdvance.swift` |
+| macOS / iOS / iPadOS | `relativeDate` → `relativeDatePattern` | `localDateTime`; iPhone and iPad fold the details, so `relativeDate` in the header and `localDateTime` in its details (`ReadingView.TouchHeader.swift`) | `localDateTime` at the seam | ✅ | ✅ | `clients/apple/.../TimeZoneViews.swift`, `Mailcal.AutoAdvance.swift` |
 | Windows | `TimeZones.RelativeDate` → `RelativePattern` | `TimeZones.LocalDateTime` | `TimeZones.LocalDateTime` at the seam | ✅ | ✅ | `clients/windows/Mailcal/Services/{TimeZones,MailboxModel.Projection}.cs` |
 | Linux | `relative_date` → `relative_date_pattern` | `local_date_time` | `local_date_time` at the seam | ✅ | ✅ | `clients/linux/src/ui/{timestamps.rs,composer_model.rs}` |
 
@@ -90,7 +91,8 @@ seam in `timestamps.rs`).
 When you change how a client formats a mail timestamp:
 
 1. Keep the three shapes intact: a **relative** label on the list row, the **full absolute** date
-   in the reading header, and that same absolute date in a quoted original. Apply any policy
+   in the reading header (in its details, where it folds them away), and that same absolute date
+   in a quoted original. Apply any policy
    change to **every** platform in the same change.
 2. **A date that leaves the app is formatted before it goes, and formatted exactly once.** The
    quoted original is the one timestamp a *stranger* reads. `OpenedMessage.date` and a quote's

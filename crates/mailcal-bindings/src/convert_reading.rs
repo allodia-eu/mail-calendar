@@ -4,9 +4,12 @@
 //! those two exist: each file stays under the 500-line limit. No FFI macros live here, so the
 //! generated bindings are unaffected by the split.
 
-use mailcal_viewmodel::{AttachmentRow as AppAttachmentRow, ReadingSnapshot as AppReading};
+use mailcal_viewmodel::{
+    AttachmentRow as AppAttachmentRow, DefaultReply, MailPerson as AppPerson,
+    ReadingSnapshot as AppReading,
+};
 
-use crate::{AttachmentRow, ReadingSnapshot};
+use crate::{AttachmentRow, MailPerson, ReadingSnapshot};
 
 impl From<AppReading> for ReadingSnapshot {
     fn from(snapshot: AppReading) -> Self {
@@ -30,8 +33,23 @@ impl From<AppReading> for ReadingSnapshot {
             invitation: snapshot.invitation.map(Into::into),
             importance_banner: snapshot.importance_banner.map(Into::into),
             pending: snapshot.pending,
+            from_name: snapshot.sender.name,
+            from_address: snapshot.sender.address,
+            to_people: people(snapshot.to_people),
+            cc_people: people(snapshot.cc_people),
+            bcc_people: people(snapshot.bcc_people),
+            default_reply_all: snapshot.default_reply == DefaultReply::ReplyAll,
         }
     }
+}
+
+fn people(list: Vec<AppPerson>) -> Vec<MailPerson> {
+    list.into_iter()
+        .map(|person| MailPerson {
+            name: person.name,
+            address: person.address,
+        })
+        .collect()
 }
 
 impl From<AppAttachmentRow> for AttachmentRow {

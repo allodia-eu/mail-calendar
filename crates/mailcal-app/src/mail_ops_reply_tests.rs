@@ -14,6 +14,7 @@ use engine_core::{
     membership::Memberships,
 };
 use mailcal_composer::{AttachmentId, ComposerDocument, DraftBlobHandle};
+use mailcal_viewmodel::DefaultReply;
 
 use super::{
     SilentObserver,
@@ -22,7 +23,7 @@ use super::{
     },
     rich_document,
 };
-use crate::{ComposerBlob, Intent, MessageRef, SendStatus};
+use crate::{ComposerBlob, Intent, MessageRef, ReaderId, SendStatus};
 
 /// What every composer's Send dispatches, for a composer opened on `origin`: the composer opens
 /// first, joining its composition to the message it answers or passes on, and the send names that
@@ -235,6 +236,44 @@ async fn reply_to_your_own_message_keeps_the_sender_in_to() {
     let suggestion = app.reply_recipients(message, false).await;
     assert_eq!(suggestion.to, "me@allodia.local");
     assert_eq!(suggestion.cc, "");
+}
+
+#[tokio::test]
+async fn a_message_defaults_to_reply_all_when_reply_all_reaches_someone_reply_does_not() {
+    // To me and Alice: reply-all also reaches Alice. To me alone: both reach the sender only,
+    // because the account's own address never counts as someone more.
+    let message = |key: &str, to: &[&str]| {
+        let mut message = Message::new(
+            MessageId::try_from(key).unwrap(),
+            Memberships::of_one(MailboxId::try_from("inbox").unwrap()),
+        );
+        message.envelope.subject = Some("Planning".to_owned());
+        message.envelope.from = vec![EmailAddress::new("sender@remote.test")];
+        message.envelope.to = to
+            .iter()
+            .map(|address| EmailAddress::new(*address))
+            .collect();
+        message
+    };
+    let (app, _submissions) = reply_app(vec![
+        message("group", &["me@allodia.local", "alice@remote.test"]),
+        message("direct", &["me@allodia.local"]),
+    ]);
+    app.dispatch(Intent::RefreshMail).await;
+
+    for (key, expected) in [
+        ("group", DefaultReply::ReplyAll),
+        ("direct", DefaultReply::Reply),
+    ] {
+        app.dispatch(Intent::OpenMessage {
+            reader: ReaderId::Pane,
+            message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
+        })
+        .await;
+        let reading = app.reading_view();
+        assert!(!reading.load_error, "{key} did not open");
+        assert_eq!(reading.default_reply, expected, "{key}");
+    }
 }
 
 #[tokio::test(start_paused = true)]

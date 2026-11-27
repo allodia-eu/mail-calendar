@@ -210,8 +210,9 @@ still shows both sides when it is reopened and no unfinished writing goes with i
 conversation read touches the messages received, and flagging it flags the newest one received
 ([docs](docs/row-actions.md)).
 
-**Unread mail is bold on the subject and the sender**, and on nothing else (not the preview line,
-the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.
+**Unread mail carries a dot at the start of its row**, on phones too, **and is bold on the subject
+and the sender**, and on nothing else (not the preview line, the date or the badges), because
+bolding every line of an unread mailbox distinguishes nothing ([docs](docs/avatars.md)).
 
 Not yet in any client, and on the roadmap: a writing style learned from your sent mail, and
 replies drafted in it ([docs](docs/ai.md)). The core learns and drafts through the jurisdiction

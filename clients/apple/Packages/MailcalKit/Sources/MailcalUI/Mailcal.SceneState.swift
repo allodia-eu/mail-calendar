@@ -54,18 +54,24 @@ extension ContentView {
         model.destination = .mail
     }
 
-    func showCalendar() {
+    /// `asTab` is the iPhone's tab bar, where each tab keeps its own navigation stack, so the
+    /// message open in Mail is still open on the way back: checking the calendar against a time
+    /// someone proposed is a round trip, not a new start. Every other route still leaves it.
+    func showCalendar(asTab: Bool = false) {
         dismissSidebar()
         sceneDestination = AppDestination.calendar.rawValue
-        clearOpenedMessage()
+        if !asTab { clearOpenedMessage() }
         model.showCalendar()
     }
 
-    func showContacts() {
+    /// `asTab` as `showCalendar`'s: the open message and the open contact each stay in their tab.
+    func showContacts(asTab: Bool = false) {
         dismissSidebar()
         sceneDestination = AppDestination.contacts.rawValue
-        clearOpenedMessage()
-        openedContact = nil
+        if !asTab {
+            clearOpenedMessage()
+            openedContact = nil
+        }
         model.showContacts()
     }
 

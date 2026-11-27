@@ -64,11 +64,11 @@ internal fun ThreadConversationRow(
                     onClick = { if (selecting) onToggleSelect() else onOpenThread() },
                     onLongClick = onToggleSelect,
                 )
-                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            // The latest sender is who the row names. The count badge already marks a conversation;
-            // bold subject and sender carry unread state on this compact, single-pane list.
+            // The latest sender is who the row names. The count badge already marks a conversation.
+            UnreadDot(thread.unreadCount > 0u)
             AvatarView(thread.avatar, modifier = Modifier.testTag("thread-avatar"))
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {

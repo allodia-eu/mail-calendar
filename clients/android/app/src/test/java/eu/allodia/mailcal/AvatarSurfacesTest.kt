@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,12 +24,53 @@ class AvatarSurfacesTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun a_flat_phone_row_starts_with_the_sender_avatar_and_no_unread_gutter() {
+    fun an_unread_flat_row_leads_with_the_dot_and_keeps_the_avatar_where_it_was() {
+        setFlatRow(flatRow())
+
+        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
+        val dot = compose.onNodeWithTag("unread-dot", useUnmergedTree = true)
+            .assertExists()
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val avatar = compose.onNodeWithTag("mail-avatar", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+        // In the row's start padding, so the text keeps its width.
+        assertTrue(dot.right <= avatar.left)
+        assertEquals(16f * density, avatar.left, 1f)
+    }
+
+    @Test
+    fun a_read_flat_row_draws_no_dot() {
+        setFlatRow(flatRow().copy(unread = false))
+
+        compose.onNodeWithTag("unread-dot", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun a_conversation_with_an_unread_message_leads_with_the_dot() {
+        compose.setContent {
+            AppTheme {
+                ThreadConversationRow(
+                    thread = threadRow(),
+                    activeZoneId = "Europe/Amsterdam",
+                    selected = false,
+                    selecting = false,
+                    onToggleSelect = {},
+                    onOpenThread = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag("unread-dot", useUnmergedTree = true).assertExists()
+    }
+
+    private fun setFlatRow(message: FlatRow) {
         compose.setContent {
             AppTheme {
                 Box {
                     SwipeableFlatMessageRow(
-                        message = flatRow(),
+                        message = message,
                         activeZoneId = "Europe/Amsterdam",
                         swipe = SwipeSettings(
                             left = SwipeActionKind.ARCHIVE,
@@ -43,14 +85,6 @@ class AvatarSurfacesTest {
                 }
             }
         }
-
-        val left = compose.onNodeWithTag("mail-avatar", useUnmergedTree = true)
-            .assertExists()
-            .fetchSemanticsNode()
-            .boundsInRoot
-            .left
-        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
-        assertEquals(16f * density, left, 1f)
     }
 
     @Test

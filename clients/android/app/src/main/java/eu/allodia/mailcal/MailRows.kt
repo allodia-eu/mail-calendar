@@ -89,11 +89,10 @@ internal fun FlatMessageRow(
                     }
                 },
             )
-            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // This client is single-pane: the list is always the compact layout, where bold subject
-        // and sender carry unread state and the contract reserves no separate dot gutter.
+        UnreadDot(message.unread)
         AvatarView(message.avatar, modifier = Modifier.testTag("mail-avatar"))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {

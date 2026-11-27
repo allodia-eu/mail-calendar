@@ -1,7 +1,8 @@
 //! Reading-open behaviour tests for [`super::App::open_message_in`] beyond body content: the
 //! mark-as-read-on-open side effect and the cold-open resilience that waits for an account's
 //! mail provider to finish dialing (the notification-tap race). Body sanitise/inline-image/
-//! attachment/recipient coverage lives in `tests_actions.rs`. Shared fixtures: `tests_fakes.rs`.
+//! attachment coverage lives in `tests_actions.rs`, the recipients in `tests_reading_header.rs`.
+//! Shared fixtures: `tests_fakes.rs`.
 //!
 //! Also here: *when* an open is allowed to say it is still working, which is the difference
 //! between a fast app and a flickering one.
@@ -357,3 +358,7 @@ async fn an_open_by_key_carries_the_subject_the_list_would_have_given() {
 
     assert_eq!(app.reading_view().subject, "Quarterly report");
 }
+
+// The reading header's people, a child module of its own so each file stays under the limit.
+#[path = "tests_reading_header.rs"]
+mod header;

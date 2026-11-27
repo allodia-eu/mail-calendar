@@ -108,10 +108,18 @@ pub(crate) fn flat_row(item: &AccountMessage) -> FlatRow {
         flagged: row.flags.flagged(),
         has_attachment: row.has_attachment,
         importance: row.importance,
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: snippet(row.preview.as_deref()),
         kind: kind(item),
         folders: folders(item),
     }
+}
+
+/// A message's snippet as one run of text: the body's own line breaks and spacing become single
+/// spaces, so a row that shows two lines of it shows two lines of words, not a greeting and a gap.
+fn snippet(preview: Option<&str>) -> String {
+    preview.map_or_else(String::new, |text| {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    })
 }
 
 /// What `item` is to its account; the draft keyword first, so an unsent message carrying the
@@ -341,7 +349,7 @@ fn thread_row(account: String, thread_id: String, deduped: &[&AccountMessage]) -
         flagged: deduped.iter().any(|m| m.row.mail.flags.flagged()),
         has_attachment: deduped.iter().any(|m| m.row.mail.has_attachment),
         importance: conversation_importance(deduped.iter().map(|m| m.row.mail.importance)),
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: snippet(row.preview.as_deref()),
         messages: deduped.iter().map(|item| thread_message(item)).collect(),
     }
 }
@@ -356,7 +364,7 @@ fn thread_message(item: &AccountMessage) -> ThreadMessage {
         from_address: sender_address(row),
         avatar: avatar_for(row),
         date: instant(row).map_or_else(String::new, format_instant),
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: snippet(row.preview.as_deref()),
         unread: row.flags.is_unread(),
         flagged: row.flags.flagged(),
         kind: kind(item),
