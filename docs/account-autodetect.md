@@ -359,7 +359,7 @@ never-log-content rule. Account connection is **not** jurisdiction-gated: the
 [`provider-oauth.md`](provider-oauth.md) → "Sovereignty scope"). The domain is disclosed to
 the provider's own endpoints, to Mozilla's ISPDB, and to the device's DNS resolver (including
 the `_service._tcp.{domain}` SRV queries of rule 9); a JMAP-SRV *target* host additionally sees
-a `.well-known/jmap` probe, but only that host. [`privacy-policy.md`](privacy-policy.md) §2
+a `.well-known/jmap` probe, but only that host. [`privacy-policy.md`](privacy-policy.md) §3
 discloses this (the ISPDB third party, the DNS lookups, domain-only). The DAV probe (rule 8)
 stays within this envelope: it discloses only the email domain and the provider's registrable
 domain, to the DNS resolver as `_caldavs._tcp` / `_carddavs._tcp` owner names, to their own

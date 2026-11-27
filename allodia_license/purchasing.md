@@ -346,7 +346,7 @@ the fifth [`../AGENTS.md`](../AGENTS.md) carries. Decided 2026-09-18.
 Billing, and nothing else. The dispatch carries a product identifier and the account id the
 purchase is tagged with; it happens only when somebody presses a purchase button; and the
 counterparty is the platform the person bought their device from and is already signed in to.
-[`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe both stores as
+[`../docs/privacy-policy.md`](../docs/privacy-policy.md) §7 describes both stores as
 independent controllers processing the purchase under their own policies.
 
 **Why it cannot be gated rather than carved out.** StoreKit and Play Billing reach Apple and
@@ -366,17 +366,15 @@ inside the app there, because the store dispatch is then no longer the only way 
 carve-out is no longer load-bearing. For EU storefronts that turns on the external-purchase-link
 entitlement, which is a date rather than a hope.
 
-⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
+⚠️ **The transfer the policy names in §10 is a different one, and arguing the two as one would
 rest this carve-out on something it does not cover.** That transfer is the account service asking
 Apple or Google to verify a purchase, which happens on Allodia's side and leaves no device.
 `JurisdictionGate` governs what leaves the **app**, so the policy's account of that transfer
 neither supports this carve-out nor stands in its way.
 
-The published policy describes this: `allodia.eu/privacy/mail-calendar` renders version 2.4 of
-2026-09-18 in both locales, whose §10 covers all three routes. That gate is met.
-[`../docs/privacy-policy.md`](../docs/privacy-policy.md) has since moved to 2.5, which rewrites
-what the app does with contacts and the sender name and leaves §10 as it stood, so the page a
-buyer reads is still the one that describes buying.
+The published policy describes this: every version from 2.4 on covers all three routes, in its
+section on paying ([`../docs/privacy-policy.md`](../docs/privacy-policy.md) §7), in both locales.
+That gate is met while `allodia.eu/privacy/mail-calendar` renders one of them.
 
 ## What a client calls
 

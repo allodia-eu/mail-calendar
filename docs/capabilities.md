@@ -108,6 +108,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | A **mail command bar** across the window: New Mail over the folders, then Delete, Archive, Move, Flag, read state and Sync over the list, the same actions a right-click offers; on a narrow window the last of them move behind **⋯**, which also holds Report ([docs](docs/command-bar.md)) | ✅ | ✅ | — | ✅ | — | ✅ |
 | Mark as spam / not spam: **reported to the provider**, which trains its filter, not only filed under Junk; the verdicts offered come from the transport's own capability, and a provider that cannot be told still gets the message filed ([docs](docs/reporting.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | AI assistant access (MCP server): opt-in, off by default, desktop-only; read and act on your mail from an MCP client over a local socket (Windows: a named pipe), with an empty account allow list and direct send behind its own toggle ([docs](docs/mcp.md)) | ✅ | ✅ | — | ✅ | — | ✅ |
+| **Writing style and drafted replies, as early access**: Settings → Writing style learns how you write from mail you have sent, and **Draft a reply** in a reply drafts one in that style for you to edit and send, through an AI endpoint of your own (Settings → Advanced) and only after the jurisdiction gate admits it. Offered in a development build, and in a production build only under an Allodia account that includes it ([docs](docs/ai.md)) | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -213,10 +214,11 @@ conversation read touches the messages received, and flagging it flags the newes
 **Unread mail is bold on the subject and the sender**, and on nothing else (not the preview line,
 the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.
 
-Not yet in any client, and on the roadmap: a writing style learned from your sent mail, and
-replies drafted in it ([docs](docs/ai.md)). The core learns and drafts through the jurisdiction
-gate (`mailcal-jurisdiction`); macOS, iOS and iPadOS draw both in development builds, as early
-access, and no other client draws them yet. A client that draws them so is marked 🚧 here, never ✅
-([docs](docs/settings.md), Writing style).
+**Writing style and drafted replies are early access on every client** ([docs](docs/ai.md)). Every
+client draws them, but only where the core offers them: in a development build, or in a production
+build signed in to an Allodia account that includes them. So the row is 🚧 everywhere, never ✅,
+until every row of that contract's matrix is ✅ on a platform ([docs](docs/settings.md), Writing
+style). Allodia's own service for them is in the core and not yet driven on any client; the row
+claims the own endpoint alone.
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).

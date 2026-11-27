@@ -50,11 +50,10 @@ sink at all and therefore *cannot* phone home.
   *nothing* on disk for analytics, so the Art. 5(3) storage event only ever happens after they say
   yes. Withdrawal deletes the id locally **and** asks the relay to erase everything held under it
   (GDPR Art. 17), which is only possible *because* the id is stable.
-- **A stale notice re-asks.** Consent is recorded against a `NOTICE_VERSION` (**currently 2**,
-  bumped from 1 when the Google provider added `has_google` to the account-mix, widening the
-  payload). Materially widening what we send bumps it, which reads back as *unasked*, so a new
-  payload can never inherit a consent that was given for less. A **decline**, by contrast,
-  survives a bump: we asked once and were told no.
+- **A stale notice re-asks.** Consent is recorded against a `NOTICE_VERSION` (**currently 2**).
+  A new data **category** bumps it, which reads back as *unasked*, so a new kind of data never
+  inherits a consent given without it; a new label within a category does not (rule 3). A
+  **decline**, by contrast, survives a bump: we asked once and were told no.
 - **The payload cannot carry content.** Every property value is the label of a closed enum, a
   bucket, or a string that has been through a reducer. There is no variant that could carry a
   subject, an address, a folder name, a search query, or a hostname. Widening what we send means
@@ -159,8 +158,8 @@ for good.
 
 **Re-consent is already built.** Consent is recorded against `NOTICE_VERSION` (see "A stale notice
 re-asks" above): bump it and every stored *yes* reads back as unasked, while a *no* stays a no. A
-privacy-notice change that materially widens what we send is a `NOTICE_VERSION` bump, not a new
-mechanism.
+new data category is a `NOTICE_VERSION` bump, not a new mechanism; a new label within one is not a
+bump at all (rule 3).
 
 **The pattern for the next boot-time prompt.** One per-concern key in the core's `preferences.toml`
 (versioned if the content can change, e.g. `whats_new_seen_version: Option<u32>`), one core-side
@@ -261,14 +260,14 @@ Four judgment calls, so nobody has to make them twice:
   returns early unless consent is live, so the app behaves identically for every user who declines.
   Claiming App Functionality would assert the payload is needed to make the app work, which is both
   untrue and in tension with the opt-in model.
-- **Not linked to identity, even though §5 of the privacy policy calls the install id personal
+- **Not linked to identity, even though §6 of the privacy policy calls the install id personal
   data.** These answer different questions. GDPR's bar is *identifiability*, which a persistent
   pseudonymous id clears by singling-out alone; Apple's bar is whether **we** can tie the record to
-  a person, and we cannot; the policy says so itself in §11: *"an install id doesn't tell us who
-  you are, so we can't look yours up from your name or email."* Apple's label has a "Data Not Linked
+  a person, and we cannot; the policy says so itself in §12: *"since an install id does not tell
+  us who you are, we cannot find yours by name or email"*. Apple's label has a "Data Not Linked
   to You → Identifiers" bucket precisely for this case. **Do not "fix" the policy to match** by
   calling the id anonymous: that would be wrong under GDPR (Recital 26) and would trade a correct
-  legal posture for a cosmetic consistency. §5 is the more cautious statement of the two; it stays.
+  legal posture for a cosmetic consistency. §6 is the more cautious statement of the two; it stays.
 - **No tracking, and no IDFA.** There is no `NSUserTrackingUsageDescription`, no
   `AppTrackingTransparency` import, and no `advertisingIdentifier` / `ASIdentifierManager` reference
   anywhere under `clients/apple/`, so no ATT prompt, and no Device-ID-for-tracking declaration is
@@ -285,9 +284,9 @@ fails to compile, so the label and the artifact agree. Nothing here needs changi
 because "the declaration is ahead of the build" was true for a release cycle and should not be
 re-derived as a discrepancy.
 
-**When this needs revisiting:** adding a `PROPERTY_KEYS` entry that introduces a *new data
-category* (anything beyond usage/diagnostic labels: a free-form field, a location, an address)
-changes the answers above, not just `NOTICE_VERSION`. App Privacy is editable in App Store Connect
+**When this needs revisiting:** a new data category (rule 3) re-opens the answers above as well as
+`NOTICE_VERSION`, and one that goes beyond usage and diagnostic labels (a free-form field, a
+location, an address) changes them. App Privacy is editable in App Store Connect
 at any time, so the fix is cheap, but it has to land **before** the build that widens the payload,
 not after.
 
@@ -343,9 +342,15 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you change ana
    same change.
 2. Keep the policy identical across every existing platform: opt-in, default off, unbundled,
    one-click withdrawal, the payload preview, and the never-send-content rule.
-3. **Widening what is sent bumps `NOTICE_VERSION`**, which re-asks. A payload may never grow under a
-   consent that was given for less. Add the key to `PROPERTY_KEYS` **and** the relay whitelist, or it
-   is rejected at ingest.
+3. **A new data category bumps `NOTICE_VERSION`, which re-asks; a new label within one does not.**
+   A *category* is a row of the table in [`privacy-policy.md`](privacy-policy.md) §6 (install id,
+   platform and OS, device class, app version and language, account shape, app opened, setup and
+   sync, features used, settings). A label within a row, such as a `Feature` variant, a setting in
+   `SettingsSnapshot` or an `AccountMix` flag, keeps the consent as given and lands in one change
+   with: its key in `PROPERTY_KEYS` **and** the relay's ingest whitelist (or it is rejected at
+   ingest), and the policy's table and version line in every locale. The payload preview follows on
+   its own and shows every kind of event and every label ("See exactly what we send", above). A row
+   the table does not have is a new category: it bumps `NOTICE_VERSION`, and rule 5 applies.
 4. A new platform ships the consent screen, the Settings toggle, and the payload preview **before**
    it ships to users; any shortfall goes under "Known gaps" with a follow-up, never left silent.
 5. **A new data *category* re-opens the store declarations** ("The store privacy declarations"

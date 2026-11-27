@@ -17,7 +17,7 @@ gate as `eu-native` like every other request of that feature
 Re-ratified 2026-08-27, when the service's sign-in page gained Apple and Google beside an ordinary
 email and password. That is an identity provider one step further out than this rule reaches: the
 person's browser goes there, only if they choose it over the plain route, and what the app sends is
-unchanged. It is disclosed in [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §3 rather
+unchanged. It is disclosed in [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §4 rather
 than gated, because a gate here would decide nothing about a page the app does not control.
 ⚠️ **Lapses** if the service's address becomes configurable, if a third-party identity provider
 is ever reached by the **app itself** rather than chosen on that page, or if an entitlement is

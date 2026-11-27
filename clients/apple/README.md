@@ -461,8 +461,8 @@ No boot-time or active-keyboard API is imported; `ContinuousClock` and `CACurren
 reach `mach_absolute_time` from our binary.
 
 **Collected data types** answer [`docs/privacy-policy.md`](../../docs/privacy-policy.md): the
-Allodia account's email address, name, user id and mail-account list (§3, the list as Other Data)
-and its subscription (§10, Purchase History), all linked and App Functionality; and the consented
+Allodia account's email address, name, user id and mail-account list (§4, the list as Other Data)
+and its subscription (§7, Purchase History), all linked and App Functionality; and the consented
 analytics rows exactly as [`docs/analytics.md`](../../docs/analytics.md) → "The store privacy
 declarations" answers them, not linked and Analytics. A build with no Allodia account or analytics
 endpoint carries the same file: declaring more than a build collects is allowed, less is not.

@@ -28,9 +28,11 @@ pub use payload::{
     Batch, Context, DeviceClass, DeviceInfo, PROPERTY_KEYS, Platform, SCHEMA, WireEvent,
 };
 
-/// The version of the consent notice the current payload corresponds to. Bump it when what we
-/// send materially widens: a stored consent at an older version is **stale**, so the app asks
-/// again rather than silently reading the old "yes" as covering the new data.
+/// The version of the consent notice the current payload corresponds to. Bump it when the payload
+/// gains a data category, a row the table in `docs/privacy-policy.md` §6 does not have: a stored
+/// consent at an older version is **stale**, so the app asks again rather than reading the old
+/// "yes" as covering the new kind of data. A new label within an existing row does not bump it
+/// (`docs/analytics.md`, rule 3).
 ///
 /// - v1; initial consented payload (`docs/analytics.md`).
 /// - v2; added the `has_google` context flag (a Google/Gmail account in the mix), which widens the
@@ -88,8 +90,8 @@ impl TelemetryState {
     }
 
     /// The consent decision as the host sees it. A stored "yes" against an **older** notice
-    /// version reads back as *not asked* and *not enabled*: so widening the payload re-asks
-    /// instead of quietly inheriting a consent that was given for less.
+    /// version reads back as *not asked* and *not enabled*: so a new data category re-asks
+    /// instead of inheriting a consent given without it.
     fn consent(&self) -> AnalyticsConsent {
         // No store: the demo, the showcase, and most tests. Nothing can be written to the device
         // and nothing can be sent, so there is nothing to consent to *and* nowhere to record an
