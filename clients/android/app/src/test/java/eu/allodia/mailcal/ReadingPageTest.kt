@@ -2,8 +2,8 @@
 // first as the body scrolls toward its end, and comes back once the body is at its top; a header
 // taller than the screen scrolls by itself.
 //
-// The HTML body's share of this is the WebView's (ReadingWebView.kt), which needs a device; the
-// plain-text body is Compose's own scroll and goes through the same connection, so it stands in.
+// The HTML body's share of this is the WebView's (ReadingWebViewTest.kt); the plain-text body is
+// Compose's own scroll and goes through the same connection, so it stands in for both here.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box
@@ -73,7 +73,7 @@ class ReadingPageTest {
                 )
             }
         }
-        rule.onNodeWithTag("body").performTouchInput { swipeUp(startY = bottom - 10f, endY = bottom - 10f - 100f) }
+        rule.onNodeWithTag("body").performTouchInput { swipeUp(startY = top + 150f, endY = top + 50f) }
         rule.waitForIdle()
         // A short scroll is all header: the body has not moved.
         assertTrue(header.offset > 0f)

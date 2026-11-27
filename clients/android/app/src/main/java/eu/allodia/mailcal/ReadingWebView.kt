@@ -29,8 +29,10 @@ internal class ReadingWebView(context: Context) : WebView(context), NestedScroll
     private val offsetInWindow = IntArray(2)
 
     init {
-        // The flag the dispatches below read is the helper's, not the one View keeps.
+        // Both flags: the dispatches below read the helper's, and Compose's AndroidView forwards a
+        // child's nested scroll only while the View's own says it is on.
         nested.isNestedScrollingEnabled = true
+        isNestedScrollingEnabled = true
     }
 
     @SuppressLint("ClickableViewAccessibility") // A drag is shared, never handled here: a tap still reaches the WebView.
