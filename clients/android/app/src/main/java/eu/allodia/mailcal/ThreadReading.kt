@@ -1,9 +1,8 @@
-// The conversation strip shown in the reading screen (Gmail/Outlook-mobile style): when the
-// opened message belongs to a multi-message thread, the reading screen shows that message in
-// full and lists the OTHER messages on the thread as a compact, tappable strip above it. Tapping
-// a card opens that message, the reading body the core fetches is single-slot, so one message is
-// shown in full at a time and the previously-open one moves back into this strip. Split out of
-// ReadingScreen.kt so each file stays under the 500-line limit.
+// The conversation strip shown in the reading screen: when the opened message belongs to a
+// multi-message thread, the reading screen shows that message in full and lists the OTHER messages
+// on the thread as compact, tappable rows above it. Tapping a card opens that message: the reading
+// body the core fetches is single-slot, so one message is shown in full at a time and the
+// previously-open one moves back into this strip.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.background
@@ -12,20 +11,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,13 +29,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.first
 import uniffi.mailcal_bindings.ThreadMessage
 
-// The strip of the conversation's OTHER messages, above the message shown in full. Ordered oldest
-// first so it reads top-to-bottom like the thread, and capped in height (scrolling within) so a
-// long conversation never crowds out the open message's body. The currently-open message
-// (`focusedKey`) is excluded, it's shown in full below the strip.
+// The conversation's OTHER messages, above the message shown in full. Ordered oldest first so it
+// reads top to bottom like the thread, and part of the reading page, which scrolls it away with the
+// header (ReadingPage.kt) rather than giving it a box of its own to scroll in. The currently-open
+// message (`focusedKey`) is excluded: it is shown in full below.
 @Composable
 internal fun ConversationStrip(
     conversation: List<ThreadMessage>,
@@ -52,25 +45,7 @@ internal fun ConversationStrip(
 ) {
     // `conversation` is newest-first; reverse to oldest-first for the strip.
     val others = conversation.filter { it.key != focusedKey }.reversed()
-    if (others.isEmpty()) {
-        return
-    }
-    val scrollState = rememberScrollState()
-    // Rest at the BOTTOM by default, so the newest of the older messages sits directly above the
-    // open message (which renders just below this strip) and older ones are up-screen, scroll up
-    // to reach them. Wait for the content to be measured (maxValue > 0, i.e. it actually overflows)
-    // before jumping; re-runs when the visible set changes (opening a different message on the
-    // thread). If it all fits, maxValue stays 0 and there's nothing to scroll.
-    LaunchedEffect(others) {
-        snapshotFlow { scrollState.maxValue }.first { it > 0 }
-        scrollState.scrollTo(scrollState.maxValue)
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 220.dp)
-            .verticalScroll(scrollState),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         others.forEach { message ->
             ConversationStripCard(message, subject, activeZoneId, onOpen)
             HorizontalDivider()

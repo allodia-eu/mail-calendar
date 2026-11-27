@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -177,10 +178,33 @@ internal fun ReadingScreen(
     }
     val headerDate = localDateTime(message.date, activeZoneId, LocalUse24Hour.current)
     // Drawn inside the tab scaffold, which clears the status bar above and the navigation bar
-    // below, so the Mail, Calendar and Contacts bar stays while a message is open.
+    // below, so the Mail, Calendar and Contacts bar stays while a message is open. Only a snapshot
+    // for *this* message is its body (ignore a stale one for a previously-opened message).
+    val body = reading?.takeIf { it.key == message.key }
+    // The page a message is drawn on, for every state of an open (the gap before the body
+    // lands, the spinner, a plain-text body, a load error) so a body arriving changes what is
+    // written on the page and never the page itself. Left transparent, the gap punched a hole
+    // in it: in dark theme the body area went white, black, white on every message opened,
+    // which reads as a flicker rather than as a message opening (docs/sync-progress.md). The
+    // colour is the core's, the same one it gives the HTML document in this scheme, and the
+    // ink goes with the page rather than the app: a dark app reading with dark messages off
+    // draws a white page, where the dark theme's own content colour would be white on white.
+    // The two accented controls drawn on it, the spinner and Retry, take the page's scheme's
+    // primary for the same reason: the dark scheme's is the pale lavender Material 3 pairs
+    // with a near-black surface, and on a white page it is barely there.
+    //
+    // Resolved per scheme: the record crosses the FFI.
+    val canvas = remember(scheme) { messageCanvas(scheme) }
+    val page = remember(canvas) { parseHexColor(canvas.background) }
+    val ink = remember(canvas) { parseHexColor(canvas.foreground) }
+    val accent = remember(scheme) {
+        if (scheme == MessageScheme.DARK) darkColorScheme().primary else lightColorScheme().primary
+    }
+    // How far the header has scrolled away, kept for this message across a visit to another tab.
+    val headerOffset = rememberSaveable(message.key) { mutableFloatStateOf(0f) }
+    val header = remember(headerOffset) { CollapsingHeader(headerOffset) }
     Column(modifier = Modifier.fillMaxSize()) {
         ReadingTopBar(
-            defaultReplyAll = reading?.takeIf { it.key == message.key }?.defaultReplyAll ?: false,
             onBack = onBack,
             // Archive/delete move the message out of the folder; pop back to the list (the row
             // leaves it immediately via the core's optimistic removal).
@@ -190,9 +214,6 @@ internal fun ReadingScreen(
             },
             // The caller leaves the message once the delete is sent: in Trash it asks first.
             onDelete = { onDelete(message.account, message.key) },
-            onReply = { onCompose(ComposeOrigin.Reply(message.account, message.key, false)) },
-            onReplyAll = { onCompose(ComposeOrigin.Reply(message.account, message.key, true)) },
-            onForward = { onCompose(ComposeOrigin.Forward(message.account, message.key)) },
         ) {
             ReadingOverflowMenu(
                 // The subject this screen DISPLAYS, so an untitled message exports under the
@@ -209,139 +230,128 @@ internal fun ReadingScreen(
                 onSetDarkMessages = onSetDarkMessages,
             )
         }
-        ReadingSubject(message, reading)
-        // When the open message is part of a multi-message conversation, list the other messages
-        // as a collapsed strip under the subject they share; tapping one opens that message
-        // (accordion, one body at a time). A standalone or single-message conversation shows no
-        // strip.
-        conversation?.takeIf { it.size > 1 }?.let { thread ->
-            HorizontalDivider()
-            ConversationStrip(
-                conversation = thread,
-                focusedKey = message.key,
-                subject = message.subject,
-                activeZoneId = activeZoneId,
-                onOpen = onOpenThreadMessage,
-            )
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-        ReadingSender(message, reading, activeZoneId)
-        HorizontalDivider()
-        val body = reading?.takeIf { it.key == message.key }
-        // The sender's importance, under the header it qualifies (docs/importance.md).
-        ImportanceBanner(body?.importanceBanner)
-        // The meeting-invitation card, above everything the sender wrote. Present only when the
-        // core's two-condition RSVP gate says this message is one (docs/invitations.md), a
-        // published `.ics` keeps its attachment chip and gets no card.
-        InvitationBanner(
-            snapshot = body,
-            activeZoneId = activeZoneId,
-            writeStatus = calendarWriteStatus,
-            onRespond = { response, comment, notify, replySubject ->
-                onRespondToInvitation(
-                    message.account,
-                    message.key,
-                    response,
-                    comment,
-                    notify,
-                    replySubject,
-                )
-            },
-        )
-        if (body != null && body.attachments.isNotEmpty()) {
-            AttachmentList(
-                attachments = body.attachments,
-                offerSaveAll = attachmentsOfferSaveAll(body.attachments.size.toUInt()),
-                savingAll = savingAll,
-                onSaveAll = { saveAllAttachments.launch(null) },
-                onSave = { attachment ->
-                    pendingSave = attachment
-                    saveAttachment.launch(attachment.fileName.ifEmpty { "attachment" })
-                },
-                // Open hands the decoded file to the OS default viewer (which runs the OS's own
-                // file scan); we never render or execute attachment content in-app.
-                onOpen = { attachment ->
-                    openAttachment(
-                        ctx = ctx,
-                        account = message.account,
-                        key = message.key,
-                        attachment = attachment,
-                        onSaveAttachment = onSaveAttachment,
-                    )
-                },
-            )
-        }
-        // The remote-images opt-in banner sits above the body as a fixed-height notice, shown
-        // only for an HTML body that still has its remote images blocked.
-        if (body != null && !body.html.isNullOrEmpty() && body.hasRemoteImages && !loadRemoteImages) {
-            RemoteImagesBanner(onLoad = { loadRemoteImages = true })
-        }
-        // The body takes the remaining height (weight), which bounds the WebView to this region:
-        // an AndroidView reports its own large content height, so as an unweighted fillMaxSize
-        // child it could overlap the fixed header/toolbar on the first inflation. Only show the
-        // body once the snapshot for *this* message has arrived (ignore a stale one for a
-        // previously-opened message).
-        // The page a message is drawn on, for every state of an open (the gap before the body
-        // lands, the spinner, a plain-text body, a load error) so a body arriving changes what is
-        // written on the page and never the page itself. Left transparent, the gap punched a hole
-        // in it: in dark theme the body area went white, black, white on every message opened,
-        // which reads as a flicker rather than as a message opening (docs/sync-progress.md). The
-        // colour is the core's, the same one it gives the HTML document in this scheme, and the
-        // ink goes with the page rather than the app: a dark app reading with dark messages off
-        // draws a white page, where the dark theme's own content colour would be white on white.
-        // The two accented controls drawn on it, the spinner and Retry, take the page's scheme's
-        // primary for the same reason: the dark scheme's is the pale lavender Material 3 pairs
-        // with a near-black surface, and on a white page it is barely there.
-        //
-        // Resolved per scheme: the record crosses the FFI.
-        val canvas = remember(scheme) { messageCanvas(scheme) }
-        val page = remember(canvas) { parseHexColor(canvas.background) }
-        val ink = remember(canvas) { parseHexColor(canvas.foreground) }
-        val accent = remember(scheme) {
-            if (scheme == MessageScheme.DARK) darkColorScheme().primary else lightColorScheme().primary
-        }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(page),
-        ) {
-            CompositionLocalProvider(LocalContentColor provides ink) {
-                when {
-                    // Nothing yet, and too soon to say so: the core announces a wait only once
-                    // one has run long enough to notice, so a fast open draws no spinner at all
-                    // rather than flashing one. The header above is already filled from the row.
-                    body == null -> Unit
-                    // Carries no body, this has to precede the branches that read one.
-                    body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
-                    body.loadError -> CenteredMessage {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
-                            TextButton(
-                                onClick = onRetry,
-                                colors = ButtonDefaults.textButtonColors(contentColor = accent),
-                            ) { Text(L10n.action_retry(ctx)) }
-                        }
+        ReadingPage(
+            state = header,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            header = {
+                Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+                    ReadingSubject(message, reading)
+                    // When the open message is part of a multi-message conversation, list the
+                    // other messages under the subject they share, as part of the page; tapping
+                    // one opens that message (accordion, one body at a time). A standalone or
+                    // single-message conversation shows none.
+                    conversation?.takeIf { it.size > 1 }?.let { thread ->
+                        HorizontalDivider()
+                        ConversationStrip(
+                            conversation = thread,
+                            focusedKey = message.key,
+                            subject = message.subject,
+                            activeZoneId = activeZoneId,
+                            onOpen = onOpenThreadMessage,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
-                    !body.html.isNullOrEmpty() ->
-                        HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages, scheme = scheme)
-                    !body.plain.isNullOrEmpty() -> LinkifiedText(
-                        text = body.plain!!,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium,
+                    ReadingSender(message, reading, activeZoneId)
+                    HorizontalDivider()
+                    // The sender's importance, under the header it qualifies (docs/importance.md).
+                    ImportanceBanner(body?.importanceBanner)
+                    // The meeting-invitation card, above everything the sender wrote. Present
+                    // only when the core's two-condition RSVP gate says this message is one
+                    // (docs/invitations.md), a published `.ics` keeps its attachment chip and gets
+                    // no card.
+                    InvitationBanner(
+                        snapshot = body,
+                        activeZoneId = activeZoneId,
+                        writeStatus = calendarWriteStatus,
+                        onRespond = { response, comment, notify, replySubject ->
+                            onRespondToInvitation(
+                                message.account,
+                                message.key,
+                                response,
+                                comment,
+                                notify,
+                                replySubject,
+                            )
+                        },
                     )
-                    else -> CenteredMessage {
-                        Text(text = L10n.reading_no_content(ctx), color = LocalContentColor.current)
+                    if (body != null && body.attachments.isNotEmpty()) {
+                        AttachmentList(
+                            attachments = body.attachments,
+                            offerSaveAll = attachmentsOfferSaveAll(body.attachments.size.toUInt()),
+                            savingAll = savingAll,
+                            onSaveAll = { saveAllAttachments.launch(null) },
+                            onSave = { attachment ->
+                                pendingSave = attachment
+                                saveAttachment.launch(attachment.fileName.ifEmpty { "attachment" })
+                            },
+                            // Open hands the decoded file to the OS default viewer (which runs the
+                            // OS's own file scan); we never render or execute attachment content
+                            // in-app.
+                            onOpen = { attachment ->
+                                openAttachment(
+                                    ctx = ctx,
+                                    account = message.account,
+                                    key = message.key,
+                                    attachment = attachment,
+                                    onSaveAttachment = onSaveAttachment,
+                                )
+                            },
+                        )
+                    }
+                    // The remote-images opt-in banner sits above the body, shown only for an
+                    // HTML body that still has its remote images blocked.
+                    if (body != null && !body.html.isNullOrEmpty() && body.hasRemoteImages && !loadRemoteImages) {
+                        RemoteImagesBanner(onLoad = { loadRemoteImages = true })
                     }
                 }
-            }
-        }
+            },
+            body = {
+                // The page a message is drawn on fills the body for every state of an open.
+                Box(modifier = Modifier.fillMaxSize().background(page)) {
+                    CompositionLocalProvider(LocalContentColor provides ink) {
+                        when {
+                            // Nothing yet, and too soon to say so: the core announces a wait only
+                            // once one has run long enough to notice, so a fast open draws no
+                            // spinner at all rather than flashing one. The header above is already
+                            // filled from the row.
+                            body == null -> Unit
+                            // Carries no body, this has to precede the branches that read one.
+                            body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
+                            body.loadError -> CenteredMessage {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
+                                    TextButton(
+                                        onClick = onRetry,
+                                        colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                                    ) { Text(L10n.action_retry(ctx)) }
+                                }
+                            }
+                            !body.html.isNullOrEmpty() ->
+                                HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages, scheme = scheme)
+                            !body.plain.isNullOrEmpty() -> LinkifiedText(
+                                text = body.plain!!,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            else -> CenteredMessage {
+                                Text(text = L10n.reading_no_content(ctx), color = LocalContentColor.current)
+                            }
+                        }
+                    }
+                }
+            },
+        )
+        ReadingAnswers(
+            defaultReplyAll = body?.defaultReplyAll ?: false,
+            onReply = { onCompose(ComposeOrigin.Reply(message.account, message.key, false)) },
+            onReplyAll = { onCompose(ComposeOrigin.Reply(message.account, message.key, true)) },
+            onForward = { onCompose(ComposeOrigin.Forward(message.account, message.key)) },
+        )
     }
 }

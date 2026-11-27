@@ -165,7 +165,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
                 .fillMaxSize()
                 .graphicsLayer { this.alpha = alpha },
             factory = { context ->
-            WebView(context).apply {
+            ReadingWebView(context).apply {
                 settings.applyReadingPolicy()
                 setOnScrollChangeListener { _, _, y, _, _ -> place = y }
                 webViewClient = object : WebViewClient() {
