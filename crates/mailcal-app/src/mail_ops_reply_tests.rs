@@ -241,29 +241,34 @@ async fn reply_to_your_own_message_keeps_the_sender_in_to() {
 #[tokio::test]
 async fn a_message_defaults_to_reply_all_when_reply_all_reaches_someone_reply_does_not() {
     // To me and Alice: reply-all also reaches Alice. To me alone: both reach the sender only,
-    // because the account's own address never counts as someone more.
-    let message = |key: &str, to: &[&str]| {
+    // because the account's own address never counts as someone more. My own message to Bob
+    // alone: a plain reply would address me, and reply-all also reaches Bob, so it is the default
+    // even though the message went to one person.
+    let message = |key: &str, from: &str, to: &[&str]| {
         let mut message = Message::new(
             MessageId::try_from(key).unwrap(),
             Memberships::of_one(MailboxId::try_from("inbox").unwrap()),
         );
         message.envelope.subject = Some("Planning".to_owned());
-        message.envelope.from = vec![EmailAddress::new("sender@remote.test")];
+        message.envelope.from = vec![EmailAddress::new(from)];
         message.envelope.to = to
             .iter()
             .map(|address| EmailAddress::new(*address))
             .collect();
         message
     };
+    let sender = "sender@remote.test";
     let (app, _submissions) = reply_app(vec![
-        message("group", &["me@allodia.local", "alice@remote.test"]),
-        message("direct", &["me@allodia.local"]),
+        message("group", sender, &["me@allodia.local", "alice@remote.test"]),
+        message("direct", sender, &["me@allodia.local"]),
+        message("own", "me@allodia.local", &["bob@remote.test"]),
     ]);
     app.dispatch(Intent::RefreshMail).await;
 
     for (key, expected) in [
         ("group", DefaultReply::ReplyAll),
         ("direct", DefaultReply::Reply),
+        ("own", DefaultReply::ReplyAll),
     ] {
         app.dispatch(Intent::OpenMessage {
             reader: ReaderId::Pane,

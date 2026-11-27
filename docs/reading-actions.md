@@ -25,7 +25,8 @@ with a chevron beside it holding the other answers; the overflow last of all. Th
 **reply-all when it would reach someone a plain reply does not** (the account's own address never
 counting), else reply; the core decides it (`ReadingSnapshot.default_reply_all`) from the same two
 suggestions the composers prefill, so the default never claims more people than the reply-all
-composer then shows. Until the body arrives it is reply. The sun/moon is the overflow's first item
+composer then shows. Your own message to one person is reply-all as well: a plain reply would
+address you, and reply-all also reaches them. Until the body arrives it is reply. The sun/moon is the overflow's first item
 there, a bar of glass having no room for a seventh button. A desktop keeps the row above the message,
 with every answer on it.
 
