@@ -16,7 +16,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,52 +26,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import uniffi.mailcal_bindings.MessageScheme
 import uniffi.mailcal_bindings.renderMessageHtml
-
-// The recipient headers (To / Cc / Bcc) shown below the subject/sender. Each row appears only
-// when non-empty; Bcc is present only on the user's own Sent/Drafts copies.
-@Composable
-internal fun RecipientHeader(to: String, cc: String, bcc: String) {
-    val ctx = LocalContext.current
-    if (to.isEmpty() && cc.isEmpty() && bcc.isEmpty()) {
-        return
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
-    ) {
-        RecipientRow(L10n.compose_to(ctx), to)
-        RecipientRow(L10n.compose_cc(ctx), cc)
-        RecipientRow(L10n.compose_bcc(ctx), bcc)
-    }
-}
-
-@Composable
-private fun RecipientRow(label: String, value: String) {
-    if (value.isEmpty()) {
-        return
-    }
-    Text(
-        text = "$label: $value",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
 
 // The bar shown above a message that has remote images, which are blocked by default to
 // avoid tracking. Tapping "Load images" opts in for this message.
@@ -103,9 +70,9 @@ private class RemotePolicy {
     var allowRemote = false
 }
 
-// Where the reader was when the same message was drawn again in another scheme, put back once
-// the new page is on screen (docs/reading-dark-mode.md, rule 9). Only the colours changed, so the
-// layout and the position are the same.
+// Where the reader was when the same message was drawn again, put back once the new page is on
+// screen: in another scheme (docs/reading-dark-mode.md, rule 9), where only the colours changed,
+// or in a view built anew after a visit to another tab, where nothing did.
 //
 // Put back when the page commits, and only then. For an in-memory document `onPageFinished`
 // arrives first, and the new page's first frame then scrolls it to the top, so a place spent
@@ -113,8 +80,8 @@ private class RemotePolicy {
 internal class KeptPlace {
     private var scrollY: Int? = null
 
-    // A document is about to load. `sameMessage` is the same message in another scheme, whose
-    // place is worth keeping; anything else opens at its top.
+    // A document is about to load. `sameMessage` is the same message drawn again, whose place is
+    // worth keeping; anything else opens at its top.
     fun loading(currentScrollY: Int, sameMessage: Boolean) {
         scrollY = currentScrollY.takeIf { sameMessage && it > 0 }
     }
@@ -174,6 +141,9 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
     val policy = remember { RemotePolicy() }
     policy.allowRemote = loadRemoteImages
     val kept = remember { KeptPlace() }
+    // Where the reader is in this message, kept while another tab is up: the view is built anew on
+    // the way back, and opens where they left it.
+    var place by rememberSaveable(fragment) { mutableIntStateOf(0) }
     // The Compose owner view, invalidated when the WebView commits its first frame (belt-and-
     // suspenders alongside the fade below).
     val hostView = LocalView.current
@@ -197,6 +167,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
             factory = { context ->
             WebView(context).apply {
                 settings.applyReadingPolicy()
+                setOnScrollChangeListener { _, _, y, _, _ -> place = y }
                 webViewClient = object : WebViewClient() {
                     // First frame is painted: reveal (fade in) and nudge the owner to redraw.
                     override fun onPageCommitVisible(view: WebView?, url: String?) {
@@ -246,7 +217,11 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
                 val last = webView.tag as? DocumentInputs
                 if (last != inputs) {
                     webView.tag = inputs
-                    kept.loading(webView.scrollY, sameMessage = last?.copy(scheme = scheme) == inputs)
+                    // A view built anew for a message already read returns to its place.
+                    kept.loading(
+                        currentScrollY = if (last == null) place else webView.scrollY,
+                        sameMessage = last == null || last.copy(scheme = scheme) == inputs,
+                    )
                     val document = renderMessageHtml(fragment, loadRemoteImages, scheme)
                     webView.loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
                 }

@@ -112,7 +112,8 @@ class MainActivity : AppCompatActivity() {
     )
 
     // The reading view: the message the user opened (its header, for the screen) and the
-    // body snapshot the core fetched + sanitised. Both null when the list is showing.
+    // body snapshot the core fetched + sanitised. Both null when the Mail tab shows the list; an
+    // open message stays while another tab is up, the Mail tab's to come back to.
     internal var openedMessage by mutableStateOf<OpenedMessage?>(null)
     internal var reading by mutableStateOf<ReadingSnapshot?>(null)
     // The conversation the open message belongs to (newest-first) when it was opened from a

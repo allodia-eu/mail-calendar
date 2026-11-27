@@ -288,6 +288,10 @@ internal fun MainActivity.openMessageByKey(app: MailcalApp, accountId: String, m
         avatar = flatRow?.avatar ?: placeholderAvatar(),
         date = flatRow?.date ?: "",
     )
+    // The message is the Mail tab's, so whatever stands in front of the tabs is dismissed first,
+    // as a mail link dismisses it, or the tap would look like it did nothing.
+    showingDiagnostics = false
+    showingSettings = false
     openMessage(app, opened)
 }
 
@@ -302,7 +306,23 @@ internal fun MainActivity.openMessage(
     openedMessage = opened
     openedConversation = conversation
     reading = null
+    // An open message is the Mail tab's; a notification can open one while another tab is up.
+    destination = AppDestination.MAIL
     app.dispatch(Intent.OpenMessage(opened.account, opened.key))
+}
+
+/**
+ * Whether the open message's account has left the mailbox, as one removed from Settings does while
+ * the message waits in the Mail tab. An empty list is a mailbox not read yet rather than one with
+ * no account: the last account leaving returns the app to setup (MainActivityAccountSettings.kt).
+ */
+internal fun outlivedItsAccount(opened: OpenedMessage?, accountIds: List<String>): Boolean =
+    opened != null && accountIds.isNotEmpty() && opened.account !in accountIds
+
+internal fun MainActivity.closeOpenedMessage() {
+    openedMessage = null
+    openedConversation = null
+    reading = null
 }
 
 // The message a tap on a conversation row opens, `head` ([ListedOpening.head]), under the

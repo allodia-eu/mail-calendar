@@ -161,7 +161,7 @@ they had read, and a dark theme narrows the difference between the two weights f
 |---|:---:|:---:|:---:|:---:|:---:|---|
 | Core | ✅ | ✅ | ✅ | n/a | n/a | `mailcal-viewmodel/src/avatar.rs`, `mailcal-app/src/avatars.rs` |
 | macOS / iOS / iPadOS | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.swift`, `Mailcal.MailRows.swift`, `Mailcal.TouchRows.swift`, `ReadingView.swift`, `Contacts/` |
-| Android | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.kt`, `MailRows.kt`, `ReadingScreen.kt`, `ThreadReading.kt`, `ContactsScreen.kt`, `ContactDetailSheet.kt` |
+| Android | ✅ | ✅ | ✅ | ✅ | ✅ | `AvatarView.kt`, `MailRows.kt`, `ReadingHeader.kt`, `ThreadReading.kt`, `ContactsScreen.kt`, `ContactDetailSheet.kt` |
 | Windows | ✅ | ✅ | ✅ | ✅ | ✅ | `Controls/AvatarView.cs`, `ViewModels/AvatarItem.cs`, `MailListView.xaml`, `ReadingView.xaml`, `ContactsView.xaml` |
 | Linux | ✅ | ✅ | ✅ | ✅ | ✅ | `clients/linux/src/ui/avatar.rs` |
 

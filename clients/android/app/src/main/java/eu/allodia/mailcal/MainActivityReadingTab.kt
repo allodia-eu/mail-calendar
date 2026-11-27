@@ -1,4 +1,4 @@
-// The reading-view branch of MainScreen, split out of MainActivity.kt: the ReadingScreen call
+// The Mail tab while a message is open (MainActivityMailboxTab.kt): the ReadingScreen call
 // alone carries every mail action a read message offers (reply/forward, archive/delete,
 // attachments, invitation response).
 package eu.allodia.mailcal
@@ -18,13 +18,17 @@ import uniffi.mailcal_bindings.SelectedRow
 
 private const val TAG = "Mailcal"
 
-// A message is open: show its reading view over the list.
+// A message is open: show its reading view in place of the list.
 @Composable
 internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: OpenedMessage) {
     // Pulled in the same step that sets the core, so never null here.
     val display = displaySettings ?: return
     val ctx = LocalContext.current
     var purging by remember { mutableStateOf<SelectedRow.Message?>(null) }
+    val close = {
+        openedMessage = null
+        openedConversation = null
+    }
     purging?.let { row ->
         ConfirmDialog(
             title = L10n.delete_permanently_title(ctx),
@@ -33,7 +37,10 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
             tag = "purge",
         ) { yes ->
             purging = null
-            if (yes) instance.dispatch(Intent.PermanentlyDelete(row.account, row.key))
+            if (yes) {
+                instance.dispatch(Intent.PermanentlyDelete(row.account, row.key))
+                close()
+            }
         }
     }
     ReadingScreen(
@@ -55,10 +62,7 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     )
                                 )
                             },
-                            onBack = {
-                                openedMessage = null
-                                openedConversation = null
-                            },
+                            onBack = close,
                             // Retry a failed fetch: clear the body (spinner) and re-open.
                             onRetry = {
                                 reading = null
@@ -103,7 +107,8 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // the row optimistically, and the screen pops back to the list.
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
                             // The bar's Delete over this one message: in Trash it deletes for
-                            // good, after asking (docs/command-bar.md, rule 8).
+                            // good, after asking (docs/command-bar.md, rule 8), so the message is
+                            // left only once the delete is sent; the question needs this screen.
                             onDelete = { account, key ->
                                 val row = SelectedRow.Message(account, key)
                                 val item = instance.commandBar(listOf(row)).deleteItem()
@@ -111,9 +116,10 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     if (item.enabled) purging = row
                                 } else {
                                     instance.dispatch(Intent.Delete(account, key))
+                                    close()
                                 }
                             },
-                            // The sun/moon button: the preference Settings → Reading also shows. The
+                            // The overflow's sun/moon: the preference Settings → Reading also shows. The
                             // open message draws again on the SETTINGS pull that follows the press.
                             darkMessages = display.darkMessageBackground,
                             onSetDarkMessages = {

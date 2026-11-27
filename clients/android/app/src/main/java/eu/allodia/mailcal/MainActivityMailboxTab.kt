@@ -1,6 +1,7 @@
 // The mail/calendar/contacts tab branch of MainScreen, split out of MainActivity.kt: the running
-// app's three-destination scaffold (AppNavScaffold) over the folder drawer, the mailbox list, the
-// calendar grid and the contacts screen, each wired to its slice of the core.
+// app's three-destination scaffold (AppNavScaffold) over the folder drawer, the mailbox list or
+// the open message, the calendar grid and the contacts screen, each wired to its slice of the
+// core.
 package eu.allodia.mailcal
 
 import android.util.Log
@@ -10,6 +11,7 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +27,9 @@ import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.PreferenceIntent
 
 private const val TAG = "Mailcal"
+
+// One key: the reading screen keys its own state by the message it shows.
+private const val READING_STATE_KEY = "reading"
 
 @Composable
 internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
@@ -44,6 +49,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
     val noticeCard: @Composable () -> Unit = {
         NoticeArea(notices.notices, NoticeRules.screenOf(destination), noticeHandlers)
     }
+    // Outlives the reading screen leaving the composition while another tab is up.
+    val readingTabState = rememberSaveableStateHolder()
     Column(modifier = Modifier.fillMaxSize()) {
                           NoticeAnnouncer(notices.announcement)
                           // A launch outage no longer shows a raw error dump here (it overflowed the
@@ -88,7 +95,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 }
                             },
                         ) {
-                          if (destination == AppDestination.CONTACTS) {
+                          val body = tabBody(destination, openedMessage != null)
+                          if (body == TabBody.CONTACTS) {
                             ContactsScreen(
                                 rows = contacts,
                                 // The query goes into the CORE, not a filter over the rows on
@@ -136,7 +144,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 },
                             )
                             ContactWriteSheets(instance, scope)
-                          } else if (destination == AppDestination.CALENDAR) {
+                          } else if (body == TabBody.CALENDAR) {
                             CalendarScreen(
                                 // The grid's page query: synchronous, cheap, and never touching the
                                 // store or the network, the screen calls it for the page in view
@@ -283,6 +291,13 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 initialEvent = ShowcaseMode.openingEvent(this@MailboxTabContent),
                                 onInitialEventShown = { didDriveShowcaseOpen = true },
                             )
+                          } else if (body == TabBody.READING) {
+                            // Under the navigation bar, and still open after a visit to another
+                            // tab. Its saveable state (the remote-images choice, the details, the
+                            // place in the body) is kept for that visit too.
+                            readingTabState.SaveableStateProvider(READING_STATE_KEY) {
+                                openedMessage?.let { ReadingTabContent(instance, it) }
+                            }
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can
                             // slide in from the left edge. State is remembered at this level so

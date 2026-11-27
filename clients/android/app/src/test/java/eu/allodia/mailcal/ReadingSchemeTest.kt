@@ -1,5 +1,6 @@
-// Which page a message is drawn on, and the two controls that change it
-// (ReadingScheme.kt, docs/reading-dark-mode.md).
+// Which page a message is drawn on, and the two controls that change it: the first item of the
+// reading screen's overflow and the switch in Settings → Reading (ReadingScheme.kt,
+// ReadingScreenOverflow.kt, docs/reading-dark-mode.md).
 //
 // The reading screen itself reaches the cdylib for its canvas, which this suite does not load, so
 // the rule and the controls are asserted here, where they are plain functions and composables.
@@ -7,11 +8,12 @@ package eu.allodia.mailcal
 
 import android.content.Context
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,20 +35,52 @@ class ReadingSchemeTest {
         assertEquals(MessageScheme.LIGHT, messageScheme(appDark = false, darkMessages = false))
     }
 
+    private fun overflow(scheme: MessageScheme?, onSet: (Boolean) -> Unit = {}) {
+        rule.setContent {
+            ReadingOverflowMenu(
+                subject = "Quarterly report",
+                account = "acct-1",
+                key = "m1",
+                onExportMessage = { _, _, _ -> true },
+                onPrint = {},
+                scheme = scheme,
+                onSetDarkMessages = onSet,
+            )
+        }
+        rule.onNodeWithTag(READING_OVERFLOW_TAG).performClick()
+    }
+
     @Test
     fun theSunOnADarkMessageTurnsDarkMessagesOff() {
         var set: Boolean? = null
-        rule.setContent { MessageSchemeToggle(MessageScheme.DARK) { set = it } }
-        rule.onNodeWithContentDescription(L10n.reading_show_light_background(ctx)).performClick()
+        overflow(MessageScheme.DARK) { set = it }
+        rule.onNodeWithText(L10n.reading_show_light_background(ctx)).performClick()
         assertEquals(false, set)
     }
 
     @Test
     fun theMoonOnALightMessageTurnsDarkMessagesOn() {
         var set: Boolean? = null
-        rule.setContent { MessageSchemeToggle(MessageScheme.LIGHT) { set = it } }
-        rule.onNodeWithContentDescription(L10n.reading_show_dark_background(ctx)).performClick()
+        overflow(MessageScheme.LIGHT) { set = it }
+        rule.onNodeWithText(L10n.reading_show_dark_background(ctx)).performClick()
         assertEquals(true, set)
+    }
+
+    @Test
+    fun theChoiceOpensTheOverflowAboveWhatActsOnTheMessage() {
+        overflow(MessageScheme.DARK)
+        val choice = rule.onNodeWithText(L10n.reading_show_light_background(ctx)).fetchSemanticsNode()
+        val export = rule.onNodeWithText(L10n.action_save_as_eml(ctx)).fetchSemanticsNode()
+        assertTrue(choice.boundsInRoot.top < export.boundsInRoot.top)
+    }
+
+    @Test
+    fun aLightAppOffersNoChoice() {
+        // A light app has nothing to darken (rule 3), so the menu holds only the document actions.
+        overflow(scheme = null)
+        rule.onNodeWithText(L10n.reading_show_light_background(ctx)).assertDoesNotExist()
+        rule.onNodeWithText(L10n.reading_show_dark_background(ctx)).assertDoesNotExist()
+        rule.onNodeWithText(L10n.action_save_as_eml(ctx)).assertExists()
     }
 
     @Test

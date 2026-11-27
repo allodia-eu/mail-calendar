@@ -21,6 +21,19 @@ import androidx.compose.ui.res.painterResource
 // and contacts at once") and every reader has to prove they don't happen.
 internal enum class AppDestination { MAIL, CALENDAR, CONTACTS }
 
+/** What the scaffold shows: each destination's screen, the Mail tab's being an open message when one is. */
+internal enum class TabBody { MAILBOX, READING, CALENDAR, CONTACTS }
+
+/**
+ * The body for [destination]. An open message is the Mail tab's alone and is held by the activity,
+ * never by the tab, so a visit to another tab leaves it open to come back to.
+ */
+internal fun tabBody(destination: AppDestination, messageOpen: Boolean): TabBody = when (destination) {
+    AppDestination.MAIL -> if (messageOpen) TabBody.READING else TabBody.MAILBOX
+    AppDestination.CALENDAR -> TabBody.CALENDAR
+    AppDestination.CONTACTS -> TabBody.CONTACTS
+}
+
 // The bottom-navigation host. The selected destination and the switch handler live in
 // MainActivity (state stays put); selecting Calendar or Contacts also kicks a sync.
 // [content] renders the active screen inside the scaffold's content padding.
