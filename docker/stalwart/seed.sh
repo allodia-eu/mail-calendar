@@ -228,6 +228,19 @@ done
 imap_clear Projects/Clients/Acme
 imap_append "$MAIL_DIR/13-nested-folder.eml" Projects/Clients/Acme
 
+# A long conversation and a long message, for what a phone's reading page does with more than a
+# screen: twelve messages in one thread between five people, and an HTML message thirty sections
+# long whose last line says it is the end (docs/reading-actions.md). Each goes in a second after the
+# one before it, as the row-menu conversations below do, so the thread's order is the order it was
+# written. They arrive read like every other append, so no unread count a suite asserts on moves.
+# After every sequence-numbered step above, so they renumber nothing, and before every other
+# sequence-safe fixture, so the rows the suites look for keep their places.
+log "appending the long conversation and the long message to INBOX"
+for f in "$MAIL_DIR"/22-long-thread-*.eml "$MAIL_DIR/23-long-message.eml"; do
+  sleep 1
+  imap_append "$f" INBOX
+done
+
 # The HTML fixture is appended LAST, after every STORE/COPY/MOVE above has run.
 # Those steps address messages by IMAP sequence number, and an APPEND earlier in
 # the list would renumber the ones after it, silently re-pointing "STORE 6"
