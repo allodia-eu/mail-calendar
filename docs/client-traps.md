@@ -112,6 +112,12 @@ that same file.
   A WebView layout bug cannot be caught by the JVM suite: Robolectric has no renderer; prove it
   against a real WebView (`adb forward` to `webview_devtools_remote_<pid>` + CDP
   `Runtime.evaluate`).
+- **The Android reading WebView never scrolls; the page around it does.** It is laid out at the
+  full height of the message, measured by a Compose scroll with no limit, which a WebView answers
+  with its content's height ([`ReadingPage.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/ReadingPage.kt)).
+  So its `scrollY` and a scroll listener on it read zero however far the reader is, a nested-scroll
+  hand-off from it has nothing to hand off, and the reader's place is the page's `ScrollState`. A
+  WebView inside a scroll of its own instead stops every fling at the message's top.
 - **An Android screen with a text field pads for the keyboard itself.** The app is edge-to-edge,
   so the window keeps its size when the keyboard opens and covers whatever is below the field:
   the page cannot be scrolled to the button under it until the keyboard is put away. Put

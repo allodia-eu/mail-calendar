@@ -11,14 +11,12 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -70,24 +69,31 @@ private class RemotePolicy {
     var allowRemote = false
 }
 
-// Where the reader was when the same message was drawn again, put back once the new page is on
-// screen: in another scheme (docs/reading-dark-mode.md, rule 9), where only the colours changed,
-// or in a view built anew after a visit to another tab, where nothing did.
+// The height the page keeps for a message while its document is drawn again, so the page around it
+// does not shrink under the reader and lose their place: in another scheme
+// (docs/reading-dark-mode.md, rule 9), where only the colours changed, or in a view built anew
+// after a visit to another tab, where nothing did. A WebView starts a new document at no height at all, and a page that short
+// would put the reader back at its top.
 //
-// Put back when the page commits, and only then. For an in-memory document `onPageFinished`
-// arrives first, and the new page's first frame then scrolls it to the top, so a place spent
-// there is overwritten before anyone sees it.
-internal class KeptPlace {
-    private var scrollY: Int? = null
+// Let go once the message has been laid out that tall again, or once the reader zooms, which is a
+// height of its own.
+internal class HeldHeight(initial: Int = 0) {
+    var px by mutableIntStateOf(initial)
+        private set
 
-    // A document is about to load. `sameMessage` is the same message drawn again, whose place is
-    // worth keeping; anything else opens at its top.
-    fun loading(currentScrollY: Int, sameMessage: Boolean) {
-        scrollY = currentScrollY.takeIf { sameMessage && it > 0 }
+    // A document is about to load. `sameMessage` is the same message drawn again, whose height is
+    // worth keeping; anything else starts from nothing.
+    fun loading(currentHeight: Int, sameMessage: Boolean) {
+        px = if (sameMessage) currentHeight else 0
     }
 
-    // The new page is on screen: where to scroll it, once.
-    fun committed(): Int? = scrollY.also { scrollY = null }
+    fun laidOut(height: Int) {
+        if (height >= px) px = 0
+    }
+
+    fun release() {
+        px = 0
+    }
 }
 
 // What a document is built from; a change of any of them reloads it.
@@ -136,42 +142,46 @@ internal fun blockRemoteLoad(request: WebResourceRequest?, allowRemote: Boolean)
 // adds the native defenses: JavaScript disabled, in-view navigation blocked (tapped links
 // open in the default browser), and, as a second barrier to the document CSP, remote
 // sub-resource loads intercepted unless the user opted into images.
+//
+// The WebView takes the full height of what it draws, on a page that scrolls (ReadingPage.kt): the
+// page measures it with no limit, and a WebView measured that way answers with its content's
+// height and lays itself out again whenever that changes.
 @Composable
 internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: MessageScheme) {
     val policy = remember { RemotePolicy() }
     policy.allowRemote = loadRemoteImages
-    val kept = remember { KeptPlace() }
-    // Where the reader is in this message, kept while another tab is up: the view is built anew on
-    // the way back, and opens where they left it.
-    var place by rememberSaveable(fragment) { mutableIntStateOf(0) }
-    // The Compose owner view, invalidated when the WebView commits its first frame (belt-and-
-    // suspenders alongside the fade below).
+    // The height the message last had, kept while another tab is up: the view is built anew on the
+    // way back, and the page keeps the reader's place only if the message is as tall as it was. Held
+    // from the first layout on, which is when the page would otherwise cut its scroll short.
+    var lastHeight by rememberSaveable(fragment) { mutableIntStateOf(0) }
+    val held = remember { HeldHeight(initial = lastHeight) }
+    // The Compose owner view, invalidated when the WebView commits its first frame.
     val hostView = LocalView.current
     // The WebView's very first paint momentarily blanks the sibling Compose header (the "flicker"
     // on open): on that one frame the parent draws the WebView but not the Compose layers above
     // it. Two things prevent it from ever being visible: the WebView always draws into its own
     // graphics layer (`graphicsLayer` below), which decouples its paints from the parent's Compose
-    // draw; and it starts transparent and fades in only once it has painted, so that first frame
-    // happens while it's invisible. A spinner covers the body until then.
+    // draw; and it is drawn only once it has painted, so that first frame happens while it's
+    // invisible. A spinner stands in for the body until then. Shown at once rather than faded in:
+    // a layer partly transparent is drawn off screen at its full size, and this one is the whole
+    // message tall.
     var painted by remember { mutableStateOf(false) }
-    val alpha by animateFloatAsState(
-        targetValue = if (painted) 1f else 0f,
-        animationSpec = tween(durationMillis = 150),
-        label = "readingBodyFade",
-    )
-    Box(modifier = Modifier.fillMaxSize()) {
+    val density = LocalDensity.current
+    Box(modifier = Modifier.fillMaxWidth().heightIn(min = with(density) { held.px.toDp() })) {
         AndroidView(
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { this.alpha = alpha },
+                .fillMaxWidth()
+                .graphicsLayer { alpha = if (painted) 1f else 0f },
             factory = { context ->
             ReadingWebView(context).apply {
                 settings.applyReadingPolicy()
-                setOnScrollChangeListener { _, _, y, _, _ -> place = y }
+                addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+                    lastHeight = bottom - top
+                    held.laidOut(bottom - top)
+                }
                 webViewClient = object : WebViewClient() {
-                    // First frame is painted: reveal (fade in) and nudge the owner to redraw.
+                    // First frame is painted: show it and nudge the owner to redraw.
                     override fun onPageCommitVisible(view: WebView?, url: String?) {
-                        kept.committed()?.let { view?.scrollTo(0, it) }
                         painted = true
                         hostView.invalidate()
                     }
@@ -180,6 +190,10 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
                     // doesn't arrive for a given body (e.g. empty content).
                     override fun onPageFinished(view: WebView?, url: String?) {
                         painted = true
+                    }
+
+                    override fun onScaleChanged(view: WebView?, oldScale: Float, newScale: Float) {
+                        held.release()
                     }
 
                     // The body is inert, we never navigate in place. A link the user tapped
@@ -217,9 +231,9 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
                 val last = webView.tag as? DocumentInputs
                 if (last != inputs) {
                     webView.tag = inputs
-                    // A view built anew for a message already read returns to its place.
-                    kept.loading(
-                        currentScrollY = if (last == null) place else webView.scrollY,
+                    // A view built anew for a message already read is as tall as it was.
+                    held.loading(
+                        currentHeight = if (last == null) lastHeight else webView.height,
                         sameMessage = last == null || last.copy(scheme = scheme) == inputs,
                     )
                     val document = renderMessageHtml(fragment, loadRemoteImages, scheme)
@@ -227,15 +241,20 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: Messa
                 }
             },
         )
-        // Show a spinner over the still-transparent WebView until it has painted, so the reading
-        // area shows progress rather than a blank rectangle during the fade-in.
+        // A spinner in the body's place until the WebView has painted, so the reading area shows
+        // progress rather than a blank page.
         if (!painted) {
             CenteredMessage { CircularProgressIndicator() }
         }
     }
 }
 
+// What stands in the body's place while there is no message to show: near the top of the page, so
+// it is in view under the header rather than half a screen below it.
 @Composable
 internal fun CenteredMessage(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }

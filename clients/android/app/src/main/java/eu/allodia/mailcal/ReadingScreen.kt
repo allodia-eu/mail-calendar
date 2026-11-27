@@ -10,6 +10,7 @@ package eu.allodia.mailcal
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -34,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -200,9 +198,8 @@ internal fun ReadingScreen(
     val accent = remember(scheme) {
         if (scheme == MessageScheme.DARK) darkColorScheme().primary else lightColorScheme().primary
     }
-    // How far the header has scrolled away, kept for this message across a visit to another tab.
-    val headerOffset = rememberSaveable(message.key) { mutableFloatStateOf(0f) }
-    val header = remember(headerOffset) { CollapsingHeader(headerOffset) }
+    // Where the reader is on the page, kept for this message across a visit to another tab.
+    val scroll = rememberSaveable(message.key, saver = ScrollState.Saver) { ScrollState(0) }
     Column(modifier = Modifier.fillMaxSize()) {
         ReadingTopBar(
             onBack = onBack,
@@ -231,7 +228,8 @@ internal fun ReadingScreen(
             )
         }
         ReadingPage(
-            state = header,
+            scroll = scroll,
+            page = page,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             header = {
                 Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
@@ -306,42 +304,36 @@ internal fun ReadingScreen(
                 }
             },
             body = {
-                // The page a message is drawn on fills the body for every state of an open.
-                Box(modifier = Modifier.fillMaxSize().background(page)) {
-                    CompositionLocalProvider(LocalContentColor provides ink) {
-                        when {
-                            // Nothing yet, and too soon to say so: the core announces a wait only
-                            // once one has run long enough to notice, so a fast open draws no
-                            // spinner at all rather than flashing one. The header above is already
-                            // filled from the row.
-                            body == null -> Unit
-                            // Carries no body, this has to precede the branches that read one.
-                            body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
-                            body.loadError -> CenteredMessage {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
-                                    TextButton(
-                                        onClick = onRetry,
-                                        colors = ButtonDefaults.textButtonColors(contentColor = accent),
-                                    ) { Text(L10n.action_retry(ctx)) }
-                                }
+                CompositionLocalProvider(LocalContentColor provides ink) {
+                    when {
+                        // Nothing yet, and too soon to say so: the core announces a wait only
+                        // once one has run long enough to notice, so a fast open draws no
+                        // spinner at all rather than flashing one. The header above is already
+                        // filled from the row.
+                        body == null -> Unit
+                        // Carries no body, this has to precede the branches that read one.
+                        body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
+                        body.loadError -> CenteredMessage {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
+                                TextButton(
+                                    onClick = onRetry,
+                                    colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                                ) { Text(L10n.action_retry(ctx)) }
                             }
-                            !body.html.isNullOrEmpty() ->
-                                HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages, scheme = scheme)
-                            !body.plain.isNullOrEmpty() -> LinkifiedText(
-                                text = body.plain!!,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(16.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            else -> CenteredMessage {
-                                Text(text = L10n.reading_no_content(ctx), color = LocalContentColor.current)
-                            }
+                        }
+                        !body.html.isNullOrEmpty() ->
+                            HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages, scheme = scheme)
+                        !body.plain.isNullOrEmpty() -> LinkifiedText(
+                            text = body.plain!!,
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        else -> CenteredMessage {
+                            Text(text = L10n.reading_no_content(ctx), color = LocalContentColor.current)
                         }
                     }
                 }

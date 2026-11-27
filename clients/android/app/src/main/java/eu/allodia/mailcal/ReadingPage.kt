@@ -1,90 +1,41 @@
-// The reading page: everything about the message that is not the message (subject, the rest of the
-// conversation, who sent it, its banners, files and invitation) scrolls away with the body it
-// belongs to, between the top app bar and the answers, which stay put (docs/reading-actions.md).
+// The reading page: one scroll for everything between the top app bar and the answers, which stay
+// put (docs/reading-actions.md). The subject, the rest of the conversation, who sent it, its
+// banners, files and invitation, and the message itself are one column, so a drag or a fling moves
+// all of it at once and runs from the message's end to the subject without stopping.
 //
-// The body brings its own scroll (a WebView, or the plain text's column), so the two are one
-// gesture through nested scrolling: a scroll toward the end takes the header away first, and a
-// scroll back brings it back once the body is at its top. The header also scrolls by itself, so
-// one taller than the screen, a long conversation or twenty attachments, can still be passed.
+// That holds because the message never scrolls by itself: its WebView is laid out at the full
+// height of what it draws (ReadingScreenBody.kt), and the page is what moves it.
 package eu.allodia.mailcal
 
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.ScrollableState
-import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableFloatState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.Constraints
-import kotlin.math.roundToInt
-
-/**
- * How far the header has gone up, in pixels, between none of it and all of it.
- *
- * Deltas use Compose's sign: negative is a scroll toward the end, the finger moving up.
- */
-internal class CollapsingHeader(private val offsetState: MutableFloatState = mutableFloatStateOf(0f)) {
-    var offset: Float
-        get() = offsetState.floatValue
-        private set(value) {
-            offsetState.floatValue = value
-        }
-
-    /** The header's height, measured with the page. */
-    var height by mutableFloatStateOf(0f)
-
-    /** Takes what it can of [delta] by moving the header; returns what it took. */
-    fun scroll(delta: Float): Float {
-        val next = (offset - delta).coerceIn(0f, height)
-        val taken = offset - next
-        offset = next
-        return taken
-    }
-
-    /** The body's scroll: toward the end the header goes first, back it returns once the body is at its top. */
-    val connection = object : NestedScrollConnection {
-        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
-            if (available.y < 0) Offset(0f, scroll(available.y)) else Offset.Zero
-
-        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
-            if (available.y > 0) Offset(0f, scroll(available.y)) else Offset.Zero
-    }
-
-    /** A drag or fling on the header itself. */
-    val headerScroll = ScrollableState { delta -> scroll(delta) }
-}
+import androidx.compose.ui.graphics.Color
 
 @Composable
 internal fun ReadingPage(
-    state: CollapsingHeader,
+    scroll: ScrollState,
+    // The colour the message is drawn on, which runs to the foot of the page.
+    page: Color,
     header: @Composable () -> Unit,
     body: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Layout(
-        contents = listOf(
-            { Box(modifier = Modifier.scrollable(state.headerScroll, Orientation.Vertical)) { header() } },
-            body,
-        ),
-        modifier = modifier.clipToBounds().nestedScroll(state.connection),
-    ) { (headerMeasurables, bodyMeasurables), constraints ->
-        val header = headerMeasurables.single().measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-        // The body is the page's full height: it is what is left once the header has gone.
-        val body = bodyMeasurables.single().measure(constraints.copy(minHeight = constraints.maxHeight))
-        state.height = header.height.toFloat()
-        val offset = state.offset.coerceIn(0f, header.height.toFloat()).roundToInt()
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            header.place(0, -offset)
-            body.place(0, header.height - offset)
+    BoxWithConstraints(modifier = modifier) {
+        val viewport = maxHeight
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(scroll)) {
+            header()
+            // At least a screen tall, so a short message leaves no strip of another colour under
+            // it and the header can still be scrolled away above it.
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = viewport).background(page)) { body() }
         }
     }
 }
