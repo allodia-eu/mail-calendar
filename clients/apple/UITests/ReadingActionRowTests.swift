@@ -37,6 +37,22 @@ final class ReadingActionRowTests: XCTestCase {
         }
     }
 
+    /// In a dark app the More menu offers the light/dark switch (`docs/reading-dark-mode.md`,
+    /// rule 3), and a press turns it over. The showcase leaves dark messages on, so it first offers
+    /// the light background; the test turns it back before it ends.
+    func testADarkAppsMoreMenuSwitchesTheMessageBackground() throws {
+        let toLight = Filter.button("Show messages with a light background")
+        let toDark = Filter.button("Show messages with a dark background")
+        let app = try ShowcaseApp.launch(["MAILCAL_APPEARANCE": "dark"])
+        try ShowcaseApp.openFirstMessage(app)
+        try app.wait(.button("Reply"), "no message was opened")
+
+        try app.press(.button("More actions"), "no More menu")
+        try app.press(toLight, "the More menu offers no light background in a dark app")
+        try app.press(.button("More actions"))
+        try app.press(toDark, "pressing the sun did not bring the moon")
+    }
+
     /// Print, behind the overflow, reaches the system's print sheet.
     ///
     /// The page is laid out in a web view nobody sees, so the one thing a reader can observe is the

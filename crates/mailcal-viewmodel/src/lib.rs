@@ -68,7 +68,7 @@ pub use signatures::{
     SignaturesView,
 };
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot, ThrottledAccount};
-pub use text::plain_text;
+pub use text::{plain_text, preview_line};
 pub use view::{
     AccountMessage, AccountRow, EmptyReason, FlatRow, MailboxListSnapshot, SearchHorizon,
     SnapshotRow, ThreadMessage, ThreadRow, ViewMode, unified_unread,

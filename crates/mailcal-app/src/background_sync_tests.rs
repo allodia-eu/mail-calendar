@@ -179,6 +179,23 @@ fn an_empty_inbox_has_no_high_water() {
 }
 
 #[test]
+fn a_notification_shows_the_snippet_as_one_run_of_text() {
+    // The list row flattens the snippet the same way, so the two never disagree about how a
+    // message begins.
+    let mut message = Message::new(
+        MessageId::try_from("k1").unwrap(),
+        Memberships::of_one(MailboxId::try_from("inbox").unwrap()),
+    );
+    message.preview = Some("Hello Ada,\r\n\r\n  The status of\tyour app".to_owned());
+    message.received_at = Some("2026-06-01T10:00:00Z".parse().unwrap());
+    let preview = preview_of(&MailListRow::project(
+        &AccountId::try_from("acct").unwrap(),
+        &message,
+    ));
+    assert_eq!(preview.preview, "Hello Ada, The status of your app");
+}
+
+#[test]
 fn a_preview_carries_the_sender_name_subject_snippet_and_key() {
     let mut message = Message::new(
         MessageId::try_from("k1").unwrap(),

@@ -55,10 +55,11 @@ Where a client cannot do it the header stands still above the body, which is the
 second design; each such client says so in the matrix below.
 
 **It is the same control as the buttons beside it**, at both of the row's widths. Each platform
-uses whatever gets it there: Windows and Android hang a native menu off a button, and Apple builds
-an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match a
-bordered button's height and breaks the row's width measurement
-([`client-traps.md`](client-traps.md)). What the contract fixes is the result, not the mechanism:
+uses whatever gets it there: Windows and Android hang a native menu off a button, and the Mac
+builds an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match
+a bordered button's height and breaks the row's width measurement
+([`client-traps.md`](client-traps.md)). In a navigation bar, where iPhone and iPad put it, it is a
+system `Menu` like every other bar item. What the contract fixes is the result, not the mechanism:
 a reader should not be able to tell the overflow apart from its neighbours except by its glyph.
 
 ## Where the pane goes next

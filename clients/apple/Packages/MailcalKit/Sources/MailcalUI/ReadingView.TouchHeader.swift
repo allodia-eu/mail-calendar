@@ -35,12 +35,12 @@ extension ReadingView {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
-                    if bodySnapshot != nil {
+                    if loadedSnapshot != nil {
                         detailsToggle
                     }
                 }
             }
-            if showsMessageDetails, let body = bodySnapshot {
+            if showsMessageDetails, let body = loadedSnapshot {
                 details(body)
             }
         }
@@ -48,6 +48,13 @@ extension ReadingView {
         .padding(.horizontal, readingInset)
         .padding(.top, 16)
         .padding(.bottom, 12)
+    }
+
+    /// The snapshot once it has resolved the message. A pending or failed one names nobody, so a
+    /// details line drawn from it would be a chevron with nothing beside it.
+    private var loadedSnapshot: ReadingSnapshot? {
+        guard let body = bodySnapshot, !body.pending, !body.loadError else { return nil }
+        return body
     }
 
     /// The sender by name: the loaded header's, else the list row's while the body is fetched.
@@ -73,7 +80,7 @@ extension ReadingView {
             withAnimation(.snappy) { showsMessageDetails.toggle() }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(recipientSummary)
+                Text(detailsLine)
                     .font(.subheadline)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
@@ -90,15 +97,24 @@ extension ReadingView {
         .buttonStyle(.plain)
         // Who received it is what the line says, so it is what VoiceOver reads; what a press
         // does is the hint.
-        .accessibilityLabel(Text(recipientSummary))
-        .accessibilityHint(
-            showsMessageDetails ? L10n.a11y_hide_message_details() : L10n.a11y_show_message_details()
-        )
+        .accessibilityLabel(Text(detailsLine))
+        .accessibilityHint(detailsAction)
+    }
+
+    private var detailsAction: String {
+        showsMessageDetails ? L10n.a11y_hide_message_details() : L10n.a11y_show_message_details()
+    }
+
+    /// The recipients, or for a message that names none (a Bcc, undisclosed recipients) what the
+    /// line does, so it is never a chevron alone.
+    private var detailsLine: AttributedString {
+        let summary = recipientSummary
+        return summary.characters.isEmpty ? AttributedString(detailsAction) : summary
     }
 
     /// "To: Ada, Bob  Cc: Carol": names only, each person's address when they have none.
     private var recipientSummary: AttributedString {
-        guard let body = bodySnapshot else { return AttributedString() }
+        guard let body = loadedSnapshot else { return AttributedString() }
         let groups = [
             (L10n.compose_to(), body.toPeople),
             (L10n.compose_cc(), body.ccPeople),

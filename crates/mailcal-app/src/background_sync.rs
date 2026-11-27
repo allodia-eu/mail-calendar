@@ -317,7 +317,7 @@ fn preview_of(row: &MailListRow) -> NewMailPreview {
         sender: row.mail.from_addr.clone().unwrap_or_default(),
         sender_name: row.mail.from_name.clone(),
         subject: row.mail.subject.clone().unwrap_or_default(),
-        preview: row.mail.preview.clone().unwrap_or_default(),
+        preview: mailcal_viewmodel::preview_line(row.mail.preview.as_deref()),
         received: row
             .mail
             .date_utc

@@ -36,7 +36,9 @@ left it.
    no client draws it there, and it appears and disappears live as the app's appearance changes. It
    sits on the action row, an icon at every width, **immediately before archive and delete**, so the
    row reads reply, reply all, forward, then the toggle, archive, delete and the overflow
-   ([`reading-actions.md`](reading-actions.md)). Its glyph is what pressing it does: a **sun** on a
+   ([`reading-actions.md`](reading-actions.md)). On a phone and a tablet, where the actions are the
+   navigation bar's, it is the **first item of the overflow** instead, the bar having no room for a
+   seventh button. Its glyph is what pressing it does: a **sun** on a
    dark message, a **moon** on a light one. Its accessible name says the same in words
    (`reading_show_light_background`, `reading_show_dark_background`), and so does its tooltip
    where the platform's row shows one.
@@ -172,7 +174,7 @@ Legend: ✅ shipped · ⬜ planned · — not applicable.
 |---|:---:|:---:|:---:|:---:|:---:|
 | Dark render while the app is dark | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Canvas follows the scheme from the first frame | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sun/moon toggle on the action row, dark app only (iPhone and iPad: the overflow's first item) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Settings → Reading switch | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Re-renders live on an appearance or preference change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A scheme change keeps the reader's place | ✅ | ✅ | ✅ | ✅ | ✅ |

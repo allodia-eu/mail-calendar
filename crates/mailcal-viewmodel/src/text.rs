@@ -50,6 +50,16 @@ fn is_bidi_control(ch: char) -> bool {
     )
 }
 
+/// A message's snippet as one run of text: the body's own line breaks and spacing become single
+/// spaces, so a list row that shows two lines of it shows two lines of words, and a notification
+/// one, rather than a greeting and a gap. Empty when the provider gave none.
+#[must_use]
+pub fn preview_line(preview: Option<&str>) -> String {
+    preview.map_or_else(String::new, |text| {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::plain_text;
