@@ -1,5 +1,5 @@
-// The reading screen's overflow menu, at the end of the action row, and the .eml export behind
-// it (docs/reading-actions.md); printing is in ReadingScreenPrint.kt. Split out of ReadingScreen.kt, which is at its length limit.
+// The reading screen's overflow menu, last in the top app bar, and the .eml export behind it
+// (docs/reading-actions.md); printing is in ReadingScreenPrint.kt.
 //
 // The file written is the message exactly as it was delivered: the core hands over the raw
 // source the engine cached, never a rebuild of what the screen renders.
@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -29,16 +30,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import uniffi.mailcal_bindings.MessageScheme
 import uniffi.mailcal_bindings.messageExportFileName
 
 // The tag the overflow button carries, so a test can find it without depending on the icon.
 internal const val READING_OVERFLOW_TAG = "reading-overflow"
 
 /**
- * The menu at the end of the reading screen's action row.
+ * The menu at the end of the reading screen's top app bar.
  *
  * An icon at every width, like the buttons beside it, but unlike them it is identified by its
- * place rather than by its glyph, so it is always last.
+ * place rather than by its glyph, so it is always last. In a dark app its first item is the
+ * sun/moon choice of page ([scheme] is null in a light app, where there is nothing to switch;
+ * docs/reading-dark-mode.md), the bar having no room for a seventh button.
  */
 @Composable
 internal fun ReadingOverflowMenu(
@@ -48,6 +52,8 @@ internal fun ReadingOverflowMenu(
     onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     // Null until there is a body to print, which leaves the item shown but disabled.
     onPrint: (() -> Unit)?,
+    scheme: MessageScheme? = null,
+    onSetDarkMessages: (Boolean) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     var open by remember { mutableStateOf(false) }
@@ -65,6 +71,33 @@ internal fun ReadingOverflowMenu(
         )
     }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        if (scheme != null) {
+            // Its words say what pressing it does: back to light on a dark message, and the reverse.
+            val dark = scheme == MessageScheme.DARK
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (dark) {
+                            L10n.reading_show_light_background(ctx)
+                        } else {
+                            L10n.reading_show_dark_background(ctx)
+                        },
+                    )
+                },
+                // A sun on a dark message, a moon on a light one (docs/icons.md).
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(if (dark) R.drawable.ic_light_mode else R.drawable.ic_dark_mode),
+                        contentDescription = null,
+                    )
+                },
+                onClick = {
+                    open = false
+                    onSetDarkMessages(!dark)
+                },
+            )
+            HorizontalDivider()
+        }
         DropdownMenuItem(
             text = { Text(L10n.action_save_as_eml(ctx)) },
             onClick = {

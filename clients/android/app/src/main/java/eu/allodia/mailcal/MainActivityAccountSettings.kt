@@ -31,6 +31,7 @@ internal fun MainActivity.refreshAccountsSnapshot() {
         settingsCategory = null
         addingAccount = false
         accountSettings.page = null
+        closeOpenedMessage()
         needsSetup = true
     }
     accountSettings.hadAccounts = any

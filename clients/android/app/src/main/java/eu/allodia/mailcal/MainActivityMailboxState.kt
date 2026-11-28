@@ -46,6 +46,9 @@ internal fun MainActivity.reload() {
     loadMorePending = false
     mode = snapshot.mode
     accounts = snapshot.accounts
+    // Nothing on that message can be done once its account is gone: archive, delete and reply
+    // would each name an account the core no longer has.
+    if (outlivedItsAccount(openedMessage, snapshot.accounts.map { it.id })) closeOpenedMessage()
     selectedAccount = snapshot.selectedAccount
     accountFolders = snapshot.accountFolders
     unifiedUnread = snapshot.unifiedUnread

@@ -75,7 +75,7 @@ copy). See [`calendar.md`](calendar.md).
 
 | Platform | Relative (list) | Absolute (reading header) | Quoted original | Names follow app language | Clock setting | Where |
 |---|---|---|---|:---:|:---:|---|
-| Android | `relativeDate` → `relativeDatePattern` | `localDateTime` | `localDateTime` at the seam | ✅ | ✅ | `clients/android/.../MailDialogs.kt`, `MainActivityCore.kt` |
+| Android | `relativeDate` → `relativeDatePattern` | `localDateTime`; the header folds the details, so `relativeDate` in the header and `localDateTime` in its details (`ReadingHeader.kt`) | `localDateTime` at the seam | ✅ | ✅ | `clients/android/.../MailDialogs.kt`, `MainActivityCore.kt` |
 | macOS / iOS / iPadOS | `relativeDate` → `relativeDatePattern` | `localDateTime`; iPhone and iPad fold the details, so `relativeDate` in the header and `localDateTime` in its details (`ReadingView.TouchHeader.swift`) | `localDateTime` at the seam | ✅ | ✅ | `clients/apple/.../TimeZoneViews.swift`, `Mailcal.AutoAdvance.swift` |
 | Windows | `TimeZones.RelativeDate` → `RelativePattern` | `TimeZones.LocalDateTime` | `TimeZones.LocalDateTime` at the seam | ✅ | ✅ | `clients/windows/Mailcal/Services/{TimeZones,MailboxModel.Projection}.cs` |
 | Linux | `relative_date` → `relative_date_pattern` | `local_date_time` | `local_date_time` at the seam | ✅ | ✅ | `clients/linux/src/ui/{timestamps.rs,composer_model.rs}` |

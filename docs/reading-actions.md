@@ -17,18 +17,23 @@ overflow: it is the end of the row on every platform, which is what makes it fin
 label. (Which of archive and delete comes first is each platform's own; only the overflow's place
 is fixed here.)
 
-**On a phone and a tablet the row is the navigation bar's trailing end**, because the bottom of the
-screen is the tab bar's, which stays while a message is open so the calendar is one tap away (a tab
-bar is for moving between sections, never for acting on one, and two bars of buttons stacked at the
-bottom read as one). The same actions, in three groups: archive and delete; the **default answer**
-with a chevron beside it holding the other answers; the overflow last of all. The default answer is
+**On a phone and a tablet the row leaves the page for the screen's bars**, and the tab bar stays
+while a message is open so the calendar is one tap away. The same actions, in three groups: archive
+and delete; the **default answer** with a chevron beside it holding the other answers; the overflow
+last of all. **On iPhone and iPad** all three are the trailing end of the navigation bar: a tab bar
+is for moving between sections, never for acting on one. **On Android** archive, delete and the
+overflow are the top app bar's, and the answers are large buttons in a row of their own at the foot
+of the screen, above the navigation bar: the default answer, Forward, then the chevron with the
+other answer. That is where Android's own mail app keeps them, and where a thumb reaches on a phone
+held in one hand; the default answer takes the most room. The default answer is
 **reply-all when it would reach someone a plain reply does not** (the account's own address never
 counting), else reply; the core decides it (`ReadingSnapshot.default_reply_all`) from the same two
 suggestions the composers prefill, so the default never claims more people than the reply-all
 composer then shows. Your own message to one person is reply-all as well: a plain reply would
-address you, and reply-all also reaches them. Until the body arrives it is reply. The sun/moon is the overflow's first item
-there, a bar of glass having no room for a seventh button. A desktop keeps the row above the message,
-with every answer on it.
+address you, and reply-all also reaches them. Until the body arrives it is reply. The sun/moon is
+the overflow's first item there, the top bar having no room for a seventh button. Everything between
+the bars, the subject, the rest of the conversation, who sent it and the message itself, **scrolls
+as one page**. A desktop keeps the row above the message, with every answer on it.
 
 In a dark app the **sun/moon toggle** sits immediately before archive and delete, an icon at every
 width like the overflow. It is a view of the message rather than an action on it, so it opens the
@@ -207,9 +212,9 @@ It is not an `Intent`, for the reason exporting is not one.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Touch: actions in the navigation bar, default answer from `default_reply_all`, tab bar kept | n/a | ✅ (`ReadingView.TouchActions.swift`) | n/a | ✗ | n/a |
+| Touch: actions in the screen's bars, default answer from `default_reply_all`, tab bar kept | n/a | ✅ navigation bar (`ReadingView.TouchActions.swift`) | n/a | ✅ top app bar, answers at the foot (`ReadingTopBar.kt`, `ReadingAnswers.kt`, `MainActivityMailboxTab.kt`) | n/a |
 | Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ✅ | ✅ (iPad) | ✅ | — | ✅ |
-| Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
+| Header scrolls, row stays put | ✗ | ✅ | ✗ | ✅ (`ReadingPage.kt`, `ReadingWebView.kt`) | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |

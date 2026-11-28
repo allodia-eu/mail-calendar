@@ -101,6 +101,8 @@ noted beside it, and the two without one are this app's own drawings.
 | Messages on a light background (the sun, on a dark message) | `sun.max` | `ic_light_mode` | `E706` Brightness | `mailcal-sun-symbolic` (`sun`) |
 | Messages on a dark background (the moon, on a light message) | `moon` | `ic_dark_mode` | `E708` QuietHours | `mailcal-moon-symbolic` (`moon`) |
 | More actions | `ellipsis` | `ic_more_vert` | `E712` More | `view-more-symbolic` |
+| The other answers, beside the default one, on a phone and a tablet | `chevron.down` | `ic_keyboard_arrow_down` | — | — |
+| Show / hide the message's details, on a phone and a tablet | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | — | — |
 | Save as a file | `square.and.arrow.down.on.square` | — | — | — |
 | Print | `printer` | — | — | — |
 | Open an attachment | `arrow.up.forward.app` | — | — | — |

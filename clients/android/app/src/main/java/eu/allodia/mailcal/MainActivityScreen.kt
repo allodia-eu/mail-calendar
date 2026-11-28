@@ -1,11 +1,13 @@
 // The Compose tree onCreate hands to setContent, split out of MainActivity.kt: which top-level
-// screen is showing (welcome, reading, add-account, diagnostics, settings, or the running app's
-// mail/calendar/contacts tabs), the composer over any of them, the standing prompts (an unfiled
-// copy, a server found on another site, an invitation reply) that can be raised from any of them,
-// and the "your name" step an account's arrival raises.
+// screen is showing (welcome, add-account, diagnostics, settings, or the running app's
+// mail/calendar/contacts tabs, an open message being the Mail tab's), the composer over any of
+// them, the standing prompts (an unfiled copy, a server found on another site, an invitation reply)
+// that can be raised from any of them, and the "your name" step an account's arrival raises.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,8 +82,13 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                                 instance.setPreference(PreferenceIntent.SetAnalyticsConsent(share))
                             },
                         )
-                        // A message is open: show its reading view over the list.
-                        instance != null && opened != null -> ReadingTabContent(instance, opened)
+                        // A notification tapped while another account is being added: the message
+                        // shows over the form, which keeps what was typed, and Back returns to it.
+                        // Outside the tab scaffold, so it clears the system bars itself.
+                        instance != null && addingAccount && !needsSetup && opened != null ->
+                            Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+                                ReadingTabContent(instance, opened)
+                            }
                         // First run (no account yet) or adding another: collect + validate the
                         // config in the form, then connect it as a new account via the shared
                         // addAccount path. A build error returns inline; a failed connect comes

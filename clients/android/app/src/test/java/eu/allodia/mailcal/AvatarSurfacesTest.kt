@@ -130,7 +130,7 @@ class AvatarSurfacesTest {
         val reading = mutableStateOf<ReadingSnapshot?>(null)
         compose.setContent {
             AppTheme {
-                ReadingIdentityHeader(message = message, reading = reading.value, date = "", onBack = {})
+                ReadingSender(message = message, reading = reading.value, activeZoneId = "Europe/Amsterdam")
             }
         }
         compose.onNodeWithText("ROW", useUnmergedTree = true).assertExists()
