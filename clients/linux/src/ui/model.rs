@@ -72,6 +72,12 @@ pub(super) fn empty_reading() -> ReadingSnapshot {
         attachments: Vec::new(),
         invitation: None,
         pending: false,
+        from_name: String::new(),
+        from_address: String::new(),
+        to_people: Vec::new(),
+        cc_people: Vec::new(),
+        bcc_people: Vec::new(),
+        default_reply_all: false,
     }
 }
 
@@ -243,6 +249,12 @@ mod tests {
             attachments: Vec::new(),
             invitation: None,
             pending: false,
+            from_name: String::new(),
+            from_address: String::new(),
+            to_people: Vec::new(),
+            cc_people: Vec::new(),
+            bcc_people: Vec::new(),
+            default_reply_all: false,
         }
     }
 

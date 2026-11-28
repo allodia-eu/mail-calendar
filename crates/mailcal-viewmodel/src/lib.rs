@@ -49,7 +49,7 @@ pub use folders::{
 };
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use outbox::{QueuedRow, QueuedState, queued_rows};
-pub use reading::{AttachmentRow, ReadingSnapshot, importance_banner};
+pub use reading::{AttachmentRow, DefaultReply, MailPerson, ReadingSnapshot, importance_banner};
 pub use reading_stop::{conversation_opens, stop_after_removing};
 pub use row_menu::{MenuMessage, MenuRow, RowMenu, RowMenuItem, row_menu};
 pub use row_reach::{
@@ -68,7 +68,7 @@ pub use signatures::{
     SignaturesView,
 };
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot, ThrottledAccount};
-pub use text::plain_text;
+pub use text::{plain_text, preview_line};
 pub use view::{
     AccountMessage, AccountRow, EmptyReason, FlatRow, MailboxListSnapshot, SearchHorizon,
     SnapshotRow, ThreadMessage, ThreadRow, ViewMode, unified_unread,

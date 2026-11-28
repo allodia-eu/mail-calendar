@@ -17,6 +17,29 @@ pub struct AttachmentRow {
     pub size: u64,
 }
 
+/// A person an open message names, with the name and the address apart, for a header that shows
+/// people by name and keeps their addresses for the details.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MailPerson {
+    /// The display name the header carried, trimmed; empty when it carried none, and a client
+    /// then names the person by `address`.
+    pub name: String,
+    /// The address.
+    pub address: String,
+}
+
+/// The answer a phone's reply button gives, the others waiting behind its chevron.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DefaultReply {
+    /// A plain reply: what a message gets until its recipients are known, and whenever reply-all
+    /// would reach no one more.
+    #[default]
+    Reply,
+    /// Reply-all, when it would reach someone a plain reply does not, the account's own address
+    /// never counting as someone more.
+    ReplyAll,
+}
+
 /// An immutable snapshot of an open message's body for a host to render.
 ///
 /// `html` is **already sanitised**: the product core strips the engine's raw, hostile
@@ -52,6 +75,16 @@ pub struct ReadingSnapshot {
     /// message whose stored copy carries a `Bcc` header; i.e. the sender's own Sent/Drafts
     /// copy: so the sender can see whom they Bcc'd; a received message never carries it.
     pub bcc: String,
+    /// The sender of `from`, name and address apart (both empty when there's no sender).
+    pub sender: MailPerson,
+    /// The people of `to`, in the header's order, name and address apart.
+    pub to_people: Vec<MailPerson>,
+    /// The people of `cc`, as [`Self::to_people`].
+    pub cc_people: Vec<MailPerson>,
+    /// The people of `bcc`, as [`Self::to_people`].
+    pub bcc_people: Vec<MailPerson>,
+    /// The answer a phone's reply button gives (`docs/reading-actions.md`).
+    pub default_reply: DefaultReply,
     /// The sanitised HTML body, when the message carries an HTML part. Presentational CSS
     /// is preserved; a host renders this via `engine_html::render_document` (which wraps it
     /// in a strict-CSP document) inside a WebView with scripting off and navigation blocked.

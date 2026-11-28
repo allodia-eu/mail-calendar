@@ -8,7 +8,9 @@ import MailcalBindings
 import SwiftUI
 
 extension ReadingView {
-    /// The menu at the end of the action row: the actions on the message as a document.
+    #if os(macOS)
+    /// The menu at the end of the action row: the actions on the message as a document. iPhone
+    /// and iPad put the same items in the navigation bar's More menu (ReadingView.TouchActions.swift).
     ///
     /// An icon at every width, unlike the buttons beside it, because it is the one control whose
     /// place is what identifies it. Its accessible name is the same on every platform.
@@ -42,9 +44,6 @@ extension ReadingView {
         .accessibilityLabel(L10n.a11y_more_actions())
         .popover(isPresented: $overflowOpen, arrowEdge: .bottom) {
             overflowItems
-                // Without this an iPhone presents a popover as a sheet, which is the whole
-                // screen for one line of menu.
-                .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -79,13 +78,14 @@ extension ReadingView {
         .padding(.horizontal, 10)
         .fixedSize()
     }
+    #endif
 
     /// What Print hands the dialog, or `nil` until this message's body has arrived.
-    private var printDocument: String? {
+    var printDocument: String? {
         messagePrintDocument(message, bodySnapshot, date: headerDate, loadRemoteImages: loadRemoteImages)
     }
 
-    private func printMessage() {
+    func printMessage() {
         guard let printDocument else { return }
         MessagePrinter.print(
             printDocument,
@@ -101,7 +101,7 @@ extension ReadingView {
         )
     }
 
-    private func export() {
+    func export() {
         guard !exporting else { return }
         exportError = nil
         #if os(macOS)

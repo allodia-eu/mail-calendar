@@ -23,8 +23,7 @@ extension ReadingView {
     /// in an ordinary `ScrollView` (ReadingView.Body.swift).
     var scrollingHeader: some View {
         VStack(spacing: 0) {
-            identityHeader
-            recipientsHeader
+            touchHeader
             ImportanceBanner(importance: bodySnapshot?.importanceBanner)
             attachmentBar
             invitationCard

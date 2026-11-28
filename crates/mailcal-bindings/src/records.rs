@@ -84,6 +84,37 @@ pub struct ReadingSnapshot {
     /// let the header the list row already gave you carry the pane. The core times the wait, so
     /// every platform draws the same conclusion.
     pub pending: bool,
+    /// The sender's display name, trimmed; empty when the header carried none, and the header
+    /// then names the sender by [`Self::from_address`]. `from` is the two joined.
+    #[uniffi(default = "")]
+    pub from_name: String,
+    /// The sender's address; empty when there's no sender.
+    #[uniffi(default = "")]
+    pub from_address: String,
+    /// The people of `to`, in the header's order, name and address apart, for a header that
+    /// shows them by name and keeps the addresses for its details. No client splits `to`.
+    #[uniffi(default = [])]
+    pub to_people: Vec<MailPerson>,
+    /// The people of `cc`, as [`Self::to_people`].
+    #[uniffi(default = [])]
+    pub cc_people: Vec<MailPerson>,
+    /// The people of `bcc`, as [`Self::to_people`].
+    #[uniffi(default = [])]
+    pub bcc_people: Vec<MailPerson>,
+    /// Whether a phone's reply button answers everyone (`docs/reading-actions.md`): true when
+    /// reply-all would reach someone a plain reply does not. False until the body has arrived.
+    #[uniffi(default = false)]
+    pub default_reply_all: bool,
+}
+
+/// A person an open message names, with the name and the address apart.
+#[derive(uniffi::Record)]
+pub struct MailPerson {
+    /// The display name, trimmed; empty when the header carried none, and a client then names
+    /// the person by `address`.
+    pub name: String,
+    /// The address.
+    pub address: String,
 }
 
 /// One downloadable attachment in the reading view.

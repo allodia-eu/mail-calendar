@@ -119,22 +119,6 @@ extension ContentView {
         openedMessage.map { $0.account == account && $0.key == key } ?? false
     }
 
-    /// The unread marker, on the layouts `docs/avatars.md` gives one to: the compact phone list
-    /// has none, because bold subject and sender already carry unread and the width is better
-    /// spent on the text.
-    ///
-    /// **The size class must be read at the window level, which is why this lives on the view and
-    /// not inside `UnreadDot`.** Each column of a `NavigationSplitView` reports its *own*
-    /// horizontal size class, so an iPad's list column reads `.compact` while the window is
-    /// regular, a dot that decided for itself would disappear on exactly the layout the rule
-    /// keeps it for. Seen on an iPad Pro: reading pane on screen, no dot on an unread row.
-    @ViewBuilder
-    func unreadDot(_ unread: Bool) -> some View {
-        if hasReadingPane {
-            UnreadDot(unread: unread)
-        }
-    }
-
     /// One row of the list. None of them handles a click itself: the list's selection does, so a
     /// modifier, a drag across rows and ⌘A all mean what the platform says they mean
     /// (`docs/list-selection.md`, rule 1), and a row opens when it becomes the one selected.
@@ -143,17 +127,38 @@ extension ContentView {
         switch entry {
         case .row(.flat(let message)): flatRow(message)
         case .row(.thread(let thread)): threadHeader(thread)
-        case .member(let thread, let message): threadMessageRow(thread, message)
+        case .member(_, let message): threadMessageRow(message)
         }
     }
 
     private func flatRow(_ message: FlatRow) -> some View {
+        flatRowContent(message)
+        .contentShape(Rectangle())
+        // Each direction runs exactly the one action the user configured (Settings → Reading),
+        // with an undo toast as the net. A swipe *rightwards* reveals the leading edge, so that
+        // edge carries `swipeSettings.right`; the trailing edge carries `.left`. Mark read/unread
+        // and flag moved to the context menu, which is where the other row actions already live.
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            swipeButton(model.swipeSettings.right, message)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            swipeButton(model.swipeSettings.left, message)
+        }
+        // Onto a folder in the pane (`docs/folder-pane.md`, rule 24).
+        .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .flat(row: message)) })
+    }
+
+    @ViewBuilder
+    private func flatRowContent(_ message: FlatRow) -> some View {
+        #if os(iOS)
+        touchFlatRow(message)
+        #else
         HStack(spacing: 8) {
             // Alignment gutter: conversation rows put their expand/collapse chevron here
             // (Outlook-style). A flat row reserves the same width and leaves it empty, so the
             // leading glyph and the subject line up across flat and threaded rows.
             Color.clear.frame(width: 14)
-            unreadDot(message.unread)
+            UnreadDot(unread: message.unread)
             AvatarView(avatar: message.avatar)
             VStack(alignment: .leading, spacing: 2) {
                 // Subject AND sender carry the weight, not the glyph alone: an unread row has to be
@@ -167,6 +172,7 @@ extension ContentView {
                     .font(.caption)
                     .fontWeight(message.unread ? .semibold : .regular)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 // The provider's body-preview snippet (empty for IMAP until the engine supplies it).
                 if !message.preview.isEmpty {
                     Text(message.preview)
@@ -187,19 +193,7 @@ extension ContentView {
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
-        .contentShape(Rectangle())
-        // Each direction runs exactly the one action the user configured (Settings → Reading),
-        // with an undo toast as the net. A swipe *rightwards* reveals the leading edge, so that
-        // edge carries `swipeSettings.right`; the trailing edge carries `.left`. Mark read/unread
-        // and flag moved to the context menu, which is where the other row actions already live.
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            swipeButton(model.swipeSettings.right, message)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            swipeButton(model.swipeSettings.left, message)
-        }
-        // Onto a folder in the pane (`docs/folder-pane.md`, rule 24).
-        .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .flat(row: message)) })
+        #endif
     }
 
     /// The single button one swipe edge reveals: the configured action, dispatched through the
@@ -222,7 +216,17 @@ extension ContentView {
         // A conversation is unread if anything in it is: the header is a summary, and it may not
         // read as settled while it hides an unread reply. Its sub-rows carry their own weight.
         let unread = thread.unreadCount > 0
-        return HStack(spacing: 8) {
+        return threadHeaderContent(thread, expanded: expanded, unread: unread)
+            .contentShape(Rectangle())
+            .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .thread(row: thread)) })
+    }
+
+    @ViewBuilder
+    private func threadHeaderContent(_ thread: ThreadRow, expanded: Bool, unread: Bool) -> some View {
+        #if os(iOS)
+        touchThreadHeader(thread, expanded: expanded, unread: unread)
+        #else
+        HStack(spacing: 8) {
             // The expand/collapse chevron sits in the same leading gutter a flat row reserves
             // (Outlook-style), so the conversation glyph and subject align with the flat rows.
             //
@@ -236,7 +240,7 @@ extension ContentView {
             .accessibilityLabel(
                 expanded ? L10n.a11y_collapse_conversation() : L10n.a11y_expand_conversation()
             )
-            unreadDot(unread)
+            UnreadDot(unread: unread)
             // The conversation's latest sender, which is who the row's other text names. The
             // chevron and the message-count badge already say this is a thread, so the glyph
             // that used to sit here said nothing the row did not.
@@ -258,6 +262,7 @@ extension ContentView {
                     .font(.caption)
                     .fontWeight(unread ? .semibold : .regular)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             ImportanceMark(importance: thread.importance)
@@ -272,8 +277,7 @@ extension ContentView {
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
-        .contentShape(Rectangle())
-        .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .thread(row: thread)) })
+        #endif
     }
 
     /// The "Sent" or "Draft" capsule beside a conversation message's sender.
@@ -287,9 +291,17 @@ extension ContentView {
 
     /// One message of an expanded conversation: an indented row of its own (sender, Sent badge,
     /// preview, date), so it can be selected, opened and acted on as the message it is.
-    private func threadMessageRow(_ thread: ThreadRow, _ message: ThreadMessage) -> some View {
+    private func threadMessageRow(_ message: ThreadMessage) -> some View {
+        threadMessageContent(message).contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func threadMessageContent(_ message: ThreadMessage) -> some View {
+        #if os(iOS)
+        touchThreadMessageRow(message)
+        #else
         HStack(spacing: 8) {
-            unreadDot(message.unread)
+            UnreadDot(unread: message.unread)
             AvatarView(avatar: message.avatar, diameter: 26)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -323,6 +335,6 @@ extension ContentView {
         }
         .padding(.vertical, 4)
         .padding(.leading, 30)
-        .contentShape(Rectangle())
+        #endif
     }
 }

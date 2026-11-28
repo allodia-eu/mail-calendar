@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,6 +97,28 @@ internal fun AvatarView(
                 fontSize = (diameter.value * 0.4f).sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.testTag("avatar-monogram"),
+            )
+        }
+    }
+}
+
+/**
+ * The unread marker that leads every list row (`docs/avatars.md`), in the row's start padding so it
+ * costs the text no width. A read row keeps the space, so the avatars stay in one column.
+ */
+@Composable
+internal fun UnreadDot(unread: Boolean, height: Dp = 40.dp) {
+    Box(modifier = Modifier.size(width = 12.dp, height = height), contentAlignment = Alignment.Center) {
+        if (unread) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .testTag("unread-dot")
+                    // The row's text already carries read state for TalkBack; a dot announced
+                    // before every sender would only repeat it.
+                    .semantics { hideFromAccessibility() },
             )
         }
     }

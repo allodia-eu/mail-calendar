@@ -17,6 +17,19 @@ overflow: it is the end of the row on every platform, which is what makes it fin
 label. (Which of archive and delete comes first is each platform's own; only the overflow's place
 is fixed here.)
 
+**On a phone and a tablet the row is the navigation bar's trailing end**, because the bottom of the
+screen is the tab bar's, which stays while a message is open so the calendar is one tap away (a tab
+bar is for moving between sections, never for acting on one, and two bars of buttons stacked at the
+bottom read as one). The same actions, in three groups: archive and delete; the **default answer**
+with a chevron beside it holding the other answers; the overflow last of all. The default answer is
+**reply-all when it would reach someone a plain reply does not** (the account's own address never
+counting), else reply; the core decides it (`ReadingSnapshot.default_reply_all`) from the same two
+suggestions the composers prefill, so the default never claims more people than the reply-all
+composer then shows. Your own message to one person is reply-all as well: a plain reply would
+address you, and reply-all also reaches them. Until the body arrives it is reply. The sun/moon is the overflow's first item
+there, a bar of glass having no room for a seventh button. A desktop keeps the row above the message,
+with every answer on it.
+
 In a dark app the **sun/moon toggle** sits immediately before archive and delete, an icon at every
 width like the overflow. It is a view of the message rather than an action on it, so it opens the
 trailing group instead of joining the replies, and it is absent in a light app
@@ -43,10 +56,11 @@ Where a client cannot do it the header stands still above the body, which is the
 second design; each such client says so in the matrix below.
 
 **It is the same control as the buttons beside it**, at both of the row's widths. Each platform
-uses whatever gets it there: Windows and Android hang a native menu off a button, and Apple builds
-an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match a
-bordered button's height and breaks the row's width measurement
-([`client-traps.md`](client-traps.md)). What the contract fixes is the result, not the mechanism:
+uses whatever gets it there: Windows and Android hang a native menu off a button, and the Mac
+builds an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match
+a bordered button's height and breaks the row's width measurement
+([`client-traps.md`](client-traps.md)). In a navigation bar, where iPhone and iPad put it, it is a
+system `Menu` like every other bar item. What the contract fixes is the result, not the mechanism:
 a reader should not be able to tell the overflow apart from its neighbours except by its glyph.
 
 ## Where the pane goes next
@@ -193,6 +207,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Touch: actions in the navigation bar, default answer from `default_reply_all`, tab bar kept | n/a | ✅ (`ReadingView.TouchActions.swift`) | n/a | ✗ | n/a |
 | Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ✅ | ✅ (iPad) | ✅ | — | ✅ |
 | Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |

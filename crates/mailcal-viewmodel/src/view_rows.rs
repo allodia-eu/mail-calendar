@@ -22,6 +22,7 @@ use engine_api::{Importance, MailRow, UtcDateTime};
 use crate::{
     avatar::{self, Avatar},
     row_reach::MessageKind,
+    text::preview_line,
     view::{
         AccountMessage, FlatRow, MailboxListSnapshot, SnapshotRow, ThreadMessage, ThreadRow,
         ViewMode,
@@ -108,7 +109,7 @@ pub(crate) fn flat_row(item: &AccountMessage) -> FlatRow {
         flagged: row.flags.flagged(),
         has_attachment: row.has_attachment,
         importance: row.importance,
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: preview_line(row.preview.as_deref()),
         kind: kind(item),
         folders: folders(item),
     }
@@ -341,7 +342,7 @@ fn thread_row(account: String, thread_id: String, deduped: &[&AccountMessage]) -
         flagged: deduped.iter().any(|m| m.row.mail.flags.flagged()),
         has_attachment: deduped.iter().any(|m| m.row.mail.has_attachment),
         importance: conversation_importance(deduped.iter().map(|m| m.row.mail.importance)),
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: preview_line(row.preview.as_deref()),
         messages: deduped.iter().map(|item| thread_message(item)).collect(),
     }
 }
@@ -356,7 +357,7 @@ fn thread_message(item: &AccountMessage) -> ThreadMessage {
         from_address: sender_address(row),
         avatar: avatar_for(row),
         date: instant(row).map_or_else(String::new, format_instant),
-        preview: row.preview.clone().unwrap_or_default(),
+        preview: preview_line(row.preview.as_deref()),
         unread: row.flags.is_unread(),
         flagged: row.flags.flagged(),
         kind: kind(item),

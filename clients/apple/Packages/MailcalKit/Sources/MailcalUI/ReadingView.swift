@@ -77,23 +77,10 @@ struct ReadingView: View {
     /// The scheme the app is painted in, the window's resolved one. Not `private`:
     /// ReadingView.Body.swift draws the page from it.
     @Environment(\.colorScheme) var appScheme
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var hSizeClass
-    #endif
-    /// A compact (iPhone) width never fits the labelled action buttons, so they render icon-only
-    /// at a touch size. macOS/iPad measure the labels instead (see `actionToolbar`), keeping them
-    /// whenever they fit at the pane's current width.
-    private var compactActions: Bool {
-        #if os(iOS)
-        hSizeClass == .compact
-        #else
-        false
-        #endif
-    }
 
+    #if os(macOS)
     /// The square an action button's glyph is drawn in, which is what decides the button's size
-    /// once the style's own padding is added: 32 pt puts a touch row's buttons at about 44, the
-    /// smallest a finger is served by, and the desktops keep the 24 a pointer needs.
+    /// once the style's own padding is added.
     ///
     /// It is the **glyph's** box rather than a floor on the button, deliberately. A `frame` whose
     /// bounds are all `nil` is an unbounded `_FlexFrameLayout`, and `ViewThatFits` measuring one
@@ -102,7 +89,8 @@ struct ReadingView: View {
     ///
     /// `actionRow` hands it to every button on the row, the overflow included, so that one stays
     /// the same control as the buttons beside it (`docs/reading-actions.md`).
-    private var iconBox: CGFloat { compactActions ? 32 : 24 }
+    private var iconBox: CGFloat { 24 }
+    #endif
 
     /// Whether the user chose to load this message's remote images (reset per message, a fresh
     /// view is created for each opened message).
@@ -138,6 +126,9 @@ struct ReadingView: View {
     /// there would be invisible on exactly the messages people export. Not `private`, see
     /// `attachmentError`.
     @State var exportError: String?
+    /// Whether the touch header shows every address and the full date. Closed on each open, like
+    /// `loadRemoteImages`. Not `private`: ReadingView.TouchHeader.swift draws and sets it.
+    @State var showsMessageDetails = false
 
     /// The body snapshot for this message, once it has arrived (ignore a stale one for a
     /// previously-opened message).
@@ -164,21 +155,28 @@ struct ReadingView: View {
     /// already carried, so the header does not flash a different face on open. Both name the
     /// same person, so the letters and colour are identical; only the photo can differ, and
     /// only until the snapshot lands. A `pending` snapshot has resolved nothing and is not the
-    /// answer, see [`readingHeaderAvatar`].
-    private var senderAvatar: Avatar {
+    /// answer, see [`readingHeaderAvatar`]. Not `private`: the touch header draws it too.
+    var senderAvatar: Avatar {
         readingHeaderAvatar(snapshot: bodySnapshot, row: message.avatar)
     }
 
     var body: some View {
         #if os(iOS)
-        // Everything but the action row belongs to the message and scrolls with it
-        // (ReadingView.Scroll.swift).
+        // The actions are the system's bars (ReadingView.TouchActions.swift), and everything else
+        // belongs to the message and scrolls with it (ReadingView.Scroll.swift).
         VStack(spacing: 0) {
-            actionToolbar
-            Divider()
+            if let exportError {
+                Text(exportError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, readingInset)
+                    .padding(.vertical, 6)
+            }
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar { touchActions }
         #else
         VStack(spacing: 0) {
             identityHeader
@@ -287,6 +285,7 @@ struct ReadingView: View {
         }
     }
 
+    #if os(macOS)
     /// The message action bar: reply/forward on the left, archive/delete on the right:
     /// mirroring the list's context menu, surfaced as buttons like a desktop mail client.
     ///
@@ -294,36 +293,13 @@ struct ReadingView: View {
     /// simply a longer language (Dutch's "Allen beantwoorden" against English's "Reply all"), can
     /// outgrow the row and leave every button clipped to "Beant…". So the labelled row is offered
     /// first and the icon-only row is the fallback whenever the labels can't be drawn in full.
-    ///
-    /// **The control size is measured too, and on a phone it has to be.** Six icon buttons at
-    /// `.large` are wider than any iPhone, and a row wider than the screen is not clipped on its
-    /// own: it sets the width of the column it sits in, so the header above and the body below
-    /// hang off both edges of the display. The size is set here rather than per button so
-    /// `ViewThatFits` can offer the next one down, which is the same row drawn to fit, and the
-    /// glyphs keep the box `iconBox` gives them, so a smaller control is a smaller *button* and
-    /// not a smaller target. Icons scale with the text size, so the last candidate is what a
-    /// large accessibility size lands on.
     private var actionToolbar: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Group {
-                if compactActions {
-                    ViewThatFits(in: .horizontal) {
-                        actionRow(iconsOnly: true).controlSize(.large)
-                        actionRow(iconsOnly: true).controlSize(.regular)
-                        actionRow(iconsOnly: true).controlSize(.small)
-                        // A dark app adds the sun/moon button, a seventh, which fits a phone only
-                        // with the gaps closed up and the glyph box a little smaller; the button
-                        // the style draws around it is still wider than a 44-pt target.
-                        actionRow(iconsOnly: true, spacing: 4, box: 28).controlSize(.small)
-                    }
-                } else {
-                    ViewThatFits(in: .horizontal) {
-                        actionRow(iconsOnly: false)
-                        actionRow(iconsOnly: true)
-                    }
-                    .controlSize(.small)
-                }
+            ViewThatFits(in: .horizontal) {
+                actionRow(iconsOnly: false)
+                actionRow(iconsOnly: true)
             }
+            .controlSize(.small)
             if let exportError {
                 Text(exportError)
                     .font(.caption)
@@ -334,15 +310,15 @@ struct ReadingView: View {
         .padding(.vertical, 8)
     }
 
-    private func actionRow(iconsOnly: Bool, spacing: CGFloat = 8, box: CGFloat? = nil) -> some View {
-        let box = box ?? iconBox
-        return HStack(spacing: spacing) {
+    private func actionRow(iconsOnly: Bool) -> some View {
+        let box = iconBox
+        return HStack(spacing: 8) {
             toolbarButton(L10n.action_reply(), "arrowshape.turn.up.left", iconsOnly, box, action: onReply)
             toolbarButton(L10n.action_reply_all(), "arrowshape.turn.up.left.2", iconsOnly, box, action: onReplyAll)
             toolbarButton(L10n.action_forward(), "arrowshape.turn.up.right", iconsOnly, box, action: onForward)
             // A flexible Spacer would let any row "fit", so ViewThatFits could never reject the
             // labelled one; a minimum length gives the row an honest ideal width to measure.
-            Spacer(minLength: spacing == 8 ? 12 : spacing)
+            Spacer(minLength: 12)
             // Opens the trailing group, and only in a dark app (docs/reading-dark-mode.md).
             if appScheme == .dark {
                 messageSchemeToggle(box: box)
@@ -387,6 +363,7 @@ struct ReadingView: View {
         .buttonStyle(.bordered)
         .accessibilityLabel(title)
     }
+    #endif
 }
 
 /// The reading pane's empty state: shown in the third pane when no message is selected, so the

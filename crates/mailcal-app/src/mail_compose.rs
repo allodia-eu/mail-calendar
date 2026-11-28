@@ -13,6 +13,7 @@ use engine_api::{
 use mailcal_composer::{
     ComposerDocument, DraftBlobHandle, OutputAttachment, render as render_composer,
 };
+use mailcal_viewmodel::DefaultReply;
 
 use crate::{
     App, CompositionId,
@@ -148,6 +149,23 @@ impl<P: Provider> App<P> {
         RecipientSuggestion {
             to: join_emails(&to),
             cc: join_emails(&cc),
+        }
+    }
+
+    /// Reply-all when it would reach someone a plain reply does not, else reply. Read off the same
+    /// two suggestions a reply and a reply-all prefill their composers with, so the default never
+    /// claims more people than the reply-all composer then shows.
+    pub(crate) async fn default_reply(
+        &self,
+        message: &MessageRef,
+        original: &Message,
+    ) -> DefaultReply {
+        if self.reply_recipients_of(message, original, true).await
+            == self.reply_recipients_of(message, original, false).await
+        {
+            DefaultReply::Reply
+        } else {
+            DefaultReply::ReplyAll
         }
     }
 

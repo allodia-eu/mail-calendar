@@ -446,3 +446,27 @@ fn a_draft_in_a_conversation_is_badged_as_a_draft() {
         vec![("m2", MessageKind::Draft), ("m1", MessageKind::Received)]
     );
 }
+
+#[test]
+fn a_conversation_and_its_messages_preview_as_one_run_of_text() {
+    let mut latest = message("m1", "Latest", 30, Some("t"));
+    latest.preview = Some("Thanks,\n\nsee you then".to_owned());
+    let mut older = message("m2", "Older", 0, Some("t"));
+    older.preview = Some("  Shall we\nmeet?\n".to_owned());
+    let snapshot = build(
+        &[at("a", &latest), at("a", &older)],
+        &[],
+        &[],
+        vec![],
+        None,
+        None,
+        ViewMode::Threaded,
+        ALL,
+    );
+    let SnapshotRow::Thread(thread) = &snapshot.rows[0] else {
+        panic!("expected thread row");
+    };
+    assert_eq!(thread.preview, "Thanks, see you then");
+    let previews: Vec<&str> = thread.messages.iter().map(|m| m.preview.as_str()).collect();
+    assert_eq!(previews, vec!["Thanks, see you then", "Shall we meet?"]);
+}

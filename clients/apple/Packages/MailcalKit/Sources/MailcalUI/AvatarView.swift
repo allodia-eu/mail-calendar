@@ -102,22 +102,18 @@ extension Image {
     }
 }
 
-/// The unread marker on a desktop-layout row, and the space it reserves when read.
+/// The unread marker on every list row, and the space it reserves when read (`docs/avatars.md`).
 ///
-/// A **dot**, not the envelope glyph it replaces: the avatar now occupies the gutter, and two
-/// symbols competing for the same job left the row saying "unread" twice. `docs/avatars.md` binds the
-/// dot to desktop layouts only, the compact phone list has no room for it, and bold subject
-/// and sender already carry unread there.
-/// **Whether to draw one is not decided here**, see `ContentView.unreadDot(_:)`, which is the
-/// only thing that should build this. The size class has to be read at the window level, and a
-/// row is the wrong place to read it from.
+/// A **dot**, not the envelope glyph it replaces: the avatar occupies the gutter, and two
+/// symbols competing for the same job left the row saying "unread" twice.
 struct UnreadDot: View {
     let unread: Bool
+    var diameter: CGFloat = 7
 
     var body: some View {
         Circle()
             .fill(unread ? Color.accentColor : Color.clear)
-            .frame(width: 7, height: 7)
+            .frame(width: diameter, height: diameter)
             // The row's own accessibility value carries read state; a second announcement of it
             // before every sender is noise.
             .accessibilityHidden(true)
