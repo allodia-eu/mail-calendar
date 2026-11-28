@@ -102,17 +102,20 @@ internal fun AvatarView(
     }
 }
 
+private val UNREAD_DOT_SIZE = 8.dp
+
 /**
  * The unread marker that leads every list row (`docs/avatars.md`), in the row's start padding so it
- * costs the text no width. A read row keeps the space, so the avatars stay in one column.
+ * costs the text no width. A read row keeps the space, so the avatars stay in one column. The dot
+ * sits at the start of its space, so a gap stands between it and the avatar.
  */
 @Composable
 internal fun UnreadDot(unread: Boolean, height: Dp = 40.dp) {
-    Box(modifier = Modifier.size(width = 12.dp, height = height), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.size(width = 12.dp, height = height), contentAlignment = Alignment.CenterStart) {
         if (unread) {
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(UNREAD_DOT_SIZE)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
                     .testTag("unread-dot")

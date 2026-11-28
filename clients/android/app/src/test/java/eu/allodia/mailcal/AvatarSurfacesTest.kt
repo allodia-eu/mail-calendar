@@ -35,8 +35,8 @@ class AvatarSurfacesTest {
         val avatar = compose.onNodeWithTag("mail-avatar", useUnmergedTree = true)
             .fetchSemanticsNode()
             .boundsInRoot
-        // In the row's start padding, so the text keeps its width.
-        assertTrue(dot.right <= avatar.left)
+        // In the row's start padding, so the text keeps its width, and clear of the avatar.
+        assertTrue(avatar.left - dot.right >= 3f * density)
         assertEquals(16f * density, avatar.left, 1f)
     }
 
