@@ -279,6 +279,7 @@ proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.20.0](changelog/released/0.20.0.md) | 2026-11-27 | An open message on Android scrolls as one page, answers from the foot of the screen, and keeps the tabs · A message is written on the page it will be read on · Nextcloud from its address alone · …21 more |
 | [0.19.0](changelog/released/0.19.0.md) | 2026-11-21 | The calendar keeps one day in focus across its views · The calendar has a pane of its own · Message importance: read it, and send it · …25 more |
 | [0.18.1](changelog/released/0.18.1.md) | 2026-11-17 | Windows opens again when the app follows the system language |
 | [0.18.0](changelog/released/0.18.0.md) | 2026-11-16 | A composer's files show a picture of themselves and their total size · The composer lists its files above the message and scrolls as one page · The formatting toolbar stays in view while writing a long message · …29 more |

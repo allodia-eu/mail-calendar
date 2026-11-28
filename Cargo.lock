@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "allodia-license"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "base64 0.23.1",
  "mailcal-ai",
@@ -2234,7 +2234,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-account"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2271,7 +2271,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-ai"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "log",
  "mailcal-jurisdiction",
@@ -2284,7 +2284,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-app"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2311,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-autodetect"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "async-trait",
  "engine-tls",
@@ -2330,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-bindgen-cs"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "tempfile",
  "uniffi-bindgen-cs",
@@ -2338,14 +2338,14 @@ dependencies = [
 
 [[package]]
 name = "mailcal-bindgen-uniffi"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "uniffi",
 ]
 
 [[package]]
 name = "mailcal-bindings"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "allodia-license",
  "async-trait",
@@ -2386,14 +2386,14 @@ dependencies = [
 
 [[package]]
 name = "mailcal-buildenv"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "tempfile",
 ]
 
 [[package]]
 name = "mailcal-composer"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "encoding_rs",
  "engine-html",
@@ -2403,14 +2403,14 @@ dependencies = [
 
 [[package]]
 name = "mailcal-ffi"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "mailcal-bindings",
 ]
 
 [[package]]
 name = "mailcal-jurisdiction"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "serde",
  "toml 1.1.8+spec-1.1.0",
@@ -2418,7 +2418,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-l10n"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -2426,7 +2426,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-linux"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "ashpd",
  "base64 0.23.1",
@@ -2451,7 +2451,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-mcp"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2468,7 +2468,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-mcp-shim"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "mailcal-l10n",
  "serde_json",
@@ -2478,7 +2478,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-nextcloud"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "engine-tls",
  "log",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-oauth"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "base64 0.23.1",
  "engine-tls",
@@ -2512,7 +2512,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-telemetry"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "engine-tls",
  "log",
@@ -2526,14 +2526,14 @@ dependencies = [
 
 [[package]]
 name = "mailcal-user-agent"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "mailcal-l10n",
 ]
 
 [[package]]
 name = "mailcal-viewmodel"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "engine-api",
  "engine-core",
@@ -2541,7 +2541,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-vpointer"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "wayland-client",
  "wayland-protocols-wlr",
@@ -5112,7 +5112,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.19.0"
+version = "0.20.0"
 
 [[package]]
 name = "yasna"
